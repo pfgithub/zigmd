@@ -199,6 +199,10 @@ pub fn main() !void {
             try stdout.print("MouseMotion: {}\n", .{event.motion});
         } else if (event.type == c.SDL_MOUSEWHEEL) {
             try stdout.print("MouseWheel: {}\n", .{event.wheel});
+        } else if (event.type == c.SDL_KEYDOWN) {
+            try stdout.print("KeyDown: {} {}\n", .{ event.key.keysym.sym, event.key.keysym.mod });
+        } else if (event.type == c.SDL_KEYDOWN) {
+            try stdout.print("KeyUp: {} {}\n", .{ event.key.keysym.sym, event.key.keysym.mod });
         } else {
             try stdout.print("Event: {}\n", .{event.type});
         }
