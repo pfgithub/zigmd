@@ -27,6 +27,32 @@ pub const ImGlobals = struct {
     // if(click) click = false // stopPropagation
 };
 
+const TextSize = struct {
+    w: c_int,
+    h: c_int,
+};
+
+pub fn measureText(font: *c.TTF_Font, text: [*c]const u8) !TextSize {
+    var w: c_int = undefined;
+    var h: c_int = undefined;
+    if (c.TTF_SizeUTF8(font, text, &w, &h) < 0) return ttfError();
+    return TextSize{ .w = w, .h = h };
+}
+
+pub fn renderText(renderer: *c.SDL_Renderer, font: *c.TTF_Font, color: c.SDL_Color, text: [*c]const u8, x: c_int, y: c_int, size: TextSize) !void {
+    var surface = c.TTF_RenderUTF8_Solid(font, text, color);
+    defer c.SDL_FreeSurface(surface);
+    var texture = c.SDL_CreateTextureFromSurface(renderer, surface);
+    defer c.SDL_DestroyTexture(texture);
+    var rect = c.SDL_Rect{
+        .x = x,
+        .y = y,
+        .w = size.w,
+        .h = size.h,
+    };
+    if (c.SDL_RenderCopy(renderer, texture, null, &rect) < 0) return sdlError();
+}
+
 pub const App = struct {
     code: CodeList,
     scrollY: i32, // scrollX is only for individual parts of the UI, such as tables.
@@ -45,23 +71,47 @@ pub const App = struct {
         // if the recalculation is above the screen, increase the scroll by that number
         // if click and mouse position is within the character, set the cursor either before or after
         // if it fits on screen, render it
-        var surface = c.TTF_RenderText_Solid(font, "hi", color);
-        defer c.SDL_FreeSurface(surface);
-        var texture = c.SDL_CreateTextureFromSurface(renderer, surface);
-        defer c.SDL_DestroyTexture(texture);
-        var rect = c.SDL_Rect{
-            .x = 0,
-            .y = 0,
-            .w = 100,
-            .h = 100,
-        };
-        if (c.SDL_RenderCopy(renderer, texture, null, &rect) < 0) return sdlError();
+        var screenWidth: c_int = 0;
+        var screenHeight: c_int = 0;
+
+        if (c.SDL_GetRendererOutputSize(renderer, &screenWidth, &screenHeight) < 0) return sdlError();
+
+        var x: c_int = 0;
+        var y: c_int = 0;
+        var lineHeight: c_int = 10;
+        for ([_](*const [1:0]u8){ "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", "\n", "h", "i", " ", "h", "i", " ", "h", "i", " ", "h", "i", " ", "h", "i", " ", "h", "i", " ", "h", "i", " ", "h", "i", " ", "h", "i" }) |char| {
+            if (char[0] == '\n') {
+                x = 0;
+                y += lineHeight;
+                lineHeight = 10;
+            } else {
+                var textSize = try measureText(font, char);
+                if (x + textSize.w > screenWidth) {
+                    x = 0;
+                    y += lineHeight;
+                    lineHeight = 10;
+                }
+                try renderText(renderer, font, color, char, x, y, textSize);
+                x += textSize.w;
+                if (lineHeight < textSize.h) lineHeight = textSize.h;
+            }
+        }
     }
 };
 
-fn sdlError() !void {
-    _ = c.printf("SDL_Init Failed: %s\n", c.SDL_GetError());
-    return error.SDLError;
+const SDLErrors = error{
+    SDLError,
+    TTFError,
+};
+
+fn sdlError() SDLErrors {
+    _ = c.printf("SDL Method Failed: %s\n", c.SDL_GetError());
+    return SDLErrors.SDLError;
+}
+
+fn ttfError() SDLErrors {
+    _ = c.printf("TTF Method Failed: %s\n", c.TTF_GetError());
+    return SDLErrors.TTFError;
 }
 
 pub fn main() !void {
@@ -82,7 +132,7 @@ pub fn main() !void {
     defer c.SDL_DestroyRenderer(renderer);
 
     var font = c.TTF_OpenFont("font/FreeSans.ttf", 24);
-    if (font == null) return sdlError();
+    if (font == null) return ttfError();
 
     var appV = App.init();
     var app = &appV;
