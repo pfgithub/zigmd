@@ -6,6 +6,7 @@ pub fn build(b: *Builder) void {
     exe.setBuildMode(mode);
     exe.linkLibC();
     exe.linkSystemLibrary("SDL2");
+    exe.linkSystemLibrary("SDL2_ttf");
     exe.install();
 
     const run_cmd = exe.run();
