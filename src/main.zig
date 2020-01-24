@@ -53,6 +53,37 @@ pub fn renderText(renderer: *c.SDL_Renderer, font: *c.TTF_Font, color: c.SDL_Col
     if (c.SDL_RenderCopy(renderer, texture, null, &rect) < 0) return sdlError();
 }
 
+pub const Color = struct {
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8,
+    fn rgb(r: u8, g: u8, b: u8) Color {
+        return Color.rgba(r, g, b, 255);
+    }
+    fn rgba(r: u8, g: u8, b: u8, a: u8) Color {
+        return Color{ .r = r, .g = g, .b = b, .a = a };
+    }
+    fn fromSDL(color: c.SDL_Color) Color {
+        return Color{ .r = color.r, .g = color.g, .b = color.b, .a = color.a };
+    }
+    fn toSDL(color: Color) c.SDL_Color {
+        return c.SDL_Color{ .r = color.r, .g = color.g, .b = color.b, .a = color.a };
+    }
+};
+
+pub const Style = struct {
+    colors: struct {
+        text: Color,
+        control: Color,
+        background: Color,
+    },
+    fonts: struct {
+        standard: *c.TTF_Font,
+        bold: *c.TTF_Font,
+    },
+};
+
 pub const App = struct {
     code: CodeList,
     scrollY: i32, // scrollX is only for individual parts of the UI, such as tables.
@@ -64,7 +95,7 @@ pub const App = struct {
     }
     fn deinit(app: *App) void {}
 
-    fn render(app: *App, renderer: *c.SDL_Renderer, font: *c.TTF_Font, color: c.SDL_Color) !void {
+    fn render(app: *App, renderer: *c.SDL_Renderer, style: *const Style) !void {
         // loop over app.code
         // check scroll value
         // if the line height hasn't been calculated OR recalculate all is set, calculate it
@@ -79,19 +110,25 @@ pub const App = struct {
         var x: c_int = 0;
         var y: c_int = 0;
         var lineHeight: c_int = 10;
-        for ([_](*const [1:0]u8){ "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", " ", "h", "e", "l", "l", "o", " ", "t", "h", "e", "r", "e", "\n", "\n", "h", "i", " ", "h", "i", " ", "h", "i", " ", "h", "i", " ", "h", "i", " ", "h", "i", " ", "h", "i", " ", "h", "i", " ", "h", "i", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@", "@" }) |char| {
+        for ([_](*const [1:0]u8){ "m", "a", "r", "k", "d", "o", "w", "n", " ", "*", "*", "t", "e", "s", "t", "*", "*" }) |char| {
             if (char[0] == '\n') {
                 x = 0;
                 y += lineHeight;
                 lineHeight = 10;
             } else {
+                var font = style.fonts.standard;
                 var textSize = try measureText(font, char);
                 if (x + textSize.w > screenWidth) {
                     x = 0;
                     y += lineHeight;
                     lineHeight = 10;
                 }
-                try renderText(renderer, font, color, char, x, y, textSize);
+                var color = switch (char[0]) {
+                    '*' => style.colors.control,
+                    '\\' => style.colors.control,
+                    else => style.colors.text,
+                };
+                try renderText(renderer, font, color.toSDL(), char, x, y, textSize);
                 x += textSize.w;
                 if (lineHeight < textSize.h) lineHeight = textSize.h;
             }
@@ -133,9 +170,23 @@ pub fn main() !void {
 
     var font = c.TTF_OpenFont("font/FreeSans.ttf", 24);
     if (font == null) return ttfError();
+    var fontbold = c.TTF_OpenFont("font/FreeSans.ttf", 24);
+    if (fontbold == null) return ttfError();
 
     var appV = App.init();
     var app = &appV;
+
+    var style = Style{
+        .colors = .{
+            .text = Color.rgb(255, 255, 255),
+            .control = Color.rgb(128, 128, 128),
+            .background = Color.rgb(0, 0, 0),
+        },
+        .fonts = .{
+            .standard = font.?,
+            .bold = fontbold.?,
+        },
+    };
 
     var event: c.SDL_Event = undefined;
     // if in foreground, loop pollevent
@@ -153,7 +204,7 @@ pub fn main() !void {
         }
 
         if (c.SDL_RenderClear(renderer) < 0) return sdlError();
-        try app.render(renderer.?, font.?, c.SDL_Color{ .r = 255, .g = 255, .b = 255, .a = 255 });
+        try app.render(renderer.?, &style);
         c.SDL_RenderPresent(renderer);
     }
 
