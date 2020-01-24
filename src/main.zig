@@ -20,6 +20,16 @@ pub fn main() !void {
 
     _ = c.SDL_FillRect(screenSurface, null, c.SDL_MapRGB(screenSurface.*.format, 0xFF, 0xFF, 0xFF));
     _ = c.SDL_UpdateWindowSurface(window);
-    c.SDL_Delay(2000);
+    
+    var event: c.SDL_Event = undefined;
+    while(c.SDL_WaitEvent(&event) != 0){
+        if(event.type == c.SDL_QUIT){
+            break;
+        }
+        try stdout.print("Event: {}\n", .{event.type});
+    }
+    
+    try stdout.print("Quitting!\n", .{});
+    
     c.SDL_DestroyWindow(window);
 }
