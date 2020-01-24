@@ -188,9 +188,11 @@ pub fn main() !void {
         },
     };
 
-    var event: c.SDL_Event = undefined;
+    c.SDL_StartTextInput();
+
     // if in foreground, loop pollevent
     // if in background, waitevent
+    var event: c.SDL_Event = undefined;
     while (c.SDL_WaitEvent(&event) != 0) {
         if (event.type == c.SDL_QUIT) {
             break;
@@ -200,9 +202,11 @@ pub fn main() !void {
         } else if (event.type == c.SDL_MOUSEWHEEL) {
             try stdout.print("MouseWheel: {}\n", .{event.wheel});
         } else if (event.type == c.SDL_KEYDOWN) {
+            // use for hotkeys
             try stdout.print("KeyDown: {} {}\n", .{ event.key.keysym.sym, event.key.keysym.mod });
-        } else if (event.type == c.SDL_KEYDOWN) {
-            try stdout.print("KeyUp: {} {}\n", .{ event.key.keysym.sym, event.key.keysym.mod });
+        } else if (event.type == c.SDL_TEXTINPUT) {
+            // use for typing
+            try stdout.print("TextInput: {}\n", .{event.text});
         } else {
             try stdout.print("Event: {}\n", .{event.type});
         }
