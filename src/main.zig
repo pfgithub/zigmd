@@ -42,30 +42,30 @@ pub fn measureText(font: *c.TTF_Font, text: [*c]const u8) !TextSize {
 }
 
 const Font = struct {
-    fn init(ttfPath: []const u8) {}
-    fn deinit() {}
+    fn init(ttfPath: []const u8) void {}
+    fn deinit() void {}
 };
 
 const Init = struct {
-    fn init(){
-        
+    fn init() void {
+
     }
-    fn deinit(init: *Init){
-        
+    fn deinit(init: *Init) void {
+
     }
 };
 
 const Window = struct {
     window: *c.SDL_Window,
     renderer: *c.SDL_Renderer,
-    fn init(){
-        
+    fn init() void {
+
     }
-    fn deinit(window: *Window) {
-        
+    fn deinit(window: *Window) void {
+
     }
-    fn renderText(window: *Window, font: Font, color: Color, text: []const u8) {
-        
+    fn renderText(window: *Window, font: Font, color: Color, text: []const u8) void {
+
     }
 };
 
@@ -117,10 +117,12 @@ pub const Style = struct {
 pub const App = struct {
     code: CodeList,
     scrollY: i32, // scrollX is only for individual parts of the UI, such as tables.
-    fn init() App {
+    alloc: *std.mem.Allocator,
+    fn init(alloc: *std.mem.Allocator) App {
         return .{
             .code = CodeList.init(),
             .scrollY = 0,
+            .alloc = alloc,
         };
     }
     fn deinit(app: *App) void {}
@@ -134,7 +136,7 @@ pub const App = struct {
         // if it fits on screen, render it
         var screenWidth: c_int = 0;
         var screenHeight: c_int = 0;
-        
+
         // var renderAllocator = arena allocator
         // defer renderAllocator.deinit();
         // unfortunately we can't do this because sdl is written in c and uses malloc and free
@@ -186,6 +188,8 @@ fn ttfError() SDLErrors {
 }
 
 pub fn main() !void {
+    const alloc = std.heap.page_allocator;
+
     const stdout = &std.io.getStdOut().outStream().stream;
     try stdout.print("Hello, {}!\n", .{"world"});
 
@@ -207,7 +211,7 @@ pub fn main() !void {
     var fontbold = c.TTF_OpenFont("font/FreeSans.ttf", 24);
     if (fontbold == null) return ttfError();
 
-    var appV = App.init();
+    var appV = App.init(alloc);
     var app = &appV;
 
     var style = Style{
