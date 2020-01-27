@@ -1,11 +1,5 @@
-const c = @cImport({
-    @cDefine("_NO_CRT_STDIO_INLINE", "1");
-    @cInclude("stdio.h");
-    @cInclude("SDL.h");
-    @cInclude("SDL_ttf.h");
-});
-
 const std = @import("std");
+const win = @import("./rendering_abstraction.zig");
 const List = std.SinglyLinkedList;
 const ArrayList = std.ArrayList;
 
@@ -29,88 +23,15 @@ pub const ImGlobals = struct {
     // if(click) click = false // stopPropagation
 };
 
-const TextSize = struct {
-    w: c_int,
-    h: c_int,
-};
-
-pub fn measureText(font: *c.TTF_Font, text: [*c]const u8) !TextSize {
-    var w: c_int = undefined;
-    var h: c_int = undefined;
-    if (c.TTF_SizeUTF8(font, text, &w, &h) < 0) return ttfError();
-    return TextSize{ .w = w, .h = h };
-}
-
-const Font = struct {
-    fn init(ttfPath: []const u8) void {}
-    fn deinit() void {}
-};
-
-const Init = struct {
-    fn init() void {
-
-    }
-    fn deinit(init: *Init) void {
-
-    }
-};
-
-const Window = struct {
-    window: *c.SDL_Window,
-    renderer: *c.SDL_Renderer,
-    fn init() void {
-
-    }
-    fn deinit(window: *Window) void {
-
-    }
-    fn renderText(window: *Window, font: Font, color: Color, text: []const u8) void {
-
-    }
-};
-
-pub fn renderText(renderer: *c.SDL_Renderer, font: *c.TTF_Font, color: c.SDL_Color, text: [*c]const u8, x: c_int, y: c_int, size: TextSize) !void {
-    var surface = c.TTF_RenderUTF8_Solid(font, text, color);
-    defer c.SDL_FreeSurface(surface);
-    var texture = c.SDL_CreateTextureFromSurface(renderer, surface);
-    defer c.SDL_DestroyTexture(texture);
-    var rect = c.SDL_Rect{
-        .x = x,
-        .y = y,
-        .w = size.w,
-        .h = size.h,
-    };
-    if (c.SDL_RenderCopy(renderer, texture, null, &rect) < 0) return sdlError();
-}
-
-pub const Color = struct {
-    r: u8,
-    g: u8,
-    b: u8,
-    a: u8,
-    fn rgb(r: u8, g: u8, b: u8) Color {
-        return Color.rgba(r, g, b, 255);
-    }
-    fn rgba(r: u8, g: u8, b: u8, a: u8) Color {
-        return Color{ .r = r, .g = g, .b = b, .a = a };
-    }
-    fn fromSDL(color: c.SDL_Color) Color {
-        return Color{ .r = color.r, .g = color.g, .b = color.b, .a = color.a };
-    }
-    fn toSDL(color: Color) c.SDL_Color {
-        return c.SDL_Color{ .r = color.r, .g = color.g, .b = color.b, .a = color.a };
-    }
-};
-
 pub const Style = struct {
     colors: struct {
-        text: Color,
-        control: Color,
-        background: Color,
+        text: win.Color,
+        control: win.Color,
+        background: win.Color,
     },
     fonts: struct {
-        standard: *c.TTF_Font,
-        bold: *c.TTF_Font,
+        standard: win.Font,
+        bold: win.Font,
     },
 };
 
@@ -127,21 +48,16 @@ pub const App = struct {
     }
     fn deinit(app: *App) void {}
 
-    fn render(app: *App, renderer: *c.SDL_Renderer, style: *const Style) !void {
+    fn render(app: *App, window: *win.Window, style: *const Style) !void {
         // loop over app.code
         // check scroll value
         // if the line height hasn't been calculated OR recalculate all is set, calculate it
         // if the recalculation is above the screen, increase the scroll by that number
         // if click and mouse position is within the character, set the cursor either before or after
         // if it fits on screen, render it
-        var screenWidth: c_int = 0;
-        var screenHeight: c_int = 0;
-
-        // var renderAllocator = arena allocator
-        // defer renderAllocator.deinit();
-        // unfortunately we can't do this because sdl is written in c and uses malloc and free
-
-        if (c.SDL_GetRendererOutputSize(renderer, &screenWidth, &screenHeight) < 0) return sdlError();
+        var screenSize = window.getSize();
+        var screenWidth: c_int = screenSize.w;
+        var screenHeight: c_int = screenSize.h;
 
         var x: c_int = 0;
         var y: c_int = 0;
@@ -153,7 +69,7 @@ pub const App = struct {
                 lineHeight = 10;
             } else {
                 var font = style.fonts.standard;
-                var textSize = try measureText(font, char);
+                var textSize = try win.measureText(window, font, char);
                 if (x + textSize.w > screenWidth) {
                     x = 0;
                     y += lineHeight;
@@ -164,7 +80,7 @@ pub const App = struct {
                     '\\' => style.colors.control,
                     else => style.colors.text,
                 };
-                try renderText(renderer, font, color.toSDL(), char, x, y, textSize);
+                try win.renderText(window, renderer, font, color.toSDL(), char, x, y, textSize);
                 x += textSize.w;
                 if (lineHeight < textSize.h) lineHeight = textSize.h;
             }
@@ -172,61 +88,38 @@ pub const App = struct {
     }
 };
 
-const SDLErrors = error{
-    SDLError,
-    TTFError,
-};
-
-fn sdlError() SDLErrors {
-    _ = c.printf("SDL Method Failed: %s\n", c.SDL_GetError());
-    return SDLErrors.SDLError;
-}
-
-fn ttfError() SDLErrors {
-    _ = c.printf("TTF Method Failed: %s\n", c.TTF_GetError());
-    return SDLErrors.TTFError;
-}
-
 pub fn main() !void {
     const alloc = std.heap.page_allocator;
 
     const stdout = &std.io.getStdOut().outStream().stream;
     try stdout.print("Hello, {}!\n", .{"world"});
 
-    if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) return sdlError();
-    defer c.SDL_Quit();
+    try win.init();
+    defer win.deinit();
 
-    if (c.TTF_Init() < 0) return sdlError();
-    defer c.TTF_Quit();
+    var window = try win.Window.init();
 
-    var window = c.SDL_CreateWindow("hello_sdl2", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, 640, 480, c.SDL_WINDOW_SHOWN | c.SDL_WINDOW_RESIZABLE);
-    if (window == null) return sdlError();
-    defer c.SDL_DestroyWindow(window);
-    var renderer = c.SDL_CreateRenderer(window, -1, c.SDL_RENDERER_ACCELERATED);
-    if (renderer == null) return sdlError();
-    defer c.SDL_DestroyRenderer(renderer);
-
-    var font = c.TTF_OpenFont("font/FreeSans.ttf", 24);
-    if (font == null) return ttfError();
-    var fontbold = c.TTF_OpenFont("font/FreeSans.ttf", 24);
-    if (fontbold == null) return ttfError();
+    var standardFont = try win.Font.init("font/FreeSans.ttf");
+    defer standardFont.deinit();
+    var boldFont = try win.Font.init("font/FreeSansBold.ttf");
+    defer boldFont.deinit();
 
     var appV = App.init(alloc);
     var app = &appV;
 
     var style = Style{
         .colors = .{
-            .text = Color.rgb(255, 255, 255),
-            .control = Color.rgb(128, 128, 128),
-            .background = Color.rgb(0, 0, 0),
+            .text = win.Color.rgb(255, 255, 255),
+            .control = win.Color.rgb(128, 128, 128),
+            .background = win.Color.rgb(0, 0, 0),
         },
         .fonts = .{
-            .standard = font.?,
-            .bold = fontbold.?,
+            .standard = standardFont,
+            .bold = boldFont,
         },
     };
 
-    c.SDL_StartTextInput();
+     // only if mode has raw text input flag set
 
     // if in foreground, loop pollevent
     // if in background, waitevent
@@ -249,9 +142,9 @@ pub fn main() !void {
             try stdout.print("Event: {}\n", .{event.type});
         }
 
-        if (c.SDL_RenderClear(renderer) < 0) return sdlError();
-        try app.render(renderer.?, &style);
-        c.SDL_RenderPresent(renderer);
+        try window.clear();
+        try app.render(window, &style);
+        window.present();
     }
 
     try stdout.print("Quitting!\n", .{});
