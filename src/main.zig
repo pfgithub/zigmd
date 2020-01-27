@@ -7,12 +7,14 @@ const c = @cImport({
 
 const std = @import("std");
 const List = std.SinglyLinkedList;
+const ArrayList = std.ArrayList;
 
 const CodeLine = struct {
-    code: []u8,
+    code: String,
     height: ?u32, // update whenever height is calculated, such as when rendering text
 };
 const CodeList = List([]CodeLine);
+const String = ArrayList(u8);
 
 pub const ImDataStore = struct {
     // data: Map(key: u128, value: *ImData)
@@ -38,6 +40,34 @@ pub fn measureText(font: *c.TTF_Font, text: [*c]const u8) !TextSize {
     if (c.TTF_SizeUTF8(font, text, &w, &h) < 0) return ttfError();
     return TextSize{ .w = w, .h = h };
 }
+
+const Font = struct {
+    fn init(ttfPath: []const u8) {}
+    fn deinit() {}
+};
+
+const Init = struct {
+    fn init(){
+        
+    }
+    fn deinit(init: *Init){
+        
+    }
+};
+
+const Window = struct {
+    window: *c.SDL_Window,
+    renderer: *c.SDL_Renderer,
+    fn init(){
+        
+    }
+    fn deinit(window: *Window) {
+        
+    }
+    fn renderText(window: *Window, font: Font, color: Color, text: []const u8) {
+        
+    }
+};
 
 pub fn renderText(renderer: *c.SDL_Renderer, font: *c.TTF_Font, color: c.SDL_Color, text: [*c]const u8, x: c_int, y: c_int, size: TextSize) !void {
     var surface = c.TTF_RenderUTF8_Solid(font, text, color);
@@ -104,6 +134,10 @@ pub const App = struct {
         // if it fits on screen, render it
         var screenWidth: c_int = 0;
         var screenHeight: c_int = 0;
+        
+        // var renderAllocator = arena allocator
+        // defer renderAllocator.deinit();
+        // unfortunately we can't do this because sdl is written in c and uses malloc and free
 
         if (c.SDL_GetRendererOutputSize(renderer, &screenWidth, &screenHeight) < 0) return sdlError();
 
