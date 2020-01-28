@@ -55,7 +55,7 @@ pub const App = struct {
         // if the recalculation is above the screen, increase the scroll by that number
         // if click and mouse position is within the character, set the cursor either before or after
         // if it fits on screen, render it
-        var screenSize = window.getSize();
+        var screenSize = try window.getSize();
         var screenWidth: c_int = screenSize.w;
         var screenHeight: c_int = screenSize.h;
 
@@ -68,8 +68,8 @@ pub const App = struct {
                 y += lineHeight;
                 lineHeight = 10;
             } else {
-                var font = style.fonts.standard;
-                var textSize = try win.measureText(window, font, char);
+                var font = &style.fonts.standard;
+                var textSize = try win.measureText(font, char);
                 if (x + textSize.w > screenWidth) {
                     x = 0;
                     y += lineHeight;
@@ -80,7 +80,7 @@ pub const App = struct {
                     '\\' => style.colors.control,
                     else => style.colors.text,
                 };
-                try win.renderText(window, renderer, font, color.toSDL(), char, x, y, textSize);
+                try win.renderText(window, font, color, char, x, y, textSize);
                 x += textSize.w;
                 if (lineHeight < textSize.h) lineHeight = textSize.h;
             }
@@ -119,33 +119,27 @@ pub fn main() !void {
         },
     };
 
+    defer stdout.print("Quitting!\n", .{}) catch unreachable;
+
      // only if mode has raw text input flag set
 
     // if in foreground, loop pollevent
     // if in background, waitevent
-    var event: c.SDL_Event = undefined;
-    while (c.SDL_WaitEvent(&event) != 0) {
-        if (event.type == c.SDL_QUIT) {
-            break;
-        }
-        if (event.type == c.SDL_MOUSEMOTION) {
-            try stdout.print("MouseMotion: {}\n", .{event.motion});
-        } else if (event.type == c.SDL_MOUSEWHEEL) {
-            try stdout.print("MouseWheel: {}\n", .{event.wheel});
-        } else if (event.type == c.SDL_KEYDOWN) {
-            // use for hotkeys
-            try stdout.print("KeyDown: {} {}\n", .{ event.key.keysym.sym, event.key.keysym.mod });
-        } else if (event.type == c.SDL_TEXTINPUT) {
-            // use for typing
-            try stdout.print("TextInput: {}\n", .{event.text});
-        } else {
-            try stdout.print("Event: {}\n", .{event.type});
+
+    while (true) blk: {
+        var event = try window.waitEvent();
+        switch(event) {
+            win.Event.Type.Quit => |event_| {
+                try stdout.print("QuitEvent: {}\n", .{event_});
+                return;
+            },
+            win.Event.Type.Unknown => |event_| { // !!! zig should allow |event| but doesn't here
+                try stdout.print("UnknownEvent: {}\n", .{event_});
+            },
         }
 
         try window.clear();
-        try app.render(window, &style);
+        try app.render(&window, &style);
         window.present();
     }
-
-    try stdout.print("Quitting!\n", .{});
 }

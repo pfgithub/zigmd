@@ -62,6 +62,38 @@ pub const WindowSize = struct {
     h: c_int,
 };
 
+pub const Event = union(enum) {
+    Quit: void,
+    pub const UnknownEvent = struct {
+        type: u32,
+    };
+    Unknown: UnknownEvent,
+    fn fromSDL(event: c.SDL_Event) Event{
+        return switch(event.type) {
+            c.SDL_QUIT => Event {.Quit = {} },
+            else => Event {.Unknown = UnknownEvent {.type = event.type} },
+        };
+
+        // if (event.type == c.SDL_QUIT) {
+        //     break;
+        // }
+        // if (event.type == c.SDL_MOUSEMOTION) {
+        //     try stdout.print("MouseMotion: {}\n", .{event.motion});
+        // } else if (event.type == c.SDL_MOUSEWHEEL) {
+        //     try stdout.print("MouseWheel: {}\n", .{event.wheel});
+        // } else if (event.type == c.SDL_KEYDOWN) {
+        //     // use for hotkeys
+        //     try stdout.print("KeyDown: {} {}\n", .{ event.key.keysym.sym, event.key.keysym.mod });
+        // } else if (event.type == c.SDL_TEXTINPUT) {
+        //     // use for typing
+        //     try stdout.print("TextInput: {}\n", .{event.text});
+        // } else {
+        //     try stdout.print("Event: {}\n", .{event.type});
+        // }
+    }
+    pub const Type = @TagType(Event);
+};
+
 pub const Window = struct {
     sdlWindow: *c.SDL_Window,
     sdlRenderer: *c.SDL_Renderer,
@@ -91,11 +123,17 @@ pub const Window = struct {
         c.SDL_DestroyWindow(window.sdlWindow);
     }
 
+    pub fn waitEvent(window: *Window) !Event {
+        var event: c.SDL_Event = undefined;
+        if(c.SDL_WaitEvent(&event) != 1) return sdlError();
+        return Event.fromSDL(event);
+    }
+
     pub fn clear(window: *Window) !void {
-        if (c.SDL_RenderClear(renderer) < 0) return sdlError();
+        if (c.SDL_RenderClear(window.sdlRenderer) < 0) return sdlError();
     }
     pub fn present(window: *Window) void {
-        c.SDL_RenderPresent(renderer);
+        c.SDL_RenderPresent(window.sdlRenderer);
     }
     pub fn getSize(window: *Window) !WindowSize {
         var screenWidth: c_int = undefined;
@@ -112,15 +150,15 @@ pub const TextSize = struct {
     w: c_int,
     h: c_int,
 };
-pub fn measureText(font: *Font, text: [*c]const u8) !TextSize {
+pub fn measureText(font: *const Font, text: [*c]const u8) !TextSize {
     var w: c_int = undefined;
     var h: c_int = undefined;
     if (c.TTF_SizeUTF8(font.sdlFont, text, &w, &h) < 0) return ttfError();
     return TextSize{ .w = w, .h = h };
 }
 
-pub fn renderText(window: *Window, font: *Font, color: Color, text: [*c]const u8, x: u32, y: u32, size: TextSize) !void {
-    var surface = c.TTF_RenderUTF8_Solid(font.sdlFont, text, color);
+pub fn renderText(window: *const Window, font: *const Font, color: Color, text: [*c]const u8, x: c_int, y: c_int, size: TextSize) !void {
+    var surface = c.TTF_RenderUTF8_Solid(font.sdlFont, text, color.toSDL());
     defer c.SDL_FreeSurface(surface);
     var texture = c.SDL_CreateTextureFromSurface(window.sdlRenderer, surface);
     defer c.SDL_DestroyTexture(texture);
