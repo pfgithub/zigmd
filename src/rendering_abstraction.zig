@@ -91,7 +91,7 @@ pub const Event = union(enum) {
         //     try stdout.print("Event: {}\n", .{event.type});
         // }
     }
-    pub const Type = @TagType(Event);
+    pub const Type = @TagType(@This());
 };
 
 pub const Window = struct {

@@ -32,7 +32,100 @@ pub const Style = struct {
     fonts: struct {
         standard: win.Font,
         bold: win.Font,
+        italic: win.Font,
+        bolditalic: win.Font,
     },
+};
+
+pub const HLColor = enum {
+    text,
+    control
+};
+
+pub const HLFont = enum {
+    normal,
+    bold,
+    italic,
+    bolditalic,
+};
+
+pub const ParsingState = struct {
+    bold: bool,
+    italic: bool,
+    const ModeProgress = union(enum) {
+        stars: u8,
+        backticks: u8,
+        none: void,
+        pub const Type = @TagType(@This());
+    };
+    modeProgress: ModeProgress,
+    fn default() ParsingState {
+        return ParsingState {
+            .bold = false,
+            .italic = false,
+            .modeProgress = ModeProgress{.none = {}},
+        };
+    }
+    fn getFont(this: *ParsingState) HLFont {
+        if(this.bold and this.italic){
+            return HLFont.bolditalic;
+        }else if(this.bold){
+            return HLFont.bold;
+        }else if(this.italic){
+            return HLFont.italic;
+        }else{
+            return HLFont.normal;
+        }
+    }
+    fn commitState(this: *ParsingState) void {
+        switch(this.modeProgress) {
+            .stars => |stars| {
+                if(stars == 1) {
+                    this.italic =! this.italic;
+                }else if(stars == 2){
+                    this.bold =! this.bold;
+                }else if(stars == 3){
+                    this.italic =! this.italic;
+                    this.bold =! this.bold;
+                }else{
+                    std.debug.warn("[unreachable] Stars: {}", .{stars});
+                }
+            },
+            .backticks => |backticks| {
+                // 1 = nothing, 3 = enter multiline code block
+                std.debug.warn("[unreachable] Backticks: {}", .{backticks});
+            },
+            .none => {},
+        }
+        this.modeProgress = ModeProgress {.none = {}};
+    }
+    fn handleCharacter(this: *ParsingState, char: u8) HLColor {
+        // if state is multiline code block, ignore probably
+        // or other similar things
+        return switch(char) {
+            '*' => {
+                switch(this.modeProgress) {
+                    .stars => |stars| {
+                        if(stars >= 3){
+                            this.commitState();
+                            this.modeProgress = ModeProgress {.stars = 1};
+                        }else{
+                            this.modeProgress = ModeProgress {.stars = stars + 1};
+                        }
+                    },
+                    else => {
+                        this.commitState();
+                        this.modeProgress = ModeProgress {.stars = 1};
+                    }
+                }
+                return HLColor.control;
+            },
+            else => {
+                this.commitState();
+                return HLColor.text;
+            },
+        };
+    }
 };
 
 pub const App = struct {
@@ -59,26 +152,38 @@ pub const App = struct {
         var screenWidth: c_int = screenSize.w;
         var screenHeight: c_int = screenSize.h;
 
+        var parsingState = ParsingState.default();
+
         var x: c_int = 0;
         var y: c_int = 0;
         var lineHeight: c_int = 10;
-        for ([_](*const [1:0]u8){ "m", "a", "r", "k", "d", "o", "w", "n", " ", "*", "*", "t", "e", "s", "t", "*", "*" }) |char| {
+        for ([_](*const [1:0]u8){ "m", "a", "r", "k", "d", "o", "w", "n", " ", "*", "*", "t", "e", "s", "t", "*", "*", " ", "*", "i", "t", "a", "l", "i", "c", "*", "*", "b", "o", "l", "d", "i", "t", "a", "l", "i", "c", "*", "b", "o", "l", "d", "*", "*", "." }) |char| {
             if (char[0] == '\n') {
                 x = 0;
                 y += lineHeight;
                 lineHeight = 10;
             } else {
-                var font = &style.fonts.standard;
+                // the font rendering library knows better than us how to kern things
+                // draws should be batched into words, only splitting if the font changes
+                // or if the size is too high.
+                var hlColor = parsingState.handleCharacter(char[0]);
+
+                var font = if(hlColor == .control) &style.fonts.standard
+                else switch(parsingState.getFont()) {
+                    .normal => &style.fonts.standard,
+                    .bold => &style.fonts.bold,
+                    .italic => &style.fonts.italic,
+                    .bolditalic => &style.fonts.bolditalic,
+                };
                 var textSize = try win.measureText(font, char);
                 if (x + textSize.w > screenWidth) {
                     x = 0;
                     y += lineHeight;
                     lineHeight = 10;
                 }
-                var color = switch (char[0]) {
-                    '*' => style.colors.control,
-                    '\\' => style.colors.control,
-                    else => style.colors.text,
+                var color = switch (hlColor) {
+                    .control => style.colors.control,
+                    .text => style.colors.text,
                 };
                 try win.renderText(window, font, color, char, x, y, textSize);
                 x += textSize.w;
@@ -103,6 +208,10 @@ pub fn main() !void {
     defer standardFont.deinit();
     var boldFont = try win.Font.init("font/FreeSansBold.ttf");
     defer boldFont.deinit();
+    var italicFont = try win.Font.init("font/FreeSansOblique.ttf");
+    defer italicFont.deinit();
+    var boldItalicFont = try win.Font.init("font/FreeSansBoldOblique.ttf");
+    defer boldItalicFont.deinit();
 
     var appV = App.init(alloc);
     var app = &appV;
@@ -116,6 +225,8 @@ pub fn main() !void {
         .fonts = .{
             .standard = standardFont,
             .bold = boldFont,
+            .italic = italicFont,
+            .bolditalic = boldItalicFont,
         },
     };
 
@@ -129,11 +240,11 @@ pub fn main() !void {
     while (true) blk: {
         var event = try window.waitEvent();
         switch(event) {
-            win.Event.Type.Quit => |event_| {
+            .Quit => |event_| {
                 try stdout.print("QuitEvent: {}\n", .{event_});
                 return;
             },
-            win.Event.Type.Unknown => |event_| { // !!! zig should allow |event| but doesn't here
+            .Unknown => |event_| { // !!! zig should allow |event| but doesn't here
                 try stdout.print("UnknownEvent: {}\n", .{event_});
             },
         }
