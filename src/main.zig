@@ -142,8 +142,9 @@ const DrawCall = struct {
     y: c_int,
     size: win.TextSize,
 
+    const BlankText = [64:0]u8{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
     const Blank = DrawCall {
-        .current = [64:0]u8{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        .current = BlankText,
         .started = false,
 
         .index = undefined,
@@ -156,7 +157,7 @@ const DrawCall = struct {
 
     pub fn init(drawCall: *DrawCall, font: HLFont, color: HLColor, x: c_int, y: c_int, size: win.TextSize) void {
         drawCall.* = .{
-            .current = drawCall.current,
+            .current = BlankText,
             .started = true,
 
             .index = 0,
