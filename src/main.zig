@@ -249,6 +249,8 @@ pub const App = struct {
             if (!drawCall.started) {
                 const size = try win.measureText(font, char);
                 drawCall.init(hlFont, hlColor, x, y, size);
+                drawCall.current[drawCall.index] = char[0];
+                drawCall.index += 1;
             } else {
                 if (drawCall.font != hlFont or drawCall.color != hlColor or drawCall.index >= 63) {
                     x += drawCall.size.w;
@@ -258,6 +260,8 @@ pub const App = struct {
                     // init();
                     const textSize = try win.measureText(font, char);
                     drawCall.init(hlFont, hlColor, x, y, textSize);
+                    drawCall.current[drawCall.index] = char[0];
+                    drawCall.index += 1;
                 } else {
                     // append current
                     drawCall.current[drawCall.index] = char[0];
@@ -274,6 +278,8 @@ pub const App = struct {
 
                         const size = try win.measureText(font, char);
                         drawCall.init(hlFont, hlColor, x, y, size);
+                        drawCall.current[drawCall.index] = char[0];
+                        drawCall.index += 1;
 
                         x += size.w;
                         y += size.h;
