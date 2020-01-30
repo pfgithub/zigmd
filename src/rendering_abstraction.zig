@@ -29,7 +29,7 @@ pub const Font = struct {
         if (font == null) return ttfError();
         errdefer c.TTF_CloseFont(font);
 
-        return Font {
+        return Font{
             .sdlFont = font.?,
         };
     }
@@ -68,10 +68,10 @@ pub const Event = union(enum) {
         type: u32,
     };
     Unknown: UnknownEvent,
-    fn fromSDL(event: c.SDL_Event) Event{
-        return switch(event.type) {
-            c.SDL_QUIT => Event {.Quit = {} },
-            else => Event {.Unknown = UnknownEvent {.type = event.type} },
+    fn fromSDL(event: c.SDL_Event) Event {
+        return switch (event.type) {
+            c.SDL_QUIT => Event{ .Quit = {} },
+            else => Event{ .Unknown = UnknownEvent{ .type = event.type } },
         };
 
         // if (event.type == c.SDL_QUIT) {
@@ -113,7 +113,7 @@ pub const Window = struct {
         if (renderer == null) return sdlError();
         errdefer c.SDL_DestroyRenderer(renderer);
 
-        return Window {
+        return Window{
             .sdlWindow = window.?,
             .sdlRenderer = renderer.?,
         };
@@ -125,7 +125,7 @@ pub const Window = struct {
 
     pub fn waitEvent(window: *Window) !Event {
         var event: c.SDL_Event = undefined;
-        if(c.SDL_WaitEvent(&event) != 1) return sdlError();
+        if (c.SDL_WaitEvent(&event) != 1) return sdlError();
         return Event.fromSDL(event);
     }
 
@@ -139,7 +139,7 @@ pub const Window = struct {
         var screenWidth: c_int = undefined;
         var screenHeight: c_int = undefined;
         if (c.SDL_GetRendererOutputSize(window.sdlRenderer, &screenWidth, &screenHeight) < 0) return sdlError();
-        return WindowSize {
+        return WindowSize{
             .w = screenWidth,
             .h = screenHeight,
         };
@@ -177,7 +177,6 @@ pub fn init() RenderingError!void {
 
     if (c.TTF_Init() < 0) return sdlError();
     errdefer c.TTF_Quit();
-
 
     c.SDL_StartTextInput(); // todo
 }

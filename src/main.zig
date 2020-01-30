@@ -39,7 +39,7 @@ pub const Style = struct {
 
 pub const HLColor = enum {
     text,
-    control
+    control,
 };
 
 pub const HLFont = enum {
@@ -60,37 +60,37 @@ pub const ParsingState = struct {
     };
     modeProgress: ModeProgress,
     fn default() ParsingState {
-        return ParsingState {
+        return ParsingState{
             .bold = false,
             .italic = false,
-            .modeProgress = ModeProgress{.none = {}},
+            .modeProgress = ModeProgress{ .none = {} },
         };
     }
     fn getFont(this: *ParsingState) HLFont {
-        if(false) { // if is control character
+        if (false) { // if is control character
             return HLFont.normal;
         }
-        if(this.bold and this.italic){
+        if (this.bold and this.italic) {
             return HLFont.bolditalic;
-        }else if(this.bold){
+        } else if (this.bold) {
             return HLFont.bold;
-        }else if(this.italic){
+        } else if (this.italic) {
             return HLFont.italic;
-        }else{
+        } else {
             return HLFont.normal;
         }
     }
     fn commitState(this: *ParsingState) void {
-        switch(this.modeProgress) {
+        switch (this.modeProgress) {
             .stars => |stars| {
-                if(stars == 1) {
-                    this.italic =! this.italic;
-                }else if(stars == 2){
-                    this.bold =! this.bold;
-                }else if(stars == 3){
-                    this.italic =! this.italic;
-                    this.bold =! this.bold;
-                }else{
+                if (stars == 1) {
+                    this.italic = !this.italic;
+                } else if (stars == 2) {
+                    this.bold = !this.bold;
+                } else if (stars == 3) {
+                    this.italic = !this.italic;
+                    this.bold = !this.bold;
+                } else {
                     std.debug.warn("[unreachable] Stars: {}", .{stars});
                 }
             },
@@ -100,32 +100,35 @@ pub const ParsingState = struct {
             },
             .none => {},
         }
-        this.modeProgress = ModeProgress {.none = {}};
+        this.modeProgress = ModeProgress{ .none = {} };
     }
-    fn handleCharacter(this: *ParsingState, char: u8) struct{ font: HLFont, color: HLColor} {
+    fn handleCharacter(this: *ParsingState, char: u8) struct {
+        font: HLFont,
+        color: HLColor,
+    } {
         // if state is multiline code block, ignore probably
         // or other similar things
-        return switch(char) {
+        return switch (char) {
             '*' => {
-                switch(this.modeProgress) {
+                switch (this.modeProgress) {
                     .stars => |stars| {
-                        if(stars >= 3){
+                        if (stars >= 3) {
                             this.commitState();
-                            this.modeProgress = ModeProgress {.stars = 1};
-                        }else{
-                            this.modeProgress = ModeProgress {.stars = stars + 1};
+                            this.modeProgress = ModeProgress{ .stars = 1 };
+                        } else {
+                            this.modeProgress = ModeProgress{ .stars = stars + 1 };
                         }
                     },
                     else => {
                         this.commitState();
-                        this.modeProgress = ModeProgress {.stars = 1};
-                    }
+                        this.modeProgress = ModeProgress{ .stars = 1 };
+                    },
                 }
-                return .{.color = .control, .font = .normal};
+                return .{ .color = .control, .font = .normal };
             },
             else => {
                 this.commitState();
-                return .{.color = .text, .font = this.getFont()};
+                return .{ .color = .text, .font = this.getFont() };
             },
         };
     }
@@ -142,8 +145,8 @@ const DrawCall = struct {
     y: c_int,
     size: win.TextSize,
 
-    const BlankText = [64:0]u8{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-    const Blank = DrawCall {
+    const BlankText = [64:0]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    const Blank = DrawCall{
         .current = BlankText,
         .started = false,
 
@@ -191,7 +194,7 @@ pub const App = struct {
 
     fn getFont(app: *App, font: HLFont) *const win.Font {
         const style = app.style;
-        return switch(font) {
+        return switch (font) {
             .normal => &style.fonts.standard,
             .bold => &style.fonts.bold,
             .italic => &style.fonts.italic,
@@ -200,7 +203,7 @@ pub const App = struct {
     }
     fn getColor(app: *App, color: HLColor) win.Color {
         const style = app.style;
-        return switch(color) {
+        return switch (color) {
             .control => style.colors.control,
             .text => style.colors.text,
         };
@@ -209,7 +212,7 @@ pub const App = struct {
     fn performDrawCall(app: *App, window: *win.Window, drawCall: *DrawCall) !void {
         var font = app.getFont(drawCall.font);
         var color = app.getColor(drawCall.color);
-        if(drawCall.index > 0){
+        if (drawCall.index > 0) {
             try win.renderText(window, font, color, &drawCall.current, drawCall.x, drawCall.y, drawCall.size);
         }
     }
@@ -237,31 +240,30 @@ pub const App = struct {
         var drawCall = DrawCall.Blank;
 
         for ([_](*const [1:0]u8){ "m", "a", "r", "k", "d", "o", "w", "n", " ", "*", "*", "t", "e", "s", "t", "*", "*", " ", "*", "i", "t", "a", "l", "i", "c", "*", "*", "b", "o", "l", "d", "i", "t", "a", "l", "i", "c", "*", "b", "o", "l", "d", "*", "*", "." }) |char| {
-            
             var hl = parsingState.handleCharacter(char[0]);
             var hlColor = hl.color;
             var hlFont = hl.font;
 
             var font = app.getFont(hlFont);
 
-            if(!drawCall.started){
+            if (!drawCall.started) {
                 const size = try win.measureText(font, char);
                 drawCall.init(hlFont, hlColor, x, y, size);
-            }else{
-                if(drawCall.font != hlFont or drawCall.color != hlColor or drawCall.index >= 63){
+            } else {
+                if (drawCall.font != hlFont or drawCall.color != hlColor or drawCall.index >= 63) {
                     x += drawCall.size.w;
-                    if(lineHeight < drawCall.size.h) lineHeight += drawCall.size.h;
+                    if (lineHeight < drawCall.size.h) lineHeight += drawCall.size.h;
                     // drawCall();
                     try app.performDrawCall(window, &drawCall);
                     // init();
                     const textSize = try win.measureText(font, char);
                     drawCall.init(hlFont, hlColor, x, y, textSize);
-                }else{
+                } else {
                     // append current
                     drawCall.current[drawCall.index] = char[0];
                     drawCall.index += 1;
                     const textSize = try win.measureText(font, &drawCall.current);
-                    if(x + textSize.w > screenWidth) {
+                    if (x + textSize.w > screenWidth) {
                         drawCall.index -= 1;
                         drawCall.current[drawCall.index] = 0; // undo
                         try app.performDrawCall(window, &drawCall);
@@ -275,7 +277,7 @@ pub const App = struct {
 
                         x += size.w;
                         y += size.h;
-                    }else{
+                    } else {
                         drawCall.size = textSize;
                     }
                 }
@@ -284,7 +286,7 @@ pub const App = struct {
                 // else append current
             }
         }
-        if(drawCall.started) try app.performDrawCall(window, &drawCall);
+        if (drawCall.started) try app.performDrawCall(window, &drawCall);
     }
 };
 
@@ -327,14 +329,14 @@ pub fn main() !void {
 
     defer stdout.print("Quitting!\n", .{}) catch unreachable;
 
-     // only if mode has raw text input flag set
+    // only if mode has raw text input flag set
 
     // if in foreground, loop pollevent
     // if in background, waitevent
 
     while (true) blk: {
         var event = try window.waitEvent();
-        switch(event) {
+        switch (event) {
             .Quit => |event_| {
                 try stdout.print("QuitEvent: {}\n", .{event_});
                 return;
