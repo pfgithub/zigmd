@@ -67,7 +67,7 @@ pub const ParsingState = struct {
         };
     }
     fn getFont(this: *ParsingState) HLFont {
-        if(this.color == .control) {
+        if(false) { // if is control character
             return HLFont.normal;
         }
         if(this.bold and this.italic){
@@ -189,6 +189,7 @@ pub const App = struct {
     fn deinit(app: *App) void {}
 
     fn getFont(app: *App, font: HLFont) *const win.Font {
+        const style = app.style;
         return switch(font) {
             .normal => &style.fonts.standard,
             .bold => &style.fonts.bold,
@@ -197,6 +198,7 @@ pub const App = struct {
         };
     }
     fn getColor(app: *App, color: HLColor) win.Color {
+        const style = app.style;
         return switch(color) {
             .control => style.colors.control,
             .text => style.colors.text,
@@ -206,7 +208,9 @@ pub const App = struct {
     fn performDrawCall(app: *App, window: *win.Window, drawCall: *DrawCall) !void {
         var font = app.getFont(drawCall.font);
         var color = app.getColor(drawCall.color);
-        try win.renderText(window, font, color, &drawCall.current, drawCall.x, drawCall.y, drawCall.size);
+        if(drawCall.index > 0){
+            try win.renderText(window, font, color, &drawCall.current, drawCall.x, drawCall.y, drawCall.size);
+        }
     }
 
     fn render(app: *App, window: *win.Window) !void {
@@ -232,9 +236,10 @@ pub const App = struct {
         var drawCall = DrawCall.Blank;
 
         for ([_](*const [1:0]u8){ "m", "a", "r", "k", "d", "o", "w", "n", " ", "*", "*", "t", "e", "s", "t", "*", "*", " ", "*", "i", "t", "a", "l", "i", "c", "*", "*", "b", "o", "l", "d", "i", "t", "a", "l", "i", "c", "*", "b", "o", "l", "d", "*", "*", "." }) |char| {
-
-            var hlColor = parsingState.handleCharacter(char[0]);
-            var hlFont = parsingState.getFont();
+            
+            var hl = parsingState.handleCharacter(char[0]);
+            var hlColor = hl.color;
+            var hlFont = hl.font;
 
             var font = app.getFont(hlFont);
 
