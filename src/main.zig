@@ -67,6 +67,9 @@ pub const ParsingState = struct {
         };
     }
     fn getFont(this: *ParsingState) HLFont {
+        if(this.color == .control) {
+            return HLFont.normal;
+        }
         if(this.bold and this.italic){
             return HLFont.bolditalic;
         }else if(this.bold){
@@ -99,7 +102,7 @@ pub const ParsingState = struct {
         }
         this.modeProgress = ModeProgress {.none = {}};
     }
-    fn handleCharacter(this: *ParsingState, char: u8) HLColor {
+    fn handleCharacter(this: *ParsingState, char: u8) struct{ font: HLFont, color: HLColor} {
         // if state is multiline code block, ignore probably
         // or other similar things
         return switch(char) {
@@ -118,13 +121,55 @@ pub const ParsingState = struct {
                         this.modeProgress = ModeProgress {.stars = 1};
                     }
                 }
-                return HLColor.control;
+                return .{.color = .control, .font = .normal};
             },
             else => {
                 this.commitState();
-                return HLColor.text;
+                return .{.color = .text, .font = this.getFont()};
             },
         };
+    }
+};
+
+const DrawCall = struct {
+    current: [64:0]u8, // <rename this to text once refactor is available
+    started: bool,
+
+    index: u8,
+    font: HLFont,
+    color: HLColor,
+    x: c_int,
+    y: c_int,
+    size: win.TextSize,
+
+    const Blank = DrawCall {
+        .current = [64:0]u8{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        .started = false,
+
+        .index = undefined,
+        .font = undefined,
+        .color = undefined,
+        .x = undefined,
+        .y = undefined,
+        .size = undefined,
+    };
+
+    pub fn init(drawCall: *DrawCall, font: HLFont, color: HLColor, x: c_int, y: c_int, size: win.TextSize) void {
+        drawCall.* = .{
+            .current = drawCall.current,
+            .started = true,
+
+            .index = 0,
+            .font = font,
+            .color = color,
+            .x = x,
+            .y = y,
+            .size = size,
+        };
+    }
+
+    pub fn clear(drawCall: *DrawCall) void {
+        drawCall.* = DrawCall.Blank;
     }
 };
 
@@ -132,16 +177,40 @@ pub const App = struct {
     code: CodeList,
     scrollY: i32, // scrollX is only for individual parts of the UI, such as tables.
     alloc: *std.mem.Allocator,
-    fn init(alloc: *std.mem.Allocator) App {
+    style: *const Style,
+    fn init(alloc: *std.mem.Allocator, style: *const Style) App {
         return .{
             .code = CodeList.init(),
             .scrollY = 0,
             .alloc = alloc,
+            .style = style,
         };
     }
     fn deinit(app: *App) void {}
 
-    fn render(app: *App, window: *win.Window, style: *const Style) !void {
+    fn getFont(app: *App, font: HLFont) *const win.Font {
+        return switch(font) {
+            .normal => &style.fonts.standard,
+            .bold => &style.fonts.bold,
+            .italic => &style.fonts.italic,
+            .bolditalic => &style.fonts.bolditalic,
+        };
+    }
+    fn getColor(app: *App, color: HLColor) win.Color {
+        return switch(color) {
+            .control => style.colors.control,
+            .text => style.colors.text,
+        };
+    }
+
+    fn performDrawCall(app: *App, window: *win.Window, drawCall: *DrawCall) !void {
+        var font = app.getFont(drawCall.font);
+        var color = app.getColor(drawCall.color);
+        try win.renderText(window, font, color, &drawCall.current, drawCall.x, drawCall.y, drawCall.size);
+    }
+
+    fn render(app: *App, window: *win.Window) !void {
+        const style = app.style;
         // loop over app.code
         // check scroll value
         // if the line height hasn't been calculated OR recalculate all is set, calculate it
@@ -157,39 +226,59 @@ pub const App = struct {
         var x: c_int = 0;
         var y: c_int = 0;
         var lineHeight: c_int = 10;
-        for ([_](*const [1:0]u8){ "m", "a", "r", "k", "d", "o", "w", "n", " ", "*", "*", "t", "e", "s", "t", "*", "*", " ", "*", "i", "t", "a", "l", "i", "c", "*", "*", "b", "o", "l", "d", "i", "t", "a", "l", "i", "c", "*", "b", "o", "l", "d", "*", "*", "." }) |char| {
-            if (char[0] == '\n') {
-                x = 0;
-                y += lineHeight;
-                lineHeight = 10;
-            } else {
-                // the font rendering library knows better than us how to kern things
-                // draws should be batched into words, only splitting if the font changes
-                // or if the size is too high.
-                var hlColor = parsingState.handleCharacter(char[0]);
 
-                var font = if(hlColor == .control) &style.fonts.standard
-                else switch(parsingState.getFont()) {
-                    .normal => &style.fonts.standard,
-                    .bold => &style.fonts.bold,
-                    .italic => &style.fonts.italic,
-                    .bolditalic => &style.fonts.bolditalic,
-                };
-                var textSize = try win.measureText(font, char);
-                if (x + textSize.w > screenWidth) {
-                    x = 0;
-                    y += lineHeight;
-                    lineHeight = 10;
+        var dci: u8 = 0;
+
+        var drawCall = DrawCall.Blank;
+
+        for ([_](*const [1:0]u8){ "m", "a", "r", "k", "d", "o", "w", "n", " ", "*", "*", "t", "e", "s", "t", "*", "*", " ", "*", "i", "t", "a", "l", "i", "c", "*", "*", "b", "o", "l", "d", "i", "t", "a", "l", "i", "c", "*", "b", "o", "l", "d", "*", "*", "." }) |char| {
+
+            var hlColor = parsingState.handleCharacter(char[0]);
+            var hlFont = parsingState.getFont();
+
+            var font = app.getFont(hlFont);
+
+            if(!drawCall.started){
+                const size = try win.measureText(font, char);
+                drawCall.init(hlFont, hlColor, x, y, size);
+            }else{
+                if(drawCall.font != hlFont or drawCall.color != hlColor or drawCall.index >= 63){
+                    x += drawCall.size.w;
+                    if(lineHeight < drawCall.size.h) lineHeight += drawCall.size.h;
+                    // drawCall();
+                    try app.performDrawCall(window, &drawCall);
+                    // init();
+                    const textSize = try win.measureText(font, char);
+                    drawCall.init(hlFont, hlColor, x, y, textSize);
+                }else{
+                    // append current
+                    drawCall.current[drawCall.index] = char[0];
+                    drawCall.index += 1;
+                    const textSize = try win.measureText(font, &drawCall.current);
+                    if(x + textSize.w > screenWidth) {
+                        drawCall.index -= 1;
+                        drawCall.current[drawCall.index] = 0; // undo
+                        try app.performDrawCall(window, &drawCall);
+
+                        x = 0;
+                        y += lineHeight;
+                        lineHeight = 0;
+
+                        const size = try win.measureText(font, char);
+                        drawCall.init(hlFont, hlColor, x, y, size);
+
+                        x += size.w;
+                        y += size.h;
+                    }else{
+                        drawCall.size = textSize;
+                    }
                 }
-                var color = switch (hlColor) {
-                    .control => style.colors.control,
-                    .text => style.colors.text,
-                };
-                try win.renderText(window, font, color, char, x, y, textSize);
-                x += textSize.w;
-                if (lineHeight < textSize.h) lineHeight = textSize.h;
+
+                // if different, draw(drawCall) then init
+                // else append current
             }
         }
+        if(drawCall.started) try app.performDrawCall(window, &drawCall);
     }
 };
 
@@ -213,9 +302,6 @@ pub fn main() !void {
     var boldItalicFont = try win.Font.init("font/FreeSansBoldOblique.ttf");
     defer boldItalicFont.deinit();
 
-    var appV = App.init(alloc);
-    var app = &appV;
-
     var style = Style{
         .colors = .{
             .text = win.Color.rgb(255, 255, 255),
@@ -229,6 +315,9 @@ pub fn main() !void {
             .bolditalic = boldItalicFont,
         },
     };
+
+    var appV = App.init(alloc, &style);
+    var app = &appV;
 
     defer stdout.print("Quitting!\n", .{}) catch unreachable;
 
@@ -250,7 +339,7 @@ pub fn main() !void {
         }
 
         try window.clear();
-        try app.render(&window, &style);
+        try app.render(&window);
         window.present();
     }
 }
