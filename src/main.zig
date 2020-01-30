@@ -254,7 +254,7 @@ pub const App = struct {
             } else {
                 if (drawCall.font != hlFont or drawCall.color != hlColor or drawCall.index >= 63) {
                     x += drawCall.size.w;
-                    if (lineHeight < drawCall.size.h) lineHeight += drawCall.size.h;
+                    if (lineHeight < drawCall.size.h) lineHeight = drawCall.size.h;
                     // drawCall();
                     try app.performDrawCall(window, &drawCall);
                     // init();
@@ -280,9 +280,6 @@ pub const App = struct {
                         drawCall.init(hlFont, hlColor, x, y, size);
                         drawCall.current[drawCall.index] = char[0];
                         drawCall.index += 1;
-
-                        x += size.w;
-                        y += size.h;
                     } else {
                         drawCall.size = textSize;
                     }
