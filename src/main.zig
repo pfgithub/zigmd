@@ -316,7 +316,7 @@ pub const App = struct {
                 }
             }
 
-            if(cursorLocation == characterIndex){
+            if (cursorLocation == characterIndex) {
                 // note: draw cursor above letters (last);
                 try win.renderRect(window, win.Color.rgb(128, 128, 255), .{
                     .x = charXR - 1,
