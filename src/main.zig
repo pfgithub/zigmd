@@ -251,7 +251,8 @@ pub const App = struct {
             else => {},
         }
 
-        for ([_](*const [1:0]u8){ "m", "a", "r", "k", "d", "o", "w", "n", " ", "*", "*", "t", "e", "s", "t", "*", "*", " ", "*", "i", "t", "a", "l", "i", "c", "*", "*", "b", "o", "l", "d", "i", "t", "a", "l", "i", "c", "*", "b", "o", "l", "d", "*", "*", "." }) |char| {
+        for ("markdown **test**\n**Bold**, *Italic*, ***BoldItalic***") |chara| {
+            var char: [2]u8 = .{chara, 0};
             characterIndex += 1;
             var hl = parsingState.handleCharacter(char[0]);
             var hlColor = hl.color;
@@ -264,7 +265,7 @@ pub const App = struct {
             var font = app.getFont(hlFont);
 
             if (!drawCall.started) {
-                const size = try win.measureText(font, char);
+                const size = try win.measureText(font, &char);
 
                 charXL = x;
                 charXR = x + size.w;
@@ -275,22 +276,33 @@ pub const App = struct {
                 drawCall.current[drawCall.index] = char[0];
                 drawCall.index += 1;
             } else {
-                if (drawCall.font != hlFont or drawCall.color != hlColor or drawCall.index >= 63) {
+                if (drawCall.font != hlFont or drawCall.color != hlColor or drawCall.index >= 63 or chara == '\n') {
                     x += drawCall.size.w;
                     if (lineHeight < drawCall.size.h) lineHeight = drawCall.size.h;
                     // drawCall();
                     try app.performDrawCall(window, &drawCall);
                     // init();
-                    const textSize = try win.measureText(font, char);
+                    const textSize = try win.measureText(font, &char);
 
-                    charXL = x;
-                    charXR = x + textSize.w;
-                    charYU = y;
-                    charYD = y + textSize.h;
+                    if (chara == '\n') {
+                        charXL = 0;
+                        charXR = 0;
+                        charYU = y + lineHeight;
+                        charYD = y + lineHeight + textSize.h;
 
-                    drawCall.init(hlFont, hlColor, x, y, textSize);
-                    drawCall.current[drawCall.index] = char[0];
-                    drawCall.index += 1;
+                        y += lineHeight;
+                        x = 0;
+                        drawCall.clear();
+                    }else{
+                        charXL = x;
+                        charXR = x + textSize.w;
+                        charYU = y;
+                        charYD = y + textSize.h;
+
+                        drawCall.init(hlFont, hlColor, x, y, textSize);
+                        drawCall.current[drawCall.index] = char[0];
+                        drawCall.index += 1;
+                    }
                 } else {
                     // append current
                     drawCall.current[drawCall.index] = char[0];
@@ -306,7 +318,7 @@ pub const App = struct {
                         y += lineHeight;
                         lineHeight = 0;
 
-                        const size = try win.measureText(font, char);
+                        const size = try win.measureText(font, &char);
 
                         charXL = x;
                         charXR = x + textSize.w;
