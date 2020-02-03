@@ -145,7 +145,7 @@ pub const Window = struct {
     }
 
     pub fn clear(window: *Window) !void {
-        if(c.SDL_SetRenderDrawColor(window.sdlRenderer, 0, 0, 0, 0) != 0) return sdlError();
+        if (c.SDL_SetRenderDrawColor(window.sdlRenderer, 0, 0, 0, 0) != 0) return sdlError();
         if (c.SDL_RenderClear(window.sdlRenderer) < 0) return sdlError();
     }
     pub fn present(window: *Window) void {
@@ -193,7 +193,7 @@ pub const Rect = struct {
     w: c_int,
     h: c_int,
     fn toSDL(rect: *const Rect) c.SDL_Rect {
-        return c.SDL_Rect {
+        return c.SDL_Rect{
             .x = rect.x,
             .y = rect.y,
             .w = rect.w,
@@ -203,8 +203,8 @@ pub const Rect = struct {
 };
 pub fn renderRect(window: *const Window, color: Color, rect: Rect) !void {
     var sdlRect = rect.toSDL();
-    if(c.SDL_SetRenderDrawColor(window.sdlRenderer, color.r, color.g, color.b, color.a) != 0) return sdlError();
-    if(c.SDL_RenderFillRect(window.sdlRenderer, &sdlRect) != 0) return sdlError();
+    if (c.SDL_SetRenderDrawColor(window.sdlRenderer, color.r, color.g, color.b, color.a) != 0) return sdlError();
+    if (c.SDL_RenderFillRect(window.sdlRenderer, &sdlRect) != 0) return sdlError();
 }
 
 pub fn init() RenderingError!void {

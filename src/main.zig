@@ -327,8 +327,7 @@ pub const App = struct {
                 }
             }
 
-            if(app.cursorLocation == characterIndex){
-                std.debug.warn("found cursor location, xl: {}, xr: {}, yu: {}, yd: {}\n", .{charXL, charXR, charYU, charYD});
+            if (app.cursorLocation == characterIndex) {
                 // note: draw cursor above letters (last);
                 try win.renderRect(window, win.Color.rgb(128, 128, 255), .{
                     .x = charXR - 1,
