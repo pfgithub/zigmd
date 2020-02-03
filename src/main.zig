@@ -244,8 +244,8 @@ pub const App = struct {
         switch(event.*) {
             .KeyDown => |keyev| switch(keyev.key) {
                 // this will be handled by the keybinding resolver in the future.,
-                .Left => app.cursorLocation -= 1,
-                .Right => app.cursorLocation += 1,
+                .Left => {if(app.cursorLocation > 0) app.cursorLocation -= 1;},
+                .Right => {if(app.cursorLocation < 10000) app.cursorLocation += 1;},
                 else => {},
             },
             else => {},
