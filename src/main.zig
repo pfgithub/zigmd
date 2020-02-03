@@ -182,12 +182,14 @@ pub const App = struct {
     scrollY: i32, // scrollX is only for individual parts of the UI, such as tables.
     alloc: *std.mem.Allocator,
     style: *const Style,
+    cursorLocation: u64,
     fn init(alloc: *std.mem.Allocator, style: *const Style) App {
         return .{
             .code = CodeList.init(),
             .scrollY = 0,
             .alloc = alloc,
             .style = style,
+            .cursorLocation = 1,
         };
     }
     fn deinit(app: *App) void {}
@@ -217,7 +219,7 @@ pub const App = struct {
         }
     }
 
-    fn render(app: *App, window: *win.Window) !void {
+    fn render(app: *App, window: *win.Window, event: *win.Event) !void {
         const style = app.style;
         // loop over app.code
         // check scroll value
@@ -238,7 +240,16 @@ pub const App = struct {
         var drawCall = DrawCall.Blank;
 
         var characterIndex: u64 = 0;
-        var cursorLocation: u64 = 1;
+
+        switch(event.*) {
+            .KeyDown => |keyev| switch(keyev.key) {
+                // this will be handled by the keybinding resolver in the future.,
+                .Left => app.cursorLocation -= 1,
+                .Right => app.cursorLocation += 1,
+                else => {},
+            },
+            else => {},
+        }
 
         for ([_](*const [1:0]u8){ "m", "a", "r", "k", "d", "o", "w", "n", " ", "*", "*", "t", "e", "s", "t", "*", "*", " ", "*", "i", "t", "a", "l", "i", "c", "*", "*", "b", "o", "l", "d", "i", "t", "a", "l", "i", "c", "*", "b", "o", "l", "d", "*", "*", "." }) |char| {
             characterIndex += 1;
@@ -308,7 +319,7 @@ pub const App = struct {
                     } else {
                         charXL = x + drawCall.size.w;
                         charXR = x + textSize.w;
-                        charYU = y + drawCall.size.h;
+                        charYU = y;
                         charYD = y + textSize.h;
 
                         drawCall.size = textSize;
@@ -316,7 +327,8 @@ pub const App = struct {
                 }
             }
 
-            if(cursorLocation == characterIndex){
+            if(app.cursorLocation == characterIndex){
+                std.debug.warn("found cursor location, xl: {}, xr: {}, yu: {}, yd: {}\n", .{charXL, charXR, charYU, charYD});
                 // note: draw cursor above letters (last);
                 try win.renderRect(window, win.Color.rgb(128, 128, 255), .{
                     .x = charXR - 1,
@@ -381,13 +393,16 @@ pub fn main() !void {
                 try stdout.print("QuitEvent: {}\n", .{event_});
                 return;
             },
+            .KeyDown => |event_| {
+                try stdout.print("KeyDown: {}\n", .{event_});
+            },
             .Unknown => |event_| { // !!! zig should allow |event| but doesn't here
                 try stdout.print("UnknownEvent: {}\n", .{event_});
             },
         }
 
         try window.clear();
-        try app.render(&window);
+        try app.render(&window, &event);
         window.present();
     }
 }
