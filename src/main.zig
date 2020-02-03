@@ -341,6 +341,11 @@ pub const App = struct {
 
             if (app.cursorLocation == characterIndex) {
                 // note: draw cursor above letters (last);
+                // drawing:
+                // get all sizes and stuff
+                // draw highlights
+                // draw letters`
+                // draw cursor
                 try win.renderRect(window, win.Color.rgb(128, 128, 255), .{
                     .x = charXR - 1,
                     .y = charYU,
