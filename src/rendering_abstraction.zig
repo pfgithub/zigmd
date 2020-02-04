@@ -174,7 +174,7 @@ pub fn measureText(font: *const Font, text: [*c]const u8) !TextSize {
 }
 
 pub fn renderText(window: *const Window, font: *const Font, color: Color, text: [*c]const u8, x: c_int, y: c_int, size: TextSize) !void {
-    var surface = c.TTF_RenderUTF8_Solid(font.sdlFont, text, color.toSDL());
+    var surface = c.TTF_RenderUTF8_Blended(font.sdlFont, text, color.toSDL());
     defer c.SDL_FreeSurface(surface);
     var texture = c.SDL_CreateTextureFromSurface(window.sdlRenderer, surface);
     defer c.SDL_DestroyTexture(texture);

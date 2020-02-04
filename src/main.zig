@@ -342,7 +342,7 @@ pub const App = struct {
             if (app.cursorLocation == characterIndex) {
                 // note: draw cursor above letters (last);
                 // drawing:
-                // get all sizes and stuff
+                // measure all
                 // draw highlights
                 // draw letters
                 // draw cursor
