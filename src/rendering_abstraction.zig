@@ -78,6 +78,11 @@ pub const Event = union(enum) {
         key: Key,
     };
     KeyDown: KeyEvent,
+    pub const MouseEvent = struct {
+        x: i32,
+        y: i32,
+    };
+    MouseDown: MouseEvent,
     fn fromSDL(event: c.SDL_Event) Event {
         return switch (event.type) {
             c.SDL_QUIT => Event{ .Quit = {} },
@@ -89,6 +94,12 @@ pub const Event = union(enum) {
                         else => Key.Unknown,
                     },
                 },
+            },
+            c.SDL_MOUSEBUTTONDOWN => Event{
+                .MouseDown = .{
+                    .x = event.button.x,
+                    .y = event.button.y,
+                }
             },
             else => Event{ .Unknown = UnknownEvent{ .type = event.type } },
         };

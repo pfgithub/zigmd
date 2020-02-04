@@ -343,6 +343,15 @@ pub const App = struct {
                 }
             }
 
+            switch(event.*) {
+                .MouseDown => |mouse| {
+                    if(mouse.x > charXL and mouse.y > charYU){
+                        app.cursorLocation = characterIndex;
+                    }
+                },
+                else => {},
+            }
+
             if (app.cursorLocation == characterIndex) {
                 // note: draw cursor above letters (last);
                 // drawing:
@@ -409,17 +418,12 @@ pub fn main() !void {
 
     while (true) blk: {
         var event = try window.waitEvent();
+        try stdout.print("Event: {}\n", .{event});
         switch (event) {
             .Quit => |event_| {
-                try stdout.print("QuitEvent: {}\n", .{event_});
                 return;
             },
-            .KeyDown => |event_| {
-                try stdout.print("KeyDown: {}\n", .{event_});
-            },
-            .Unknown => |event_| { // !!! zig should allow |event| but doesn't here
-                try stdout.print("UnknownEvent: {}\n", .{event_});
-            },
+            else => {},
         }
 
         try window.clear();
