@@ -182,12 +182,14 @@ pub const App = struct {
     scrollY: i32, // scrollX is only for individual parts of the UI, such as tables.
     alloc: *std.mem.Allocator,
     style: *const Style,
+    cursorLocation: u64,
     fn init(alloc: *std.mem.Allocator, style: *const Style) App {
         return .{
             .code = CodeList.init(),
             .scrollY = 0,
             .alloc = alloc,
             .style = style,
+            .cursorLocation = 1,
         };
     }
     fn deinit(app: *App) void {}
@@ -217,7 +219,7 @@ pub const App = struct {
         }
     }
 
-    fn render(app: *App, window: *win.Window) !void {
+    fn render(app: *App, window: *win.Window, event: *win.Event) !void {
         const style = app.style;
         // loop over app.code
         // check scroll value
@@ -238,9 +240,19 @@ pub const App = struct {
         var drawCall = DrawCall.Blank;
 
         var characterIndex: u64 = 0;
-        var cursorLocation: u64 = 1;
 
-        for ([_](*const [1:0]u8){ "m", "a", "r", "k", "d", "o", "w", "n", " ", "*", "*", "t", "e", "s", "t", "*", "*", " ", "*", "i", "t", "a", "l", "i", "c", "*", "*", "b", "o", "l", "d", "i", "t", "a", "l", "i", "c", "*", "b", "o", "l", "d", "*", "*", "." }) |char| {
+        switch(event.*) {
+            .KeyDown => |keyev| switch(keyev.key) {
+                // this will be handled by the keybinding resolver in the future.,
+                .Left => {if(app.cursorLocation > 0) app.cursorLocation -= 1;},
+                .Right => {if(app.cursorLocation < 10000) app.cursorLocation += 1;},
+                else => {},
+            },
+            else => {},
+        }
+
+        for ("markdown **test**\n**Bold**, *Italic*, ***BoldItalic***") |chara| {
+            var char: [2]u8 = .{chara, 0};
             characterIndex += 1;
             var hl = parsingState.handleCharacter(char[0]);
             var hlColor = hl.color;
@@ -253,7 +265,7 @@ pub const App = struct {
             var font = app.getFont(hlFont);
 
             if (!drawCall.started) {
-                const size = try win.measureText(font, char);
+                const size = try win.measureText(font, &char);
 
                 charXL = x;
                 charXR = x + size.w;
@@ -264,22 +276,33 @@ pub const App = struct {
                 drawCall.current[drawCall.index] = char[0];
                 drawCall.index += 1;
             } else {
-                if (drawCall.font != hlFont or drawCall.color != hlColor or drawCall.index >= 63) {
+                if (drawCall.font != hlFont or drawCall.color != hlColor or drawCall.index >= 63 or chara == '\n') {
                     x += drawCall.size.w;
                     if (lineHeight < drawCall.size.h) lineHeight = drawCall.size.h;
                     // drawCall();
                     try app.performDrawCall(window, &drawCall);
                     // init();
-                    const textSize = try win.measureText(font, char);
+                    const textSize = try win.measureText(font, &char);
 
-                    charXL = x;
-                    charXR = x + textSize.w;
-                    charYU = y;
-                    charYD = y + textSize.h;
+                    if (chara == '\n') {
+                        charXL = 0;
+                        charXR = 0;
+                        charYU = y + lineHeight;
+                        charYD = y + lineHeight + textSize.h;
 
-                    drawCall.init(hlFont, hlColor, x, y, textSize);
-                    drawCall.current[drawCall.index] = char[0];
-                    drawCall.index += 1;
+                        y += lineHeight;
+                        x = 0;
+                        drawCall.clear();
+                    }else{
+                        charXL = x;
+                        charXR = x + textSize.w;
+                        charYU = y;
+                        charYD = y + textSize.h;
+
+                        drawCall.init(hlFont, hlColor, x, y, textSize);
+                        drawCall.current[drawCall.index] = char[0];
+                        drawCall.index += 1;
+                    }
                 } else {
                     // append current
                     drawCall.current[drawCall.index] = char[0];
@@ -295,7 +318,7 @@ pub const App = struct {
                         y += lineHeight;
                         lineHeight = 0;
 
-                        const size = try win.measureText(font, char);
+                        const size = try win.measureText(font, &char);
 
                         charXL = x;
                         charXR = x + textSize.w;
@@ -308,7 +331,7 @@ pub const App = struct {
                     } else {
                         charXL = x + drawCall.size.w;
                         charXR = x + textSize.w;
-                        charYU = y + drawCall.size.h;
+                        charYU = y;
                         charYD = y + textSize.h;
 
                         drawCall.size = textSize;
@@ -316,8 +339,13 @@ pub const App = struct {
                 }
             }
 
-            if (cursorLocation == characterIndex) {
+            if (app.cursorLocation == characterIndex) {
                 // note: draw cursor above letters (last);
+                // drawing:
+                // get all sizes and stuff
+                // draw highlights
+                // draw letters
+                // draw cursor
                 // note: SDL_SetTextInputRect
                 try win.renderRect(window, win.Color.rgb(128, 128, 255), .{
                     .x = charXR - 1,
@@ -382,13 +410,16 @@ pub fn main() !void {
                 try stdout.print("QuitEvent: {}\n", .{event_});
                 return;
             },
+            .KeyDown => |event_| {
+                try stdout.print("KeyDown: {}\n", .{event_});
+            },
             .Unknown => |event_| { // !!! zig should allow |event| but doesn't here
                 try stdout.print("UnknownEvent: {}\n", .{event_});
             },
         }
 
         try window.clear();
-        try app.render(&window);
+        try app.render(&window, &event);
         window.present();
     }
 }
