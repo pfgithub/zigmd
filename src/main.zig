@@ -255,6 +255,8 @@ pub const App = struct {
             else => {},
         }
 
+        var cursorRect: win.Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 };
+
         for ("markdown **test**\n**Bold**, *Italic*, ***BoldItalic***") |chara| {
             var char: [2]u8 = .{ chara, 0 };
             characterIndex += 1;
@@ -360,15 +362,16 @@ pub const App = struct {
                 // draw letters
                 // draw cursor
                 // note: SDL_SetTextInputRect
-                try win.renderRect(window, win.Color.rgb(128, 128, 255), .{
+                cursorRect = .{
                     .x = charXR - 1,
                     .y = charYU,
                     .w = 2,
                     .h = charYD - charYU,
-                });
+                };
             }
         }
         if (drawCall.started) try app.performDrawCall(window, &drawCall);
+        try win.renderRect(window, win.Color.rgb(128, 128, 255), cursorRect);
     }
 };
 
