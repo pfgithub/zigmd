@@ -83,6 +83,12 @@ pub const Event = union(enum) {
         y: i32,
     };
     MouseDown: MouseEvent,
+    MouseUp: MouseEvent,
+    pub const MouseMotionEvent = struct {
+        x: i32,
+        y: i32,
+    };
+    MouseMotion: MouseMotionEvent,
     fn fromSDL(event: c.SDL_Event) Event {
         return switch (event.type) {
             c.SDL_QUIT => Event{ .Quit = {} },
@@ -99,7 +105,19 @@ pub const Event = union(enum) {
                 .MouseDown = .{
                     .x = event.button.x,
                     .y = event.button.y,
-                }
+                },
+            },
+            c.SDL_MOUSEBUTTONUP => Event{
+                .MouseUp = .{
+                    .x = event.button.x,
+                    .y = event.button.y,
+                },
+            },
+            c.SDL_MOUSEMOTION => Event{
+                .MouseMotion = .{
+                    .x = event.motion.x,
+                    .y = event.motion.y,
+                },
             },
             else => Event{ .Unknown = UnknownEvent{ .type = event.type } },
         };

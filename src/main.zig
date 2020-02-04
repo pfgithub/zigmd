@@ -346,7 +346,7 @@ pub const App = struct {
             }
 
             switch(event.*) {
-                .MouseDown => |mouse| {
+                .MouseMotion => |mouse| {
                     if(mouse.x > charXL and mouse.y > charYU){
                         app.cursorLocation = characterIndex;
                     }
