@@ -62,7 +62,7 @@ pub const WindowSize = struct {
     h: c_int,
 };
 
-pub const Key = enum(c_int){
+pub const Key = enum(c_int) {
     Left,
     Right,
     Unknown,
@@ -81,11 +81,15 @@ pub const Event = union(enum) {
     fn fromSDL(event: c.SDL_Event) Event {
         return switch (event.type) {
             c.SDL_QUIT => Event{ .Quit = {} },
-            c.SDL_KEYDOWN => Event {.KeyDown = .{.key = switch(event.key.keysym.scancode) {
-                .SDL_SCANCODE_LEFT => Key.Left,
-                .SDL_SCANCODE_RIGHT => Key.Right,
-                else => Key.Unknown,
-            }}},
+            c.SDL_KEYDOWN => Event{
+                .KeyDown = .{
+                    .key = switch (event.key.keysym.scancode) {
+                        .SDL_SCANCODE_LEFT => Key.Left,
+                        .SDL_SCANCODE_RIGHT => Key.Right,
+                        else => Key.Unknown,
+                    },
+                },
+            },
             else => Event{ .Unknown = UnknownEvent{ .type = event.type } },
         };
 

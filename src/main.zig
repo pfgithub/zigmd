@@ -241,18 +241,22 @@ pub const App = struct {
 
         var characterIndex: u64 = 0;
 
-        switch(event.*) {
-            .KeyDown => |keyev| switch(keyev.key) {
+        switch (event.*) {
+            .KeyDown => |keyev| switch (keyev.key) {
                 // this will be handled by the keybinding resolver in the future.,
-                .Left => {if(app.cursorLocation > 0) app.cursorLocation -= 1;},
-                .Right => {if(app.cursorLocation < 10000) app.cursorLocation += 1;},
+                .Left => {
+                    if (app.cursorLocation > 0) app.cursorLocation -= 1;
+                },
+                .Right => {
+                    if (app.cursorLocation < 10000) app.cursorLocation += 1;
+                },
                 else => {},
             },
             else => {},
         }
 
         for ("markdown **test**\n**Bold**, *Italic*, ***BoldItalic***") |chara| {
-            var char: [2]u8 = .{chara, 0};
+            var char: [2]u8 = .{ chara, 0 };
             characterIndex += 1;
             var hl = parsingState.handleCharacter(char[0]);
             var hlColor = hl.color;
@@ -293,7 +297,7 @@ pub const App = struct {
                         y += lineHeight;
                         x = 0;
                         drawCall.clear();
-                    }else{
+                    } else {
                         charXL = x;
                         charXR = x + textSize.w;
                         charYU = y;
