@@ -258,9 +258,9 @@ pub const App = struct {
         var cursorRect: win.Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 };
 
         for (
-            \\markdown **test**
-            \\**Bold**, *Italic*, ***BoldItalic***
-            \\More text
+            "markdown **test**" ++ "\n" ++
+            "**Bold**, *Italic*, ***BoldItalic***" ++ "\n" ++
+            "More text" ++ "\n"
         ) |chara| {
             var char: [2]u8 = .{ chara, 0 };
             characterIndex += 1;
