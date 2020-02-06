@@ -257,11 +257,9 @@ pub const App = struct {
 
         var cursorRect: win.Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 };
 
-        for (
-            "markdown **test**" ++ "\n" ++
+        for ("markdown **test**" ++ "\n" ++
             "**Bold**, *Italic*, ***BoldItalic***" ++ "\n" ++
-            "More text" ++ "\n"
-        ) |chara| {
+            "More text" ++ "\n") |chara| {
             var char: [2]u8 = .{ chara, 0 };
             characterIndex += 1;
             var hl = parsingState.handleCharacter(char[0]);
@@ -349,9 +347,9 @@ pub const App = struct {
                 }
             }
 
-            switch(event.*) {
+            switch (event.*) {
                 .MouseDown => |mouse| {
-                    if(mouse.x > charXL and mouse.y > charYU){
+                    if (mouse.x > charXL and mouse.y > charYU) {
                         app.cursorLocation = characterIndex;
                     }
                 },

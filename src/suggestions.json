@@ -1,21 +1,21 @@
 {
-	"gtk": {
-		"[normal] <ctrl> left": {
-			"action": "move_cursor",
-			"stop": "word",
-			"distance": 1,
-			"direction": "left"
-		}
-	},
-	"emacs": {
-		"[normal] <ctrl> c": {
-			"action": "chain"
-		}
-	},
-	"vim": {
-		"[normal] i": {
-			"action": "mode_push",
-			"mode": "insert"
-		}
-	},
+    "gtk": {
+        "[normal] <ctrl> left": {
+            "action": "move_cursor",
+            "stop": "word",
+            "distance": 1,
+            "direction": "left"
+        }
+    },
+    "emacs": {
+        "[normal] <ctrl> c": {
+            "action": "chain"
+        }
+    },
+    "vim": {
+        "[normal] i": {
+            "action": "mode_push",
+            "mode": "insert"
+        }
+    }
 }
