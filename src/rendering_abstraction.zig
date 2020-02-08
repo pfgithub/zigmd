@@ -49,6 +49,14 @@ pub const Color = struct {
     pub fn rgba(r: u8, g: u8, b: u8, a: u8) Color {
         return Color{ .r = r, .g = g, .b = b, .a = a };
     }
+    pub fn hex(comptime color: u24) Color {
+        return Color{
+            .r = (color >> 16),
+            .g = (color >> 8) & 0xFF,
+            .b = color & 0xFF,
+            .a = 0xFF,
+        };
+    }
     fn fromSDL(color: c.SDL_Color) Color {
         return Color{ .r = color.r, .g = color.g, .b = color.b, .a = color.a };
     }
@@ -89,6 +97,10 @@ pub const Event = union(enum) {
         y: i32,
     };
     MouseMotion: MouseMotionEvent,
+    pub const TextInputEvent = struct {
+        text: [32]u8,
+    };
+    TextInput: TextInputEvent,
     fn fromSDL(event: c.SDL_Event) Event {
         return switch (event.type) {
             c.SDL_QUIT => Event{ .Quit = {} },
@@ -118,6 +130,9 @@ pub const Event = union(enum) {
                     .x = event.motion.x,
                     .y = event.motion.y,
                 },
+            },
+            c.SDL_TEXTINPUT => Event{
+                .TextInput = .{ .text = event.text.text },
             },
             else => Event{ .Unknown = UnknownEvent{ .type = event.type } },
         };

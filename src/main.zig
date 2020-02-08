@@ -28,6 +28,7 @@ pub const Style = struct {
         text: win.Color,
         control: win.Color,
         background: win.Color,
+        cursor: win.Color,
     },
     fonts: struct {
         standard: win.Font,
@@ -211,15 +212,15 @@ pub const App = struct {
         };
     }
 
-    fn performDrawCall(app: *App, window: *win.Window, drawCall: *DrawCall) !void {
+    fn performDrawCall(app: *App, window: *win.Window, drawCall: *DrawCall, pos: *win.Rect) !void {
         var font = app.getFont(drawCall.font);
         var color = app.getColor(drawCall.color);
         if (drawCall.index > 0) {
-            try win.renderText(window, font, color, &drawCall.current, drawCall.x, drawCall.y, drawCall.size);
+            try win.renderText(window, font, color, &drawCall.current, drawCall.x + pos.x, drawCall.y + pos.y, drawCall.size);
         }
     }
 
-    fn render(app: *App, window: *win.Window, event: *win.Event) !void {
+    fn render(app: *App, window: *win.Window, event: *win.Event, pos: *win.Rect) !void {
         const style = app.style;
         // loop over app.code
         // check scroll value
@@ -227,9 +228,8 @@ pub const App = struct {
         // if the recalculation is above the screen, increase the scroll by that number
         // if click and mouse position is within the character, set the cursor either before or after
         // if it fits on screen, render it
-        var screenSize = try window.getSize();
-        var screenWidth: c_int = screenSize.w;
-        var screenHeight: c_int = screenSize.h;
+
+        try win.renderRect(window, style.colors.background, pos.*);
 
         var parsingState = ParsingState.default();
 
@@ -288,7 +288,7 @@ pub const App = struct {
                     x += drawCall.size.w;
                     if (lineHeight < drawCall.size.h) lineHeight = drawCall.size.h;
                     // drawCall();
-                    try app.performDrawCall(window, &drawCall);
+                    try app.performDrawCall(window, &drawCall, pos);
                     // init();
                     const textSize = try win.measureText(font, &char);
 
@@ -299,7 +299,7 @@ pub const App = struct {
                         charYD = y + lineHeight + textSize.h;
 
                         y += lineHeight;
-                        x = 0;
+                        x = pos.x;
                         drawCall.clear();
                     } else {
                         charXL = x;
@@ -317,10 +317,10 @@ pub const App = struct {
                     drawCall.index += 1;
                     const textSize = try win.measureText(font, &drawCall.current);
 
-                    if (x + textSize.w > screenWidth) {
+                    if (x + textSize.w > pos.w) {
                         drawCall.index -= 1;
                         drawCall.current[drawCall.index] = 0; // undo
-                        try app.performDrawCall(window, &drawCall);
+                        try app.performDrawCall(window, &drawCall, pos);
 
                         x = 0;
                         y += lineHeight;
@@ -372,8 +372,13 @@ pub const App = struct {
                 };
             }
         }
-        if (drawCall.started) try app.performDrawCall(window, &drawCall);
-        try win.renderRect(window, win.Color.rgb(128, 128, 255), cursorRect);
+        if (drawCall.started) try app.performDrawCall(window, &drawCall, pos);
+        try win.renderRect(window, style.colors.cursor, .{
+            .x = cursorRect.x + pos.x,
+            .y = cursorRect.y + pos.y,
+            .w = cursorRect.w,
+            .h = cursorRect.h,
+        });
     }
 };
 
@@ -401,7 +406,8 @@ pub fn main() !void {
         .colors = .{
             .text = win.Color.rgb(255, 255, 255),
             .control = win.Color.rgb(128, 128, 128),
-            .background = win.Color.rgb(0, 0, 0),
+            .background = win.Color.hex(0x2e3440),
+            .cursor = win.Color.rgb(128, 128, 255),
         },
         .fonts = .{
             .standard = standardFont,
@@ -410,6 +416,8 @@ pub fn main() !void {
             .bolditalic = boldItalicFont,
         },
     };
+
+    std.debug.warn("Style: {}\n", .{style});
 
     var appV = App.init(alloc, &style);
     var app = &appV;
@@ -432,7 +440,14 @@ pub fn main() !void {
         }
 
         try window.clear();
-        try app.render(&window, &event);
+        var windowSize = try window.getSize();
+        var size: win.Rect = .{
+            .w = windowSize.w - 20,
+            .h = windowSize.h - 20,
+            .x = 10,
+            .y = 10,
+        };
+        try app.render(&window, &event, &size);
         window.present();
     }
 }
