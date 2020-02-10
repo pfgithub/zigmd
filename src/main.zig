@@ -245,7 +245,7 @@ pub const App = struct {
         app.textLength -= 1;
     }
     fn insert(app: *App, text: []const u8) void {
-        if (app.textLength + text.len > app.text.len) {
+        if (app.textLength + text.len >= app.text.len) {
             var newText = app.alloc.realloc(app.text, app.text.len * 2) catch |e| switch (e) {
                 std.mem.Allocator.Error.OutOfMemory => return, // could not insert text, out of memory. in the future, this could display an error on screen or reduce the memory usage of the text.
             };
