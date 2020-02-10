@@ -229,6 +229,7 @@ pub const App = struct {
     }
 
     fn backspace(app: *App, deleteStop: enum {
+        Byte,
         Codepoint,
         Character,
         Word,
@@ -242,6 +243,22 @@ pub const App = struct {
         );
         app.cursorLocation -= 1;
         app.textLength -= 1;
+    }
+    fn insert(app: *App, text: []const u8) void {
+        if (app.textLength + text.len > app.text.len) {
+            var newText = app.alloc.realloc(app.text, app.text.len * 2) catch |e| switch (e) {
+                std.mem.Allocator.Error.OutOfMemory => return, // could not insert text, out of memory. in the future, this could display an error on screen or reduce the memory usage of the text.
+            };
+            app.text = newText;
+        }
+        std.mem.copyBackwards(
+            u8,
+            app.text[app.cursorLocation + text.len .. app.textLength + text.len],
+            app.text[app.cursorLocation..app.textLength],
+        );
+        std.mem.copy(u8, app.text[app.cursorLocation .. app.cursorLocation + text.len], text);
+        app.cursorLocation += text.len;
+        app.textLength += text.len;
     }
 
     fn render(app: *App, window: *win.Window, event: *win.Event) !void {
@@ -270,18 +287,21 @@ pub const App = struct {
             .KeyDown => |keyev| switch (keyev.key) {
                 // this will be handled by the keybinding resolver in the future.,
                 .Left => {
-                    if (app.cursorLocation > 0) app.cursorLocation -= 1;
+                    // if (app.cursorLocation > 0) app.cursorLocation -= 1;
+                    app.insert("(*text*)");
                 },
                 .Right => {
                     if (app.cursorLocation < 10000) app.cursorLocation += 1;
                 },
                 .Backspace => {
-                    app.backspace(.Codepoint);
+                    app.backspace(.Byte);
                 },
                 else => {},
             },
             else => {},
         }
+
+        std.debug.warn("cursorLocation: {}, textLength: {}\n", .{ app.cursorLocation, app.textLength });
 
         var cursorRect: win.Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 };
 
