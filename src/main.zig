@@ -501,7 +501,7 @@ pub const App = struct {
 
             switch (event.*) {
                 .MouseDown => |mouse| {
-                    if (mouse.x - pos.x > (charXL + @divFloor((charXR - charXL), 2)) and mouse.y > charYU) {
+                    if (mouse.x - pos.x > (charXL + @divFloor((charXR - charXL), 2)) and mouse.y > charYU + pos.y) {
                         app.cursorLocation = characterEndIndex;
                     } else if (characterEndIndex == 1) {
                         app.cursorLocation = 0;
