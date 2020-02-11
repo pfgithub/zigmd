@@ -29,6 +29,7 @@ pub const Style = struct {
         control: win.Color,
         background: win.Color,
         cursor: win.Color,
+        special: win.Color,
     },
     fonts: struct {
         standard: win.Font,
@@ -41,6 +42,7 @@ pub const Style = struct {
 pub const HLColor = enum {
     text,
     control,
+    special,
 };
 
 pub const HLFont = enum {
@@ -53,6 +55,7 @@ pub const HLFont = enum {
 pub const ParsingState = struct {
     bold: bool,
     italic: bool,
+    escape: bool,
     const ModeProgress = union(enum) {
         stars: u8,
         backticks: u8,
@@ -64,6 +67,7 @@ pub const ParsingState = struct {
         return ParsingState{
             .bold = false,
             .italic = false,
+            .escape = false,
             .modeProgress = ModeProgress{ .none = {} },
         };
     }
@@ -109,7 +113,25 @@ pub const ParsingState = struct {
     } {
         // if state is multiline code block, ignore probably
         // or other similar things
+        if (this.escape) {
+            this.escape = false;
+            return switch (char) {
+                'n' => {
+                    this.commitState();
+                    return .{ .color = .special, .font = this.getFont() };
+                },
+                else => {
+                    this.commitState();
+                    return .{ .color = .text, .font = this.getFont() };
+                },
+            };
+        }
         return switch (char) {
+            '\\' => {
+                this.escape = true;
+                this.commitState();
+                return .{ .color = .control, .font = .normal };
+            },
             '*' => {
                 switch (this.modeProgress) {
                     .stars => |stars| {
@@ -236,6 +258,7 @@ pub const App = struct {
         return switch (color) {
             .control => style.colors.control,
             .text => style.colors.text,
+            .special => style.colors.special,
         };
     }
 
@@ -374,7 +397,7 @@ pub const App = struct {
             else => {},
         }
 
-        std.debug.warn("cursorLocation: {}, textLength: {}\n", .{ app.cursorLocation, app.textLength });
+        // std.debug.warn("cursorLocation: {}, textLength: {}\n", .{ app.cursorLocation, app.textLength });
 
         var cursorRect: win.Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 };
 
@@ -547,6 +570,7 @@ pub fn main() !void {
             .control = win.Color.rgb(128, 128, 128),
             .background = win.Color.hex(0x2e3440),
             .cursor = win.Color.rgb(128, 128, 255),
+            .special = win.Color.rgb(128, 255, 128),
         },
         .fonts = .{
             .standard = standardFont,
@@ -570,7 +594,7 @@ pub fn main() !void {
 
     while (true) blk: {
         var event = try window.waitEvent();
-        try stdout.print("Event: {}\n", .{event});
+        // try std.debug.warn("Event: {}\n", .{event});
         switch (event) {
             .Quit => |event_| {
                 return;
