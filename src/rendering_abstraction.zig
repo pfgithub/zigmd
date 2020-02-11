@@ -73,6 +73,7 @@ pub const WindowSize = struct {
 pub const Key = enum(c_int) {
     Left,
     Right,
+    Backspace,
     Unknown,
 };
 
@@ -109,6 +110,7 @@ pub const Event = union(enum) {
                     .key = switch (event.key.keysym.scancode) {
                         .SDL_SCANCODE_LEFT => Key.Left,
                         .SDL_SCANCODE_RIGHT => Key.Right,
+                        .SDL_SCANCODE_BACKSPACE => Key.Backspace,
                         else => Key.Unknown,
                     },
                 },

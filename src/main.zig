@@ -179,21 +179,30 @@ const DrawCall = struct {
 };
 
 pub const App = struct {
-    code: CodeList,
     scrollY: i32, // scrollX is only for individual parts of the UI, such as tables.
     alloc: *std.mem.Allocator,
     style: *const Style,
     cursorLocation: u64,
-    fn init(alloc: *std.mem.Allocator, style: *const Style) App {
-        return .{
-            .code = CodeList.init(),
+    text: []u8,
+    textLength: u64,
+
+    fn init(alloc: *std.mem.Allocator, style: *const Style) !App {
+        var text = try alloc.alloc(u8, 100);
+        errdefer alloc.deinit(text);
+        const initialText = "Test! **Bold**.";
+        std.mem.copy(u8, text, initialText);
+        return App{
             .scrollY = 0,
             .alloc = alloc,
             .style = style,
             .cursorLocation = 1,
+            .text = text,
+            .textLength = initialText.len,
         };
     }
-    fn deinit(app: *App) void {}
+    fn deinit(app: *App) void {
+        alloc.free(app.text);
+    }
 
     fn getFont(app: *App, font: HLFont) *const win.Font {
         const style = app.style;
@@ -218,6 +227,39 @@ pub const App = struct {
         if (drawCall.index > 0) {
             try win.renderText(window, font, color, &drawCall.current, drawCall.x + pos.x, drawCall.y + pos.y, drawCall.size);
         }
+    }
+
+    fn backspace(app: *App, deleteStop: enum {
+        Byte,
+        Codepoint,
+        Character,
+        Word,
+        Line,
+    }) void {
+        if (app.cursorLocation == 0) return;
+        std.mem.copy(
+            u8,
+            app.text[app.cursorLocation - 1 .. app.textLength - 1],
+            app.text[app.cursorLocation..app.textLength],
+        );
+        app.cursorLocation -= 1;
+        app.textLength -= 1;
+    }
+    fn insert(app: *App, text: []const u8) void {
+        if (app.textLength + text.len >= app.text.len) {
+            var newText = app.alloc.realloc(app.text, app.text.len * 2) catch |e| switch (e) {
+                std.mem.Allocator.Error.OutOfMemory => return, // could not insert text, out of memory. in the future, this could display an error on screen or reduce the memory usage of the text.
+            };
+            app.text = newText;
+        }
+        std.mem.copyBackwards(
+            u8,
+            app.text[app.cursorLocation + text.len .. app.textLength + text.len],
+            app.text[app.cursorLocation..app.textLength],
+        );
+        std.mem.copy(u8, app.text[app.cursorLocation .. app.cursorLocation + text.len], text);
+        app.cursorLocation += text.len;
+        app.textLength += text.len;
     }
 
     fn render(app: *App, window: *win.Window, event: *win.Event, pos: *win.Rect) !void {
@@ -245,23 +287,28 @@ pub const App = struct {
             .KeyDown => |keyev| switch (keyev.key) {
                 // this will be handled by the keybinding resolver in the future.,
                 .Left => {
-                    if (app.cursorLocation > 0) app.cursorLocation -= 1;
+                    // if (app.cursorLocation > 0) app.cursorLocation -= 1;
+                    app.insert("(*text*)");
                 },
                 .Right => {
                     if (app.cursorLocation < 10000) app.cursorLocation += 1;
+                },
+                .Backspace => {
+                    app.backspace(.Byte);
                 },
                 else => {},
             },
             else => {},
         }
 
+        std.debug.warn("cursorLocation: {}, textLength: {}\n", .{ app.cursorLocation, app.textLength });
+
         var cursorRect: win.Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 };
 
-        for ("markdown **test**" ++ "\n" ++
-            "**Bold**, *Italic*, ***BoldItalic***" ++ "\n" ++
-            "More text" ++ "\n") |chara| {
-            var char: [2]u8 = .{ chara, 0 };
+        for (app.text) |chara| {
             characterIndex += 1;
+            if (characterIndex > app.textLength) break;
+            var char: [2]u8 = .{ chara, 0 };
             var hl = parsingState.handleCharacter(char[0]);
             var hlColor = hl.color;
             var hlFont = hl.font;
@@ -419,7 +466,7 @@ pub fn main() !void {
 
     std.debug.warn("Style: {}\n", .{style});
 
-    var appV = App.init(alloc, &style);
+    var appV = try App.init(alloc, &style);
     var app = &appV;
 
     defer stdout.print("Quitting!\n", .{}) catch unreachable;
