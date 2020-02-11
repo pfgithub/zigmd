@@ -446,9 +446,9 @@ pub const App = struct {
                         const size = try win.measureText(font, &char);
 
                         charXL = x;
-                        charXR = x + textSize.w;
+                        charXR = x + size.w;
                         charYU = y;
-                        charYD = y + textSize.h;
+                        charYD = y + size.h;
 
                         drawCall.init(hlFont, hlColor, x, y, size);
                         drawCall.current[drawCall.index] = char[0];
