@@ -75,6 +75,7 @@ pub const Key = enum(c_int) {
     Left,
     Right,
     Backspace,
+    Return,
     Unknown,
 };
 
@@ -110,9 +111,10 @@ pub const Event = union(enum) {
             c.SDL_KEYDOWN => Event{
                 .KeyDown = .{
                     .key = switch (event.key.keysym.scancode) {
-                        .SDL_SCANCODE_LEFT => Key.Left,
-                        .SDL_SCANCODE_RIGHT => Key.Right,
-                        .SDL_SCANCODE_BACKSPACE => Key.Backspace,
+                        .SDL_SCANCODE_LEFT => .Left,
+                        .SDL_SCANCODE_RIGHT => .Right,
+                        .SDL_SCANCODE_BACKSPACE => .Backspace,
+                        .SDL_SCANCODE_RETURN => .Return,
                         else => Key.Unknown,
                     },
                 },

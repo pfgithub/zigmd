@@ -361,6 +361,9 @@ pub const App = struct {
                 .Backspace => {
                     app.delete(.Left, .Byte);
                 },
+                .Return => {
+                    app.insert("\n");
+                },
                 else => {},
             },
             .TextInput => |textin| {
@@ -387,7 +390,7 @@ pub const App = struct {
 
             var font = app.getFont(hlFont);
 
-            if (!drawCall.started) {
+            if (!drawCall.started and chara != '\n') {
                 const size = try win.measureText(font, &char);
 
                 charXL = x;
@@ -414,7 +417,7 @@ pub const App = struct {
                         charYD = y + lineHeight + textSize.h;
 
                         y += lineHeight;
-                        x = pos.x;
+                        x = 0;
                         drawCall.clear();
                     } else {
                         charXL = x;
