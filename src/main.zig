@@ -290,7 +290,7 @@ pub const App = struct {
                     if (app.cursorLocation > 0) app.cursorLocation -= 1;
                 },
                 .Right => {
-                    if (app.cursorLocation < 10000) app.cursorLocation += 1;
+                    if (app.cursorLocation < app.textLength) app.cursorLocation += 1;
                 },
                 .Backspace => {
                     app.backspace(.Byte);
@@ -335,7 +335,7 @@ pub const App = struct {
             } else {
                 if (drawCall.font != hlFont or drawCall.color != hlColor or drawCall.index >= 63 or chara == '\n') {
                     x += drawCall.size.w;
-                    if (lineHeight < drawCall.size.h) lineHeight = drawCall.size.h;
+                    if (lineHeight > drawCall.size.h) lineHeight = drawCall.size.h;
                     // drawCall();
                     try app.performDrawCall(window, &drawCall, pos);
                     // init();
@@ -396,9 +396,16 @@ pub const App = struct {
                 }
             }
 
+            // try win.renderRect(window, style.colors.control, .{
+            //     .x = charXR - 1 + pos.x,
+            //     .y = charYU + pos.y,
+            //     .w = 2,
+            //     .h = charYD - charYU,
+            // });
+
             switch (event.*) {
                 .MouseDown => |mouse| {
-                    if (mouse.x > charXL and mouse.y > charYU) {
+                    if (mouse.x - pos.x > (charXL + @divFloor((charXR - charXL), 2)) and mouse.y > charYU) {
                         app.cursorLocation = characterIndex;
                     }
                 },
@@ -428,6 +435,7 @@ pub const App = struct {
             .w = cursorRect.w,
             .h = cursorRect.h,
         });
+        // win.setTextInputRect(window, .{})
     }
 };
 
