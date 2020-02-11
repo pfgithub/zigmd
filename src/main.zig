@@ -178,6 +178,24 @@ const DrawCall = struct {
     }
 };
 
+pub const CharacterStop = enum {
+    Byte,
+    Codepoint,
+    Character,
+    Word,
+    Line,
+};
+
+pub const Direction = enum {
+    Left,
+    Right,
+};
+
+pub const ActionMode = enum {
+    Raw, // typing * inserts *, formatting is visible
+    ContextAware, // typing * inserts \*, formatting is hidden
+};
+
 pub const App = struct {
     scrollY: i32, // scrollX is only for individual parts of the UI, such as tables.
     alloc: *std.mem.Allocator,
@@ -229,21 +247,69 @@ pub const App = struct {
         }
     }
 
-    fn backspace(app: *App, deleteStop: enum {
-        Byte,
-        Codepoint,
-        Character,
-        Word,
-        Line,
-    }) void {
-        if (app.cursorLocation == 0) return;
-        std.mem.copy(
-            u8,
-            app.text[app.cursorLocation - 1 .. app.textLength - 1],
-            app.text[app.cursorLocation..app.textLength],
-        );
-        app.cursorLocation -= 1;
-        app.textLength -= 1;
+    fn delete(app: *App, direction: Direction, deleteStop: CharacterStop) void {
+        var shiftLength: u64 = switch (deleteStop) {
+            .Byte => 1,
+            else => {
+                std.debug.panic("Not supported yet :(", .{});
+            },
+        };
+
+        switch (direction) {
+            .Left => {
+                if (app.cursorLocation < shiftLength) {
+                    shiftLength = app.cursorLocation;
+                }
+                if (shiftLength == 0) return;
+
+                std.mem.copy(
+                    u8,
+                    app.text[app.cursorLocation - shiftLength .. app.textLength - shiftLength],
+                    app.text[app.cursorLocation..app.textLength],
+                );
+                app.cursorLocation -= shiftLength;
+                app.textLength -= shiftLength;
+            },
+            .Right => {
+                if (app.cursorLocation + shiftLength > app.textLength) {
+                    shiftLength = app.cursorLocation;
+                }
+                if (shiftLength == 0) return;
+
+                std.mem.copyBackwards(
+                    u8,
+                    app.text[app.cursorLocation + shiftLength .. app.textLength + shiftLength],
+                    app.text[app.cursorLocation..app.textLength],
+                );
+                app.cursorLocation -= shiftLength;
+                app.textLength -= shiftLength;
+            },
+        }
+    }
+
+    fn moveCursor(app: *App, direction: Direction, stop: CharacterStop) void {
+        const moveDistance: u64 = switch (stop) {
+            .Byte => 1,
+            else => {
+                std.debug.panic("Not supported yet :(", .{});
+            },
+        };
+        switch (direction) {
+            .Left => if (app.cursorLocation > 0) {
+                if (app.cursorLocation > moveDistance) {
+                    app.cursorLocation -= moveDistance;
+                } else {
+                    app.cursorLocation = 0;
+                }
+            },
+            .Right => if (app.cursorLocation < app.textLength) {
+                if (app.cursorLocation + moveDistance < app.textLength) {
+                    app.cursorLocation += moveDistance;
+                } else {
+                    app.cursorLocation = app.textLength;
+                }
+            },
+        }
     }
     fn insert(app: *App, text: []const u8) void {
         if (app.textLength + text.len >= app.text.len) {
@@ -287,13 +353,13 @@ pub const App = struct {
             .KeyDown => |keyev| switch (keyev.key) {
                 // this will be handled by the keybinding resolver in the future.,
                 .Left => {
-                    if (app.cursorLocation > 0) app.cursorLocation -= 1;
+                    app.moveCursor(.Left, .Byte);
                 },
                 .Right => {
-                    if (app.cursorLocation < app.textLength) app.cursorLocation += 1;
+                    app.moveCursor(.Right, .Byte);
                 },
                 .Backspace => {
-                    app.backspace(.Byte);
+                    app.delete(.Left, .Byte);
                 },
                 else => {},
             },
