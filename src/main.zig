@@ -287,8 +287,7 @@ pub const App = struct {
             .KeyDown => |keyev| switch (keyev.key) {
                 // this will be handled by the keybinding resolver in the future.,
                 .Left => {
-                    // if (app.cursorLocation > 0) app.cursorLocation -= 1;
-                    app.insert("(*text*)");
+                    if (app.cursorLocation > 0) app.cursorLocation -= 1;
                 },
                 .Right => {
                     if (app.cursorLocation < 10000) app.cursorLocation += 1;
@@ -297,6 +296,9 @@ pub const App = struct {
                     app.backspace(.Byte);
                 },
                 else => {},
+            },
+            .TextInput => |textin| {
+                app.insert(textin.text[0..textin.length]);
             },
             else => {},
         }

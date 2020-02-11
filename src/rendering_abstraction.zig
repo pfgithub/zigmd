@@ -4,6 +4,7 @@ const c = @cImport({
     @cInclude("SDL.h");
     @cInclude("SDL_ttf.h");
 });
+const std = @import("std");
 
 // usingnamespace c ?
 
@@ -99,7 +100,8 @@ pub const Event = union(enum) {
     };
     MouseMotion: MouseMotionEvent,
     pub const TextInputEvent = struct {
-        text: [32]u8,
+        text: [100]u8,
+        length: u32,
     };
     TextInput: TextInputEvent,
     fn fromSDL(event: c.SDL_Event) Event {
@@ -133,8 +135,12 @@ pub const Event = union(enum) {
                     .y = event.motion.y,
                 },
             },
-            c.SDL_TEXTINPUT => Event{
-                .TextInput = .{ .text = event.text.text },
+            c.SDL_TEXTINPUT => blk: {
+                var text: [100]u8 = undefined;
+                std.mem.copy(u8, &text, &event.text.text); // does the event.text.text memory get leaked? what happens to it?
+                break :blk Event{
+                    .TextInput = .{ .text = text, .length = @intCast(u32, c.strlen(&event.text.text)) },
+                };
             },
             else => Event{ .Unknown = UnknownEvent{ .type = event.type } },
         };
