@@ -76,6 +76,7 @@ pub const Key = enum(c_int) {
     Right,
     Backspace,
     Return,
+    Delete,
     Unknown,
 };
 
@@ -115,6 +116,7 @@ pub const Event = union(enum) {
                         .SDL_SCANCODE_RIGHT => .Right,
                         .SDL_SCANCODE_BACKSPACE => .Backspace,
                         .SDL_SCANCODE_RETURN => .Return,
+                        .SDL_SCANCODE_DELETE => .Delete,
                         else => Key.Unknown,
                     },
                 },

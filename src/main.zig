@@ -272,16 +272,15 @@ pub const App = struct {
             },
             .Right => {
                 if (app.cursorLocation + shiftLength > app.textLength) {
-                    shiftLength = app.cursorLocation;
+                    shiftLength = app.textLength - app.cursorLocation;
                 }
                 if (shiftLength == 0) return;
 
-                std.mem.copyBackwards(
+                std.mem.copy(
                     u8,
-                    app.text[app.cursorLocation + shiftLength .. app.textLength + shiftLength],
                     app.text[app.cursorLocation..app.textLength],
+                    app.text[app.cursorLocation + shiftLength .. app.textLength + shiftLength],
                 );
-                app.cursorLocation -= shiftLength;
                 app.textLength -= shiftLength;
             },
         }
@@ -363,6 +362,9 @@ pub const App = struct {
                 },
                 .Return => {
                     app.insert("\n");
+                },
+                .Delete => {
+                    app.delete(.Right, .Byte);
                 },
                 else => {},
             },
