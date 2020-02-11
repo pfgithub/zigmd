@@ -343,11 +343,11 @@ pub const App = struct {
 
         var x: c_int = 0;
         var y: c_int = 0;
-        var lineHeight: c_int = 10;
+        var lineHeight: c_int = 0;
 
         var drawCall = DrawCall.Blank;
 
-        var characterIndex: u64 = 0;
+        var characterEndIndex: u64 = 0;
 
         switch (event.*) {
             .KeyDown => |keyev| switch (keyev.key) {
@@ -374,8 +374,8 @@ pub const App = struct {
         var cursorRect: win.Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 };
 
         for (app.text) |chara| {
-            characterIndex += 1;
-            if (characterIndex > app.textLength) break;
+            characterEndIndex += 1;
+            if (characterEndIndex > app.textLength) break;
             var char: [2]u8 = .{ chara, 0 };
             var hl = parsingState.handleCharacter(char[0]);
             var hlColor = hl.color;
@@ -401,7 +401,7 @@ pub const App = struct {
             } else {
                 if (drawCall.font != hlFont or drawCall.color != hlColor or drawCall.index >= 63 or chara == '\n') {
                     x += drawCall.size.w;
-                    if (lineHeight > drawCall.size.h) lineHeight = drawCall.size.h;
+                    if (drawCall.size.h > lineHeight) lineHeight = drawCall.size.h;
                     // drawCall();
                     try app.performDrawCall(window, &drawCall, pos);
                     // init();
@@ -436,6 +436,8 @@ pub const App = struct {
                         drawCall.index -= 1;
                         drawCall.current[drawCall.index] = 0; // undo
                         try app.performDrawCall(window, &drawCall, pos);
+
+                        if (drawCall.size.h > lineHeight) lineHeight = drawCall.size.h;
 
                         x = 0;
                         y += lineHeight;
@@ -472,22 +474,30 @@ pub const App = struct {
             switch (event.*) {
                 .MouseDown => |mouse| {
                     if (mouse.x - pos.x > (charXL + @divFloor((charXR - charXL), 2)) and mouse.y > charYU) {
-                        app.cursorLocation = characterIndex;
+                        app.cursorLocation = characterEndIndex;
+                    } else if (characterEndIndex == 1) {
+                        app.cursorLocation = 0;
                     }
                 },
                 else => {},
             }
 
-            if (app.cursorLocation == characterIndex) {
+            if (app.cursorLocation == characterEndIndex) {
                 // note: draw cursor above letters (last);
                 // drawing:
                 // measure all
                 // draw highlights
                 // draw letters
                 // draw cursor
-                // note: SDL_SetTextInputRect
                 cursorRect = .{
                     .x = charXR - 1,
+                    .y = charYU,
+                    .w = 2,
+                    .h = charYD - charYU,
+                };
+            } else if (characterEndIndex == 1 and app.cursorLocation == 0) {
+                cursorRect = .{
+                    .x = charXL - 1,
                     .y = charYU,
                     .w = 2,
                     .h = charYD - charYU,
@@ -495,6 +505,7 @@ pub const App = struct {
             }
         }
         if (drawCall.started) try app.performDrawCall(window, &drawCall, pos);
+        // note: SDL_SetTextInputRect
         try win.renderRect(window, style.colors.cursor, .{
             .x = cursorRect.x + pos.x,
             .y = cursorRect.y + pos.y,
