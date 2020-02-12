@@ -147,14 +147,6 @@ pub const ParsingState = struct {
                     this.commitState();
                     return .{ .color = .text, .font = this.getFont() };
                 },
-                'n' => {
-                    this.commitState();
-                    return .{ .color = .special, .font = .normal };
-                },
-                't' => {
-                    this.commitState();
-                    return .{ .color = .special, .font = .normal };
-                },
                 else => {
                     this.commitState();
                     return .{ .color = .errorc, .font = .normal };
