@@ -203,19 +203,37 @@ pub const App = struct {
     cursorLocation: u64,
     text: []u8,
     textLength: u64,
+    readOnly: bool,
 
     fn init(alloc: *std.mem.Allocator, style: *const Style) !App {
-        var text = try alloc.alloc(u8, 100);
-        errdefer alloc.deinit(text);
-        const initialText = "Test! **Bold**.";
-        std.mem.copy(u8, text, initialText);
+        var text = try alloc.alloc(u8, 10000);
+        errdefer alloc.free(text);
+
+        var loadErrorText = try alloc.alloc(u8, 16);
+        defer alloc.free(loadErrorText);
+        std.mem.copy(u8, loadErrorText, "File load error.");
+
+        var readOnly = false;
+
+        var file: []u8 = std.fs.cwd().readFileAlloc(alloc, "README.md", 10000) catch |e| blk: {
+            std.debug.warn("File load error: {}", .{e});
+            readOnly = true;
+            break :blk loadErrorText;
+        };
+        defer alloc.free(file);
+
+        std.mem.copy(u8, text, file);
+        const textLength = file.len;
+
+        // const initialText = "Test! **Bold**.";
         return App{
             .scrollY = 0,
             .alloc = alloc,
             .style = style,
             .cursorLocation = 1,
             .text = text,
-            .textLength = initialText.len,
+            .textLength = textLength,
+            .readOnly = readOnly,
         };
     }
     fn deinit(app: *App) void {
