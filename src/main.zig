@@ -441,6 +441,11 @@ pub const App = struct {
         // if click and mouse position is within the character, set the cursor either before or after
         // if it fits on screen, render it
 
+        // find maximum line height for all lines
+        // render text at the bottom of the line
+        // render the cursor the entire line height
+        // knowing the line height in advance makes it easier to fill background colors (selected line can have a different bg color)
+
         try win.renderRect(window, style.colors.background, pos.*);
 
         var parsingState = ParsingState.default();
