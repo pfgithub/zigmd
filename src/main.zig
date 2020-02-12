@@ -30,6 +30,7 @@ pub const Style = struct {
         background: win.Color,
         cursor: win.Color,
         special: win.Color,
+        errorc: win.Color,
     },
     fonts: struct {
         standard: win.Font,
@@ -44,6 +45,7 @@ pub const HLColor = enum {
     text,
     control,
     special,
+    errorc,
 };
 
 pub const HLFont = enum {
@@ -129,13 +131,33 @@ pub const ParsingState = struct {
         if (this.escape) {
             this.escape = false;
             return switch (char) {
+                '\\' => {
+                    this.commitState();
+                    return .{ .color = .text, .font = this.getFont() };
+                },
+                '*' => {
+                    this.commitState();
+                    return .{ .color = .text, .font = this.getFont() };
+                },
+                '`' => {
+                    this.commitState();
+                    return .{ .color = .text, .font = this.getFont() };
+                },
+                '#' => {
+                    this.commitState();
+                    return .{ .color = .text, .font = this.getFont() };
+                },
                 'n' => {
+                    this.commitState();
+                    return .{ .color = .special, .font = .normal };
+                },
+                't' => {
                     this.commitState();
                     return .{ .color = .special, .font = .normal };
                 },
                 else => {
                     this.commitState();
-                    return .{ .color = .special, .font = .normal };
+                    return .{ .color = .errorc, .font = .normal };
                 },
             };
         }
@@ -318,6 +340,7 @@ pub const App = struct {
             .control => style.colors.control,
             .text => style.colors.text,
             .special => style.colors.special,
+            .errorc => style.colors.errorc,
         };
     }
 
@@ -639,6 +662,7 @@ pub fn main() !void {
             .background = win.Color.hex(0x2e3440),
             .cursor = win.Color.rgb(128, 128, 255),
             .special = win.Color.rgb(128, 255, 128),
+            .errorc = win.Color.rgb(255, 128, 128),
         },
         .fonts = .{
             .standard = standardFont,
