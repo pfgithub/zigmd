@@ -131,11 +131,11 @@ pub const ParsingState = struct {
             return switch (char) {
                 'n' => {
                     this.commitState();
-                    return .{ .color = .special, .font = this.getFont() };
+                    return .{ .color = .special, .font = .normal };
                 },
                 else => {
                     this.commitState();
-                    return .{ .color = .text, .font = this.getFont() };
+                    return .{ .color = .special, .font = .normal };
                 },
             };
         }
@@ -184,6 +184,9 @@ pub const ParsingState = struct {
                 this.heading = 0;
                 this.commitState();
                 this.lineStart = true;
+                this.bold = false;
+                this.italic = false;
+                this.escape = false;
                 return .{ .color = .text, .font = .normal };
             },
             else => {
@@ -459,6 +462,7 @@ pub const App = struct {
         var cursorRect: win.Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 };
 
         for (app.text) |chara| {
+            if (y > pos.h) break;
             characterEndIndex += 1;
             if (characterEndIndex > app.textLength) break;
             var char: [2]u8 = .{ chara, 0 };
@@ -560,8 +564,10 @@ pub const App = struct {
             // });
 
             switch (event.*) {
-                .MouseDown => |mouse| {
-                    if (mouse.x - pos.x > (charXL + @divFloor((charXR - charXL), 2)) and mouse.y > charYU + pos.y) {
+                .MouseDown => |mouse| blk: {
+                    if (mouse.y < pos.y or mouse.y > pos.y + pos.h or mouse.x < pos.x or mouse.x > pos.x + pos.w) {
+                        break :blk;
+                    } else if (mouse.x - pos.x > (charXL + @divFloor((charXR - charXL), 2)) and mouse.y > charYU + pos.y) {
                         app.cursorLocation = characterEndIndex;
                     } else if (characterEndIndex == 1) {
                         app.cursorLocation = 0;
