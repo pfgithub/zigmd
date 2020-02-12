@@ -538,7 +538,7 @@ pub const App = struct {
 
             switch (event.*) {
                 .MouseDown => |mouse| {
-                    if (mouse.x - pos.x > (charXL + @divFloor((charXR - charXL), 2)) and mouse.y > charYU) {
+                    if (mouse.x - pos.x > (charXL + @divFloor((charXR - charXL), 2)) and mouse.y > charYU + pos.y) {
                         app.cursorLocation = characterEndIndex;
                     } else if (characterEndIndex == 1) {
                         app.cursorLocation = 0;
@@ -626,7 +626,7 @@ pub fn main() !void {
 
     defer stdout.print("Quitting!\n", .{}) catch unreachable;
 
-    // only if mode has raw text input flag set
+    // only if mode has raw text input flag sethttps://thetravelers.online/leaderboard
 
     // if in foreground, loop pollevent
     // if in background, waitevent
@@ -644,10 +644,10 @@ pub fn main() !void {
         try window.clear();
         var windowSize = try window.getSize();
         var size: win.Rect = .{
-            .w = windowSize.w - 20,
-            .h = windowSize.h - 20,
-            .x = 10,
-            .y = 10,
+            .w = windowSize.w - 80,
+            .h = windowSize.h - 80,
+            .x = 40,
+            .y = 40,
         };
         try app.render(&window, &event, &size);
         window.present();
