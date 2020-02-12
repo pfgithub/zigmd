@@ -35,6 +35,7 @@ pub const Style = struct {
         bold: win.Font,
         italic: win.Font,
         bolditalic: win.Font,
+        heading: win.Font,
     },
 };
 
@@ -48,14 +49,18 @@ pub const HLFont = enum {
     bold,
     italic,
     bolditalic,
+    heading,
 };
 
 pub const ParsingState = struct {
     bold: bool,
     italic: bool,
+    heading: u8,
+    lineStart: bool,
     const ModeProgress = union(enum) {
         stars: u8,
         backticks: u8,
+        hashtags: u8,
         none: void,
         pub const Type = @TagType(@This());
     };
@@ -64,6 +69,8 @@ pub const ParsingState = struct {
         return ParsingState{
             .bold = false,
             .italic = false,
+            .heading = 0,
+            .lineStart = true,
             .modeProgress = ModeProgress{ .none = {} },
         };
     }
@@ -71,7 +78,9 @@ pub const ParsingState = struct {
         if (false) { // if is control character
             return HLFont.normal;
         }
-        if (this.bold and this.italic) {
+        if (this.heading > 0) {
+            return HLFont.heading;
+        } else if (this.bold and this.italic) {
             return HLFont.bolditalic;
         } else if (this.bold) {
             return HLFont.bold;
@@ -92,16 +101,20 @@ pub const ParsingState = struct {
                     this.italic = !this.italic;
                     this.bold = !this.bold;
                 } else {
-                    std.debug.warn("[unreachable] Stars: {}", .{stars});
+                    std.debug.panic("[unreachable] Stars: {}", .{stars});
                 }
             },
             .backticks => |backticks| {
                 // 1 = nothing, 3 = enter multiline code block
-                std.debug.warn("[unreachable] Backticks: {}", .{backticks});
+                std.debug.panic("[unreachable] Backticks: {}", .{backticks});
+            },
+            .hashtags => |hashtags| {
+                this.heading = hashtags;
             },
             .none => {},
         }
         this.modeProgress = ModeProgress{ .none = {} };
+        this.lineStart = false;
     }
     fn handleCharacter(this: *ParsingState, char: u8) struct {
         font: HLFont,
@@ -121,11 +134,35 @@ pub const ParsingState = struct {
                         }
                     },
                     else => {
-                        this.commitState();
                         this.modeProgress = ModeProgress{ .stars = 1 };
                     },
                 }
                 return .{ .color = .control, .font = .normal };
+            },
+            '#' => switch (this.modeProgress) {
+                .hashtags => |hashtags| {
+                    if (hashtags >= 6) {
+                        this.commitState();
+                    } else {
+                        this.modeProgress = ModeProgress{ .hashtags = hashtags + 1 };
+                    }
+                    return .{ .color = .control, .font = .normal };
+                },
+                else => {
+                    if (this.lineStart) {
+                        this.modeProgress = ModeProgress{ .hashtags = 1 };
+                        return .{ .color = .control, .font = .normal };
+                    } else {
+                        this.commitState();
+                        return .{ .color = .text, .font = this.getFont() };
+                    }
+                },
+            },
+            '\n' => {
+                this.heading = 0;
+                this.commitState();
+                this.lineStart = true;
+                return .{ .color = .text, .font = .normal };
             },
             else => {
                 this.commitState();
@@ -136,7 +173,7 @@ pub const ParsingState = struct {
 };
 
 const DrawCall = struct {
-    current: [64:0]u8, // <rename this to text once refactor is available
+    current: [64:0]u8,
     started: bool,
 
     index: u8,
@@ -247,6 +284,7 @@ pub const App = struct {
             .bold => &style.fonts.bold,
             .italic => &style.fonts.italic,
             .bolditalic => &style.fonts.bolditalic,
+            .heading => &style.fonts.heading,
         };
     }
     fn getColor(app: *App, color: HLColor) win.Color {
@@ -360,7 +398,8 @@ pub const App = struct {
 
         var x: c_int = 0;
         var y: c_int = 0;
-        var lineHeight: c_int = 0;
+        const minimumLineHeight = 8;
+        var lineHeight: c_int = minimumLineHeight;
 
         var drawCall = DrawCall.Blank;
 
@@ -434,10 +473,13 @@ pub const App = struct {
                         charXL = 0;
                         charXR = 0;
                         charYU = y + lineHeight;
-                        charYD = y + lineHeight + textSize.h;
+                        charYD = y + lineHeight + minimumLineHeight;
 
                         y += lineHeight;
                         x = 0;
+
+                        lineHeight = minimumLineHeight;
+
                         drawCall.clear();
                     } else {
                         charXL = x;
@@ -464,14 +506,14 @@ pub const App = struct {
 
                         x = 0;
                         y += lineHeight;
-                        lineHeight = 0;
+                        lineHeight = minimumLineHeight;
 
                         const size = try win.measureText(font, &char);
 
                         charXL = x;
                         charXR = x + size.w;
                         charYU = y;
-                        charYD = y + size.h;
+                        charYD = y + minimumLineHeight;
 
                         drawCall.init(hlFont, hlColor, x, y, size);
                         drawCall.current[drawCall.index] = char[0];
@@ -550,14 +592,16 @@ pub fn main() !void {
 
     var window = try win.Window.init();
 
-    var standardFont = try win.Font.init("font/FreeSans.ttf");
+    var standardFont = try win.Font.init("font/FreeSans.ttf", 16);
     defer standardFont.deinit();
-    var boldFont = try win.Font.init("font/FreeSansBold.ttf");
+    var boldFont = try win.Font.init("font/FreeSansBold.ttf", 16);
     defer boldFont.deinit();
-    var italicFont = try win.Font.init("font/FreeSansOblique.ttf");
+    var italicFont = try win.Font.init("font/FreeSansOblique.ttf", 16);
     defer italicFont.deinit();
-    var boldItalicFont = try win.Font.init("font/FreeSansBoldOblique.ttf");
+    var boldItalicFont = try win.Font.init("font/FreeSansBoldOblique.ttf", 16);
     defer boldItalicFont.deinit();
+    var headingFont = try win.Font.init("font/FreeSansBold.ttf", 24);
+    defer headingFont.deinit();
 
     var style = Style{
         .colors = .{
@@ -571,6 +615,7 @@ pub fn main() !void {
             .bold = boldFont,
             .italic = italicFont,
             .bolditalic = boldItalicFont,
+            .heading = headingFont,
         },
     };
 

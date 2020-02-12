@@ -25,8 +25,8 @@ fn ttfError() RenderingError {
 
 pub const Font = struct {
     sdlFont: *c.TTF_Font,
-    pub fn init(ttfPath: [*c]const u8) !Font {
-        var font = c.TTF_OpenFont(ttfPath, 24);
+    pub fn init(ttfPath: [*c]const u8, size: u16) !Font {
+        var font = c.TTF_OpenFont(ttfPath, size);
         if (font == null) return ttfError();
         errdefer c.TTF_CloseFont(font);
 
