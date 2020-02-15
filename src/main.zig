@@ -254,22 +254,80 @@ const DrawCall = struct {
     }
 };
 
-pub const CharacterStop = enum {
-    Byte,
-    Codepoint,
-    Character,
-    Word,
-    Line,
-};
-
 pub const Direction = enum {
-    Left,
-    Right,
+    left,
+    right,
+};
+pub const ActionMode = enum {
+    raw, // typing * inserts *, formatting is visible
+    contextAware, // typing * inserts \*, formatting is hidden
+};
+pub const Regex = struct {
+    body: []const u8,
+    flags: []const u8,
+};
+pub const CharacterStop = union(enum) {
+    byte: void,
+    codepoint: void,
+    character: void,
+    word: void,
+    line: void,
+    regex: Regex,
+    contextAware: void,
+};
+pub const LineStop = union(enum) {
+    screen: void,
+    file: void,
 };
 
-pub const ActionMode = enum {
-    Raw, // typing * inserts *, formatting is visible
-    ContextAware, // typing * inserts \*, formatting is hidden
+pub const Action = union(enum) {
+    pub const Insert = struct {
+        direction: Direction,
+        mode: ActionMode,
+        text: []const u8,
+
+        fn apply(insert: *const Insert, app: *App) void {
+            // direction only affects where the cursor ends up
+            // mode is not supported
+            // copy text to the right
+            {
+                const newLength = app.textLength + insert.text.len;
+                app.expandToFit(newLength) catch |e| switch (e) {
+                    std.mem.Allocator.Error.OutOfMemory => return,
+                };
+                std.mem.copyBackwards(
+                    u8,
+                    app.text[app.cursorLocation + insert.text.len .. app.textLength + insert.text.len],
+                    app.text[app.cursorLocation..app.textLength],
+                );
+                app.textLength = newLength;
+            }
+
+            {
+                std.mem.copy(u8, app.text[app.cursorLocation .. app.cursorLocation + insert.text.len], insert.text);
+            }
+
+            switch (insert.direction) {
+                .left => app.cursorLocation += insert.text.len,
+                .right => {},
+            }
+        }
+    };
+    insert: Insert,
+    pub const Delete = struct {
+        direction: Direction,
+        stop: CharacterStop,
+    };
+    delete: Delete,
+    pub const MoveCursorLR = struct {
+        direction: Direction,
+        stop: CharacterStop,
+    };
+    moveCursorLR: MoveCursorLR,
+    pub const MoveCursorUD = struct {
+        direction: enum { up, down },
+        mode: LineStop,
+    };
 };
 
 pub const App = struct {
@@ -316,6 +374,13 @@ pub const App = struct {
         alloc.free(app.text);
     }
 
+    fn expandToFit(app: *App, finalLength: u64) !void {
+        while (app.textLength + finalLength >= app.text.len) {
+            var newText = try app.alloc.realloc(app.text, app.text.len * 2);
+            app.text = newText;
+        }
+    }
+
     fn getFont(app: *App, font: HLFont) *const win.Font {
         const style = app.style;
         return switch (font) {
@@ -346,14 +411,14 @@ pub const App = struct {
 
     fn delete(app: *App, direction: Direction, deleteStop: CharacterStop) void {
         var shiftLength: u64 = switch (deleteStop) {
-            .Byte => 1,
+            .byte => 1,
             else => {
                 std.debug.panic("Not supported yet :(", .{});
             },
         };
 
         switch (direction) {
-            .Left => {
+            .left => {
                 if (app.cursorLocation < shiftLength) {
                     shiftLength = app.cursorLocation;
                 }
@@ -367,7 +432,7 @@ pub const App = struct {
                 app.cursorLocation -= shiftLength;
                 app.textLength -= shiftLength;
             },
-            .Right => {
+            .right => {
                 if (app.cursorLocation + shiftLength > app.textLength) {
                     shiftLength = app.textLength - app.cursorLocation;
                 }
@@ -385,20 +450,20 @@ pub const App = struct {
 
     fn moveCursor(app: *App, direction: Direction, stop: CharacterStop) void {
         const moveDistance: u64 = switch (stop) {
-            .Byte => 1,
+            .byte => 1,
             else => {
                 std.debug.panic("Not supported yet :(", .{});
             },
         };
         switch (direction) {
-            .Left => if (app.cursorLocation > 0) {
+            .left => if (app.cursorLocation > 0) {
                 if (app.cursorLocation > moveDistance) {
                     app.cursorLocation -= moveDistance;
                 } else {
                     app.cursorLocation = 0;
                 }
             },
-            .Right => if (app.cursorLocation < app.textLength) {
+            .right => if (app.cursorLocation < app.textLength) {
                 if (app.cursorLocation + moveDistance < app.textLength) {
                     app.cursorLocation += moveDistance;
                 } else {
@@ -406,22 +471,6 @@ pub const App = struct {
                 }
             },
         }
-    }
-    fn insert(app: *App, text: []const u8) void {
-        if (app.textLength + text.len >= app.text.len) {
-            var newText = app.alloc.realloc(app.text, app.text.len * 2) catch |e| switch (e) {
-                std.mem.Allocator.Error.OutOfMemory => return, // could not insert text, out of memory. in the future, this could display an error on screen or reduce the memory usage of the text.
-            };
-            app.text = newText;
-        }
-        std.mem.copyBackwards(
-            u8,
-            app.text[app.cursorLocation + text.len .. app.textLength + text.len],
-            app.text[app.cursorLocation..app.textLength],
-        );
-        std.mem.copy(u8, app.text[app.cursorLocation .. app.cursorLocation + text.len], text);
-        app.cursorLocation += text.len;
-        app.textLength += text.len;
     }
 
     fn render(app: *App, window: *win.Window, event: *win.Event, pos: *win.Rect) !void {
@@ -455,24 +504,38 @@ pub const App = struct {
             .KeyDown => |keyev| switch (keyev.key) {
                 // this will be handled by the keybinding resolver in the future.,
                 .Left => {
-                    app.moveCursor(.Left, .Byte);
+                    app.moveCursor(.left, .byte);
                 },
                 .Right => {
-                    app.moveCursor(.Right, .Byte);
+                    app.moveCursor(.right, .byte);
                 },
                 .Backspace => {
-                    app.delete(.Left, .Byte);
+                    app.delete(.left, .byte);
                 },
                 .Return => {
-                    app.insert("\n");
+                    const action: Action = .{
+                        .insert = .{
+                            .direction = .left,
+                            .mode = .raw,
+                            .text = "\n",
+                        },
+                    };
+                    action.insert.apply(app);
                 },
                 .Delete => {
-                    app.delete(.Right, .Byte);
+                    app.delete(.right, .byte);
                 },
                 else => {},
             },
             .TextInput => |textin| {
-                app.insert(textin.text[0..textin.length]);
+                const action: Action = .{
+                    .insert = .{
+                        .direction = .left,
+                        .mode = .raw,
+                        .text = textin.text[0..textin.length],
+                    },
+                };
+                action.insert.apply(app);
             },
             else => {},
         }

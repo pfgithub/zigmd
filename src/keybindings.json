@@ -1,0 +1,9 @@
+{
+    "ctrl+s": {
+        "action": "save"
+    },
+    "left": {
+        "action": "movecursor",
+        "direction": "left"
+    }
+}
