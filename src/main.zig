@@ -317,6 +317,24 @@ pub const Action = union(enum) {
     pub const Delete = struct {
         direction: Direction,
         stop: CharacterStop,
+
+        fn apply(delete: *const Delete, app: *App) void {
+            const stopPos = app.findStop(delete.stop, delete.direction);
+            const moveDistance = blk: {
+                const left = std.math.min(app.cursorLocation, stopPos);
+                const right = std.math.max(app.cursorLocation, stopPos);
+
+                const newLength = app.textLength - (right - left);
+                std.mem.copy(u8, app.text[left..app.textLength], app.text[right..app.textLength]);
+                app.textLength = newLength;
+
+                break :blk right - left;
+            };
+            switch (delete.direction) {
+                .left => app.cursorLocation -= moveDistance,
+                .right => {},
+            }
+        }
     };
     delete: Delete,
     pub const MoveCursorLR = struct {
@@ -334,9 +352,9 @@ pub const App = struct {
     scrollY: i32, // scrollX is only for individual parts of the UI, such as tables.
     alloc: *std.mem.Allocator,
     style: *const Style,
-    cursorLocation: u64,
+    cursorLocation: usize,
     text: []u8,
-    textLength: u64,
+    textLength: usize,
     readOnly: bool,
 
     fn init(alloc: *std.mem.Allocator, style: *const Style) !App {
@@ -374,7 +392,31 @@ pub const App = struct {
         alloc.free(app.text);
     }
 
-    fn expandToFit(app: *App, finalLength: u64) !void {
+    fn findStop(app: *App, stop: CharacterStop, direction: Direction) usize {
+        return switch (stop) {
+            .byte => switch (direction) {
+                .left => blk: {
+                    if (app.cursorLocation > 0) {
+                        break :blk app.cursorLocation - 1;
+                    } else {
+                        break :blk 0;
+                    }
+                },
+                .right => blk: {
+                    if (app.cursorLocation + 1 < app.textLength - 1) {
+                        break :blk app.cursorLocation + 1;
+                    } else {
+                        break :blk app.textLength - 1;
+                    }
+                },
+            },
+            else => {
+                std.debug.panic("not implemented", .{});
+            },
+        };
+    }
+
+    fn expandToFit(app: *App, finalLength: usize) !void {
         while (app.textLength + finalLength >= app.text.len) {
             var newText = try app.alloc.realloc(app.text, app.text.len * 2);
             app.text = newText;
@@ -409,47 +451,8 @@ pub const App = struct {
         }
     }
 
-    fn delete(app: *App, direction: Direction, deleteStop: CharacterStop) void {
-        var shiftLength: u64 = switch (deleteStop) {
-            .byte => 1,
-            else => {
-                std.debug.panic("Not supported yet :(", .{});
-            },
-        };
-
-        switch (direction) {
-            .left => {
-                if (app.cursorLocation < shiftLength) {
-                    shiftLength = app.cursorLocation;
-                }
-                if (shiftLength == 0) return;
-
-                std.mem.copy(
-                    u8,
-                    app.text[app.cursorLocation - shiftLength .. app.textLength - shiftLength],
-                    app.text[app.cursorLocation..app.textLength],
-                );
-                app.cursorLocation -= shiftLength;
-                app.textLength -= shiftLength;
-            },
-            .right => {
-                if (app.cursorLocation + shiftLength > app.textLength) {
-                    shiftLength = app.textLength - app.cursorLocation;
-                }
-                if (shiftLength == 0) return;
-
-                std.mem.copy(
-                    u8,
-                    app.text[app.cursorLocation..app.textLength],
-                    app.text[app.cursorLocation + shiftLength .. app.textLength + shiftLength],
-                );
-                app.textLength -= shiftLength;
-            },
-        }
-    }
-
     fn moveCursor(app: *App, direction: Direction, stop: CharacterStop) void {
-        const moveDistance: u64 = switch (stop) {
+        const moveDistance: usize = switch (stop) {
             .byte => 1,
             else => {
                 std.debug.panic("Not supported yet :(", .{});
@@ -498,7 +501,7 @@ pub const App = struct {
 
         var drawCall = DrawCall.Blank;
 
-        var characterEndIndex: u64 = 0;
+        var characterEndIndex: usize = 0;
 
         switch (event.*) {
             .KeyDown => |keyev| switch (keyev.key) {
@@ -510,7 +513,13 @@ pub const App = struct {
                     app.moveCursor(.right, .byte);
                 },
                 .Backspace => {
-                    app.delete(.left, .byte);
+                    const action: Action = .{
+                        .delete = .{
+                            .direction = .left,
+                            .stop = .byte,
+                        },
+                    };
+                    action.delete.apply(app);
                 },
                 .Return => {
                     const action: Action = .{
@@ -523,7 +532,13 @@ pub const App = struct {
                     action.insert.apply(app);
                 },
                 .Delete => {
-                    app.delete(.right, .byte);
+                    const action: Action = .{
+                        .delete = .{
+                            .direction = .right,
+                            .stop = .byte,
+                        },
+                    };
+                    action.delete.apply(app);
                 },
                 else => {},
             },
