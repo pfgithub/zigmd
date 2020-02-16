@@ -363,9 +363,6 @@ pub const App = struct {
     readOnly: bool,
 
     fn init(alloc: *std.mem.Allocator, style: *const Style) !App {
-        var text = try alloc.alloc(u8, 10000);
-        errdefer alloc.free(text);
-
         var loadErrorText = try alloc.alloc(u8, 16);
         defer alloc.free(loadErrorText);
         std.mem.copy(u8, loadErrorText, "File load error.");
@@ -378,6 +375,9 @@ pub const App = struct {
             break :blk loadErrorText;
         };
         defer alloc.free(file);
+
+        var text = try alloc.alloc(u8, file.len * 2);
+        errdefer alloc.free(text);
 
         std.mem.copy(u8, text, file);
         const textLength = file.len;
