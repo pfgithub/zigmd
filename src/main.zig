@@ -363,9 +363,8 @@ pub const App = struct {
     readOnly: bool,
 
     fn init(alloc: *std.mem.Allocator, style: *const Style) !App {
-        var loadErrorText = try alloc.alloc(u8, 16);
+        var loadErrorText = try std.mem.dupe(alloc, u8, "File load error.");
         defer alloc.free(loadErrorText);
-        std.mem.copy(u8, loadErrorText, "File load error.");
 
         var readOnly = false;
 
