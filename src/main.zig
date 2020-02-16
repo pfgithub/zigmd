@@ -403,7 +403,7 @@ pub const App = struct {
                     }
                 },
                 .right => blk: {
-                    if (app.cursorLocation + 1 < app.textLength - 1) {
+                    if (app.cursorLocation + 1 < app.textLength) {
                         break :blk app.cursorLocation + 1;
                     } else {
                         break :blk app.textLength - 1;
