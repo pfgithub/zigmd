@@ -340,6 +340,11 @@ pub const Action = union(enum) {
     pub const MoveCursorLR = struct {
         direction: Direction,
         stop: CharacterStop,
+
+        fn apply(moveCursorLR: *const MoveCursorLR, app: *App) void {
+            const stopPos = app.findStop(moveCursorLR.stop, moveCursorLR.direction);
+            app.cursorLocation = stopPos;
+        }
     };
     moveCursorLR: MoveCursorLR,
     pub const MoveCursorUD = struct {
@@ -451,31 +456,6 @@ pub const App = struct {
         }
     }
 
-    fn moveCursor(app: *App, direction: Direction, stop: CharacterStop) void {
-        const moveDistance: usize = switch (stop) {
-            .byte => 1,
-            else => {
-                std.debug.panic("Not supported yet :(", .{});
-            },
-        };
-        switch (direction) {
-            .left => if (app.cursorLocation > 0) {
-                if (app.cursorLocation > moveDistance) {
-                    app.cursorLocation -= moveDistance;
-                } else {
-                    app.cursorLocation = 0;
-                }
-            },
-            .right => if (app.cursorLocation < app.textLength) {
-                if (app.cursorLocation + moveDistance < app.textLength) {
-                    app.cursorLocation += moveDistance;
-                } else {
-                    app.cursorLocation = app.textLength;
-                }
-            },
-        }
-    }
-
     fn render(app: *App, window: *win.Window, event: *win.Event, pos: *win.Rect) !void {
         const style = app.style;
         // loop over app.code
@@ -507,10 +487,22 @@ pub const App = struct {
             .KeyDown => |keyev| switch (keyev.key) {
                 // this will be handled by the keybinding resolver in the future.,
                 .Left => {
-                    app.moveCursor(.left, .byte);
+                    const action: Action = .{
+                        .moveCursorLR = .{
+                            .direction = .left,
+                            .stop = .byte,
+                        },
+                    };
+                    action.moveCursorLR.apply(app);
                 },
                 .Right => {
-                    app.moveCursor(.right, .byte);
+                    const action: Action = .{
+                        .moveCursorLR = .{
+                            .direction = .right,
+                            .stop = .byte,
+                        },
+                    };
+                    action.moveCursorLR.apply(app);
                 },
                 .Backspace => {
                     const action: Action = .{
