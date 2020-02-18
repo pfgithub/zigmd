@@ -490,6 +490,11 @@ pub const App = struct {
         // render the cursor the entire line height
         // knowing the line height in advance makes it easier to fill background colors (selected line can have a different bg color)
 
+        var arena = std.heap.ArenaAllocator.init(app.alloc);
+        defer arena.deinit();
+
+        var alloc = &arena.allocator;
+
         try win.renderRect(window, style.colors.background, pos.*);
 
         var parsingState = ParsingState.default();
@@ -554,6 +559,26 @@ pub const App = struct {
             },
             else => {},
         }
+
+        const CharacterPosition = struct {
+            x: c_int,
+            y: c_int,
+            w: c_int,
+            h: c_int,
+        };
+        const LineInfo = struct {
+            height: u64,
+            characterPositions: std.ArrayList(CharacterPosition),
+            drawCalls: std.ArrayList(DrawCall),
+            fn init(alloc: *std.mem.Allocator) LineInfo {
+                return .{
+                    .height = 5,
+                    .characterPositions = std.ArrayList(CharacterPosition).init(alloc),
+                    .drawCalls = std.ArrayList(DrawCall).init(alloc),
+                };
+            }
+        };
+        const lineInfo = std.ArrayList(LineInfo).init(alloc);
 
         // std.debug.warn("cursorLocation: {}, textLength: {}\n", .{ app.cursorLocation, app.textLength });
 
