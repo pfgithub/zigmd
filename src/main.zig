@@ -340,6 +340,11 @@ pub const Action = union(enum) {
     pub const MoveCursorLR = struct {
         direction: Direction,
         stop: CharacterStop,
+
+        fn apply(moveCursorLR: *const MoveCursorLR, app: *App) void {
+            const stopPos = app.findStop(moveCursorLR.stop, moveCursorLR.direction);
+            app.cursorLocation = stopPos;
+        }
     };
     moveCursorLR: MoveCursorLR,
     pub const MoveCursorUD = struct {
@@ -358,12 +363,8 @@ pub const App = struct {
     readOnly: bool,
 
     fn init(alloc: *std.mem.Allocator, style: *const Style) !App {
-        var text = try alloc.alloc(u8, 10000);
-        errdefer alloc.free(text);
-
-        var loadErrorText = try alloc.alloc(u8, 16);
+        var loadErrorText = try std.mem.dupe(alloc, u8, "File load error.");
         defer alloc.free(loadErrorText);
-        std.mem.copy(u8, loadErrorText, "File load error.");
 
         var readOnly = false;
 
@@ -373,6 +374,9 @@ pub const App = struct {
             break :blk loadErrorText;
         };
         defer alloc.free(file);
+
+        var text = try alloc.alloc(u8, file.len * 2);
+        errdefer alloc.free(text);
 
         std.mem.copy(u8, text, file);
         const textLength = file.len;
@@ -403,7 +407,7 @@ pub const App = struct {
                     }
                 },
                 .right => blk: {
-                    if (app.cursorLocation + 1 < app.textLength - 1) {
+                    if (app.cursorLocation + 1 < app.textLength) {
                         break :blk app.cursorLocation + 1;
                     } else {
                         break :blk app.textLength - 1;
@@ -451,31 +455,6 @@ pub const App = struct {
         }
     }
 
-    fn moveCursor(app: *App, direction: Direction, stop: CharacterStop) void {
-        const moveDistance: usize = switch (stop) {
-            .byte => 1,
-            else => {
-                std.debug.panic("Not supported yet :(", .{});
-            },
-        };
-        switch (direction) {
-            .left => if (app.cursorLocation > 0) {
-                if (app.cursorLocation > moveDistance) {
-                    app.cursorLocation -= moveDistance;
-                } else {
-                    app.cursorLocation = 0;
-                }
-            },
-            .right => if (app.cursorLocation < app.textLength) {
-                if (app.cursorLocation + moveDistance < app.textLength) {
-                    app.cursorLocation += moveDistance;
-                } else {
-                    app.cursorLocation = app.textLength;
-                }
-            },
-        }
-    }
-
     fn render(app: *App, window: *win.Window, event: *win.Event, pos: *win.Rect) !void {
         const style = app.style;
         // loop over app.code
@@ -512,10 +491,22 @@ pub const App = struct {
             .KeyDown => |keyev| switch (keyev.key) {
                 // this will be handled by the keybinding resolver in the future.,
                 .Left => {
-                    app.moveCursor(.left, .byte);
+                    const action: Action = .{
+                        .moveCursorLR = .{
+                            .direction = .left,
+                            .stop = .byte,
+                        },
+                    };
+                    action.moveCursorLR.apply(app);
                 },
                 .Right => {
-                    app.moveCursor(.right, .byte);
+                    const action: Action = .{
+                        .moveCursorLR = .{
+                            .direction = .right,
+                            .stop = .byte,
+                        },
+                    };
+                    action.moveCursorLR.apply(app);
                 },
                 .Backspace => {
                     const action: Action = .{
