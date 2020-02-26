@@ -551,25 +551,59 @@ pub const App = struct {
             else => {},
         }
 
+        const LineDrawCall = struct {
+            text: [64]u8,
+            textLength: u8,
+            font: *win.Font,
+            color: *win.Color,
+            measure: struct {w: u64, h: u64},
+            x: u64, // y is chosen based on line top, line height, and text baseline
+        };
         const CharacterPosition = struct {
             x: c_int,
-            y: c_int,
             w: c_int,
-            h: c_int,
+            // y/h are determined by the line.
         };
         const LineInfo = struct {
             height: u64,
             characterPositions: std.ArrayList(CharacterPosition),
-            drawCalls: std.ArrayList(DrawCall),
-            fn init(alloc: *std.mem.Allocator) LineInfo {
+            drawCalls: std.ArrayList(LineDrawCall),
+            // y/h must be determined by the line when drawing
+            fn init(alloc: *std.mem.Allocator) !LineInfo {
                 return .{
                     .height = 5,
-                    .characterPositions = std.ArrayList(CharacterPosition).init(alloc),
-                    .drawCalls = std.ArrayList(DrawCall).init(alloc),
+                    .characterPositions = try std.ArrayList(CharacterPosition).init(alloc),
+                    .drawCalls = try std.ArrayList(DrawCall).init(alloc),
                 };
             }
+            fn commit(line: *LineInfo) !void {
+
+            }
+            fn startNewLine(line: *LineInfo) !void {
+
+            }
         };
-        const lineInfo = std.ArrayList(LineInfo).init(alloc);
+        const lineInfo = try std.ArrayList(LineInfo).init(alloc);
+
+        for(app.text) |character| {
+            var currentLine = lineInfo.items[lineInfo.len - 1];
+            var hl = parsingState.handleCharacter(char[0]);
+            if(hl.isNewLine){
+                // do something
+                // start a new line
+                currentLine.commit()// catch |e| switch (e) {.OutOfMemory => break, else => return e};
+                currentLine.startNewLine();
+            }else{
+                // get font info and stuff using the parser
+            }
+            // emit draw calls
+
+            // measure width
+            // if over length, split at previous word boundary or 100px
+            // that means this has to backtrack. for loops don't do that
+            // for now, split at this character instead of previous
+            // boundary.
+        }
 
         // std.debug.warn("cursorLocation: {}, textLength: {}\n", .{ app.cursorLocation, app.textLength });
 
