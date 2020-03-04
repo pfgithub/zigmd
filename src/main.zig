@@ -592,13 +592,24 @@ pub const App = struct {
         for(app.text) |character| {
             var currentLine = lineInfo.items[lineInfo.len - 1];
             var hl = parsingState.handleCharacter(char[0]);
-            if(hl.isNewLine){
-                // do something
-                // start a new line
-                currentLine.commit()// catch |e| switch (e) {.OutOfMemory => break, else => return e};
-                currentLine.startNewLine();
-            }else{
-                // get font info and stuff using the parser
+
+            switch(hl) {
+                .flow => {
+                    // do something
+                    // start a new line
+                    currentLine.commit()// catch |e| switch (e) {.OutOfMemory => break, else => return e};
+                    currentLine.startNewLine();
+                },
+                .text => {
+                    // measure width + new char
+                    // if over length
+                    //   startNewLine, insert
+                    // if
+                    //   | different hl format
+                    //   | over 64 character limit
+                    //, commit, startNew, insert
+                    // otherwise add to string
+                },
             }
             // emit draw calls
 
