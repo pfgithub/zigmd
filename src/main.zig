@@ -122,13 +122,12 @@ pub const ParsingState = struct {
         this.modeProgress = ModeProgress{ .none = {} };
         this.lineStart = false;
     }
-    fn handleCharacter(this: *ParsingState, char: u8) union(enum){
-    text: struct {
-        font: HLFont,
-        color: HLColor,
-    },
-    flow: enum {newline}
-}{
+    fn handleCharacter(this: *ParsingState, char: u8) union(enum) {
+        text: struct {
+            font: HLFont,
+            color: HLColor,
+        }, flow: enum { newline }
+    } {
         // if state is multiline code block, ignore probably
         // or other similar things
         if (this.escape) {
@@ -137,23 +136,23 @@ pub const ParsingState = struct {
                 '\\' => {
                     // if(next is valid)
                     this.commitState();
-                    return .{ .text = .{.color = .text, .font = this.getFont()} };
+                    return .{ .text = .{ .color = .text, .font = this.getFont() } };
                 },
                 '*' => {
                     this.commitState();
-                    return .{ .text = .{.color = .text, .font = this.getFont()} };
+                    return .{ .text = .{ .color = .text, .font = this.getFont() } };
                 },
                 '`' => {
                     this.commitState();
-                    return .{ .text = .{.color = .text, .font = this.getFont()} };
+                    return .{ .text = .{ .color = .text, .font = this.getFont() } };
                 },
                 '#' => {
                     this.commitState();
-                    return .{ .text = .{.color = .text, .font = this.getFont()} };
+                    return .{ .text = .{ .color = .text, .font = this.getFont() } };
                 },
                 else => {
                     this.commitState();
-                    return .{ .text = .{.color = .errorc, .font = .normal} };
+                    return .{ .text = .{ .color = .errorc, .font = .normal } };
                 },
             };
         }
@@ -161,7 +160,7 @@ pub const ParsingState = struct {
             '\\' => {
                 this.escape = true;
                 this.commitState();
-                return .{.text = .{ .color = .control, .font = .normal} };
+                return .{ .text = .{ .color = .control, .font = .normal } };
             },
             '*' => {
                 switch (this.modeProgress) {
@@ -177,7 +176,7 @@ pub const ParsingState = struct {
                         this.modeProgress = ModeProgress{ .stars = 1 };
                     },
                 }
-                return .{ .text= .{ .color = .control, .font = .normal }};
+                return .{ .text = .{ .color = .control, .font = .normal } };
             },
             '#' => switch (this.modeProgress) {
                 .hashtags => |hashtags| {
@@ -186,15 +185,15 @@ pub const ParsingState = struct {
                     } else {
                         this.modeProgress = ModeProgress{ .hashtags = hashtags + 1 };
                     }
-                    return .{.text = .{ .color = .control, .font = .normal} };
+                    return .{ .text = .{ .color = .control, .font = .normal } };
                 },
                 else => {
                     if (this.lineStart) {
                         this.modeProgress = ModeProgress{ .hashtags = 1 };
-                        return .{ .text = .{.color = .control, .font = .normal} };
+                        return .{ .text = .{ .color = .control, .font = .normal } };
                     } else {
                         this.commitState();
-                        return .{ .text = .{.color = .text, .font = this.getFont()} };
+                        return .{ .text = .{ .color = .text, .font = this.getFont() } };
                     }
                 },
             },
@@ -209,7 +208,7 @@ pub const ParsingState = struct {
             },
             else => {
                 this.commitState();
-                return .{ .text = .{ .color = .text, .font = this.getFont()} };
+                return .{ .text = .{ .color = .text, .font = this.getFont() } };
             },
         };
     }
@@ -560,7 +559,7 @@ pub const App = struct {
             textLength: u8,
             font: *win.Font,
             color: *win.Color,
-            measure: struct {w: u64, h: u64},
+            measure: struct { w: u64, h: u64 },
             x: u64, // y is chosen based on line top, line height, and text baseline
         };
         const CharacterPosition = struct {
@@ -580,25 +579,23 @@ pub const App = struct {
                     .drawCalls = try std.ArrayList(DrawCall).init(alloc),
                 };
             }
-            fn commit(line: *LineInfo) !void {
-
-            }
-            fn startNewLine(line: *LineInfo) !void {
-
-            }
+            fn commit(line: *LineInfo) !void {}
+            fn startNewLine(line: *LineInfo) !void {}
         };
         const lineInfo = try std.ArrayList(LineInfo).init(alloc);
 
-        for(app.text) |character| {
+        for (app.text) |character| {
             var currentLine = lineInfo.items[lineInfo.len - 1];
             var hl = parsingState.handleCharacter(char[0]);
 
-            switch(hl) {
-                .flow => {
-                    // do something
-                    // start a new line
-                    currentLine.commit()// catch |e| switch (e) {.OutOfMemory => break, else => return e};
-                    currentLine.startNewLine();
+            switch (hl) {
+                .flow => |f| switch (f) {
+                    .newline => {
+                        // do something
+                        // start a new line
+                        currentLine.commit(); // catch |e| switch (e) {.OutOfMemory => break, else => return e};
+                        currentLine.startNewLine();
+                    },
                 },
                 .text => {
                     // measure width + new char
