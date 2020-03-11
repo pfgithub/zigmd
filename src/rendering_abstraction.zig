@@ -64,6 +64,9 @@ pub const Color = struct {
     fn toSDL(color: Color) c.SDL_Color {
         return c.SDL_Color{ .r = color.r, .g = color.g, .b = color.b, .a = color.a };
     }
+    fn equal(a: Color, b: Color) bool {
+        return a.r == b.r and a.g == b.g and a.b == b.b and a.a == b.a;
+    }
 };
 
 pub const WindowSize = struct {

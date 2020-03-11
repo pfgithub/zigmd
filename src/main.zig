@@ -55,6 +55,14 @@ pub const HLFont = enum {
     bolditalic,
     heading,
 };
+pub const TextHLStyle = struct {
+    font: HLFont,
+    color: HLColor,
+};
+pub const TextHLStyleReal = struct {
+    font: *const win.Font,
+    color: win.Color,
+};
 
 pub const ParsingState = struct {
     bold: bool,
@@ -123,10 +131,7 @@ pub const ParsingState = struct {
         this.lineStart = false;
     }
     fn handleCharacter(this: *ParsingState, char: u8) union(enum) {
-        text: struct {
-            font: HLFont,
-            color: HLColor,
-        }, flow: enum { newline }
+        text: TextHLStyle, flow: enum { newline }
     } {
         // if state is multiline code block, ignore probably
         // or other similar things
@@ -149,6 +154,15 @@ pub const ParsingState = struct {
                 '#' => {
                     this.commitState();
                     return .{ .text = .{ .color = .text, .font = this.getFont() } };
+                },
+                '\n' => {
+                    this.heading = 0;
+                    this.commitState();
+                    this.lineStart = true;
+                    this.bold = false;
+                    this.italic = false;
+                    this.escape = false;
+                    return .{ .flow = .newline };
                 },
                 else => {
                     this.commitState();
@@ -211,49 +225,6 @@ pub const ParsingState = struct {
                 return .{ .text = .{ .color = .text, .font = this.getFont() } };
             },
         };
-    }
-};
-
-const DrawCall = struct {
-    current: [64:0]u8,
-    started: bool,
-
-    index: u8,
-    font: HLFont,
-    color: HLColor,
-    x: c_int,
-    y: c_int,
-    size: win.TextSize,
-
-    const BlankText = [64:0]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    const Blank = DrawCall{
-        .current = BlankText,
-        .started = false,
-
-        .index = undefined,
-        .font = undefined,
-        .color = undefined,
-        .x = undefined,
-        .y = undefined,
-        .size = undefined,
-    };
-
-    pub fn init(drawCall: *DrawCall, font: HLFont, color: HLColor, x: c_int, y: c_int, size: win.TextSize) void {
-        drawCall.* = .{
-            .current = BlankText,
-            .started = true,
-
-            .index = 0,
-            .font = font,
-            .color = color,
-            .x = x,
-            .y = y,
-            .size = size,
-        };
-    }
-
-    pub fn clear(drawCall: *DrawCall) void {
-        drawCall.* = DrawCall.Blank;
     }
 };
 
@@ -356,6 +327,153 @@ pub const Action = union(enum) {
     };
 };
 
+const LineDrawCall = struct {
+    text: [64]u8,
+    textLength: u8,
+    font: *const win.Font,
+    color: win.Color,
+    measure: struct { w: u64, h: u64 },
+    x: u64, // y is chosen based on line top, line height, and text baseline
+    fn differentStyle(ldc: *LineDrawCall, hlStyle: TextHLStyleReal) bool {
+        return hlStyle.font != ldc.font or !hlStyle.color.equal(ldc.color);
+    }
+};
+const CharacterPosition = struct {
+    x: c_int,
+    w: c_int,
+    // y/h are determined by the line.
+};
+const TextInfo = struct {
+    pub const LineInfo = struct {
+        yTop: u64,
+        width: u64,
+        drawCalls: std.ArrayList(LineDrawCall),
+        characterPositions: std.ArrayList(CharacterPosition),
+        fn init(arena: *std.heap.ArenaAllocator, yTop: u64) !LineInfo {
+            var alloc = &arena.allocator;
+            const drawCalls = std.ArrayList(LineDrawCall).init(alloc);
+
+            const characterPositions = std.ArrayList(CharacterPosition).init(alloc);
+
+            return LineInfo{
+                .yTop = yTop,
+                .width = 0,
+                .drawCalls = drawCalls,
+                .characterPositions = characterPositions,
+            };
+        }
+    };
+    maxWidth: u64,
+    lines: std.ArrayList(LineInfo),
+    progress: struct {
+        activeDrawCall: ?LineDrawCall,
+        lineHeight: u64,
+        x: u64,
+    },
+    arena: *std.heap.ArenaAllocator,
+    // y/h must be determined by the line when drawing
+    fn init(arena: *std.heap.ArenaAllocator, maxWidth: u64) !TextInfo {
+        var alloc = &arena.allocator;
+        var lines = std.ArrayList(LineInfo).init(alloc);
+
+        try lines.append(try LineInfo.init(arena, 0));
+
+        return TextInfo{
+            .maxWidth = maxWidth,
+            .lines = lines,
+            .progress = .{
+                .activeDrawCall = null,
+                .lineHeight = 10,
+                .x = 0,
+            },
+            .arena = arena,
+        };
+    }
+    fn startNewDrawCall(ti: *TextInfo, char: u8, hlStyle: TextHLStyleReal) !void {
+        try ti.commit();
+
+        const text = [_]u8{ char, 0 };
+        var font = hlStyle.font;
+        var color = hlStyle.color;
+        var latestDrawCall = &ti.progress.activeDrawCall;
+        latestDrawCall.* = .{
+            .text = [64]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+            .textLength = 1,
+            .font = font,
+            .color = color,
+            .measure = .{ .w = 0, .h = 0 },
+            .x = ti.progress.x, // lineStart
+        };
+        std.mem.copy(u8, &latestDrawCall.*.?.text, &text);
+    }
+    fn addCharacter(ti: *TextInfo, char: u8, hlStyle: TextHLStyleReal) !void {
+        // check if character is the end of a unicode codepoint, else ignore. or something like that.
+
+        // measure width + new char
+        // if over length
+        //   startNewLine, insert
+        // if
+        //   | different hl format
+        //   | over 64 character limit
+        //, commit, startNew, insert
+        // otherwise add to string
+
+        // var line = &ti.lines.items[ti.lines.len - 1];
+        // var latestDrawCall = line.
+        var latestDrawCallOpt = &ti.progress.activeDrawCall;
+        if (latestDrawCallOpt.* == null or
+            latestDrawCallOpt.*.?.differentStyle(hlStyle) or
+            latestDrawCallOpt.*.?.textLength >= 63)
+        {
+            try ti.startNewDrawCall(char, hlStyle);
+            return;
+        }
+        var latestDrawCall = &latestDrawCallOpt.*.?;
+        var textCopy = latestDrawCall.text;
+        var lenCopy = latestDrawCall.textLength;
+        textCopy[lenCopy] = char;
+        lenCopy += 1;
+        textCopy[lenCopy] = 0;
+
+        const measure = try win.measureText(latestDrawCall.font, &textCopy);
+        if (@intCast(u64, measure.w) + latestDrawCall.x >= ti.maxWidth) {
+            // start new line
+            // try again
+            try ti.startNewLine();
+            try ti.startNewDrawCall(char, hlStyle);
+            return;
+        }
+
+        // extend line
+        latestDrawCall.text[latestDrawCall.textLength] = char;
+        latestDrawCall.textLength += 1;
+        latestDrawCall.text[latestDrawCall.textLength] = 0;
+        return;
+    }
+    fn commit(ti: *TextInfo) !void {
+        if (ti.progress.activeDrawCall == null) return;
+        var adc = ti.progress.activeDrawCall.?;
+        defer ti.progress.activeDrawCall = null;
+
+        const measure = try win.measureText(adc.font, &adc.text);
+        adc.measure = .{ .w = @intCast(u64, measure.w), .h = @intCast(u64, measure.h) };
+
+        if (ti.progress.lineHeight < adc.measure.h) ti.progress.lineHeight = adc.measure.h;
+        var latestLine = &ti.lines.items[ti.lines.len - 1];
+        try latestLine.drawCalls.append(adc);
+        ti.progress.x += @intCast(u64, adc.measure.w);
+    }
+    fn startNewLine(ti: *TextInfo) !void {
+        try ti.commit();
+
+        var latestLine = &ti.lines.items[ti.lines.len - 1];
+        var nextLine = try LineInfo.init(ti.arena, ti.progress.lineHeight + latestLine.yTop);
+        ti.progress.lineHeight = 10;
+        ti.progress.x = 0;
+        try ti.lines.append(nextLine);
+    }
+};
+
 pub const App = struct {
     scrollY: i32, // scrollX is only for individual parts of the UI, such as tables.
     alloc: *std.mem.Allocator,
@@ -450,27 +568,8 @@ pub const App = struct {
         };
     }
 
-    fn performDrawCall(app: *App, window: *win.Window, drawCall: *DrawCall, pos: *win.Rect) !void {
-        var font = app.getFont(drawCall.font);
-        var color = app.getColor(drawCall.color);
-        if (drawCall.index > 0) {
-            try win.renderText(window, font, color, &drawCall.current, drawCall.x + pos.x, drawCall.y + pos.y, drawCall.size);
-        }
-    }
-
     fn render(app: *App, window: *win.Window, event: *win.Event, pos: *win.Rect) !void {
         const style = app.style;
-        // loop over app.code
-        // check scroll value
-        // if the line height hasn't been calculated OR recalculate all is set, calculate it
-        // if the recalculation is above the screen, increase the scroll by that number
-        // if click and mouse position is within the character, set the cursor either before or after
-        // if it fits on screen, render it
-
-        // find maximum line height for all lines
-        // render text at the bottom of the line
-        // render the cursor the entire line height
-        // knowing the line height in advance makes it easier to fill background colors (selected line can have a different bg color)
 
         var arena = std.heap.ArenaAllocator.init(app.alloc);
         defer arena.deinit();
@@ -478,17 +577,6 @@ pub const App = struct {
         var alloc = &arena.allocator;
 
         try win.renderRect(window, style.colors.background, pos.*);
-
-        var parsingState = ParsingState.default();
-
-        var x: c_int = 0;
-        var y: c_int = 0;
-        const minimumLineHeight = 8;
-        var lineHeight: c_int = minimumLineHeight;
-
-        var drawCall = DrawCall.Blank;
-
-        var characterEndIndex: usize = 0;
 
         switch (event.*) {
             .KeyDown => |keyev| switch (keyev.key) {
@@ -554,219 +642,40 @@ pub const App = struct {
             else => {},
         }
 
-        const LineDrawCall = struct {
-            text: [64]u8,
-            textLength: u8,
-            font: *win.Font,
-            color: *win.Color,
-            measure: struct { w: u64, h: u64 },
-            x: u64, // y is chosen based on line top, line height, and text baseline
-        };
-        const CharacterPosition = struct {
-            x: c_int,
-            w: c_int,
-            // y/h are determined by the line.
-        };
-        const LineInfo = struct {
-            height: u64,
-            characterPositions: std.ArrayList(CharacterPosition),
-            drawCalls: std.ArrayList(LineDrawCall),
-            // y/h must be determined by the line when drawing
-            fn init(alloc: *std.mem.Allocator) !LineInfo {
-                return .{
-                    .height = 5,
-                    .characterPositions = try std.ArrayList(CharacterPosition).init(alloc),
-                    .drawCalls = try std.ArrayList(DrawCall).init(alloc),
-                };
-            }
-            fn commit(line: *LineInfo) !void {}
-            fn startNewLine(line: *LineInfo) !void {}
-        };
-        const lineInfo = try std.ArrayList(LineInfo).init(alloc);
+        var textInfo = try TextInfo.init(&arena, @intCast(u64, pos.w));
 
-        for (app.text) |character| {
-            var currentLine = lineInfo.items[lineInfo.len - 1];
-            var hl = parsingState.handleCharacter(char[0]);
+        var parsingState = ParsingState.default();
+        for (app.text[0..app.textLength]) |char| {
+            var hl = parsingState.handleCharacter(char);
 
             switch (hl) {
                 .flow => |f| switch (f) {
                     .newline => {
-                        // do something
-                        // start a new line
-                        currentLine.commit(); // catch |e| switch (e) {.OutOfMemory => break, else => return e};
-                        currentLine.startNewLine();
+                        try textInfo.startNewLine();
                     },
                 },
-                .text => {
-                    // measure width + new char
-                    // if over length
-                    //   startNewLine, insert
-                    // if
-                    //   | different hl format
-                    //   | over 64 character limit
-                    //, commit, startNew, insert
-                    // otherwise add to string
+                .text => |txt| {
+                    try textInfo.addCharacter(char, .{
+                        .font = app.getFont(txt.font),
+                        .color = app.getColor(txt.color),
+                    });
                 },
             }
-            // emit draw calls
-
-            // measure width
-            // if over length, split at previous word boundary or 100px
-            // that means this has to backtrack. for loops don't do that
-            // for now, split at this character instead of previous
-            // boundary.
         }
 
-        // std.debug.warn("cursorLocation: {}, textLength: {}\n", .{ app.cursorLocation, app.textLength });
-
-        var cursorRect: win.Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 };
-
-        for (app.text) |chara| {
-            if (y > pos.h) break;
-            characterEndIndex += 1;
-            if (characterEndIndex > app.textLength) break;
-            var char: [2]u8 = .{ chara, 0 };
-            var hl = parsingState.handleCharacter(char[0]);
-            var hlColor = hl.color;
-            var hlFont = hl.font;
-            var charXL: c_int = undefined;
-            var charXR: c_int = undefined;
-            var charYU: c_int = undefined;
-            var charYD: c_int = undefined;
-
-            var font = app.getFont(hlFont);
-
-            if (!drawCall.started and chara != '\n') {
-                const size = try win.measureText(font, &char);
-
-                charXL = x;
-                charXR = x + size.w;
-                charYU = y;
-                charYD = y + size.h;
-
-                drawCall.init(hlFont, hlColor, x, y, size);
-                drawCall.current[drawCall.index] = char[0];
-                drawCall.index += 1;
-            } else {
-                if (drawCall.font != hlFont or drawCall.color != hlColor or drawCall.index >= 63 or chara == '\n') {
-                    x += drawCall.size.w;
-                    if (drawCall.size.h > lineHeight) lineHeight = drawCall.size.h;
-                    // drawCall();
-                    try app.performDrawCall(window, &drawCall, pos);
-                    // init();
-                    const textSize = try win.measureText(font, &char);
-
-                    if (chara == '\n') {
-                        charXL = 0;
-                        charXR = 0;
-                        charYU = y + lineHeight;
-                        charYD = y + lineHeight + minimumLineHeight;
-
-                        y += lineHeight;
-                        x = 0;
-
-                        lineHeight = minimumLineHeight;
-
-                        drawCall.clear();
-                    } else {
-                        charXL = x;
-                        charXR = x + textSize.w;
-                        charYU = y;
-                        charYD = y + textSize.h;
-
-                        drawCall.init(hlFont, hlColor, x, y, textSize);
-                        drawCall.current[drawCall.index] = char[0];
-                        drawCall.index += 1;
-                    }
-                } else {
-                    // append current
-                    drawCall.current[drawCall.index] = char[0];
-                    drawCall.index += 1;
-                    const textSize = try win.measureText(font, &drawCall.current);
-
-                    if (x + textSize.w > pos.w) {
-                        drawCall.index -= 1;
-                        drawCall.current[drawCall.index] = 0; // undo
-                        try app.performDrawCall(window, &drawCall, pos);
-
-                        if (drawCall.size.h > lineHeight) lineHeight = drawCall.size.h;
-
-                        x = 0;
-                        y += lineHeight;
-                        lineHeight = minimumLineHeight;
-
-                        const size = try win.measureText(font, &char);
-
-                        charXL = x;
-                        charXR = x + size.w;
-                        charYU = y;
-                        charYD = y + minimumLineHeight;
-
-                        drawCall.init(hlFont, hlColor, x, y, size);
-                        drawCall.current[drawCall.index] = char[0];
-                        drawCall.index += 1;
-                    } else {
-                        charXL = x + drawCall.size.w;
-                        charXR = x + textSize.w;
-                        charYU = y;
-                        charYD = y + textSize.h;
-
-                        drawCall.size = textSize;
-                    }
-                }
-            }
-
-            // try win.renderRect(window, style.colors.control, .{
-            //     .x = charXR - 1 + pos.x,
-            //     .y = charYU + pos.y,
-            //     .w = 2,
-            //     .h = charYD - charYU,
-            // });
-
-            switch (event.*) {
-                .MouseDown => |mouse| blk: {
-                    if (mouse.y < pos.y or mouse.y > pos.y + pos.h or mouse.x < pos.x or mouse.x > pos.x + pos.w) {
-                        break :blk;
-                    } else if (mouse.x - pos.x > (charXL + @divFloor((charXR - charXL), 2)) and mouse.y > charYU + pos.y) {
-                        app.cursorLocation = characterEndIndex;
-                    } else if (characterEndIndex == 1) {
-                        app.cursorLocation = 0;
-                    }
-                },
-                else => {},
-            }
-
-            if (app.cursorLocation == characterEndIndex) {
-                // note: draw cursor above letters (last);
-                // drawing:
-                // measure all
-                // draw highlights
-                // draw letters
-                // draw cursor
-                cursorRect = .{
-                    .x = charXR - 1,
-                    .y = charYU,
-                    .w = 2,
-                    .h = charYD - charYU,
-                };
-            } else if (characterEndIndex == 1 and app.cursorLocation == 0) {
-                cursorRect = .{
-                    .x = charXL - 1,
-                    .y = charYU,
-                    .w = 2,
-                    .h = charYD - charYU,
-                };
+        for (textInfo.lines.toSliceConst()) |line| {
+            for (line.drawCalls.toSliceConst()) |drawCall| {
+                try win.renderText(
+                    window,
+                    drawCall.font,
+                    drawCall.color,
+                    &drawCall.text,
+                    @intCast(c_int, drawCall.x + @intCast(u64, pos.x)),
+                    @intCast(c_int, line.yTop + @intCast(u64, pos.y)), // + (line.yTop - call.height)
+                    .{ .w = @intCast(c_int, drawCall.measure.w), .h = @intCast(c_int, drawCall.measure.h) },
+                );
             }
         }
-        if (drawCall.started) try app.performDrawCall(window, &drawCall, pos);
-        // note: SDL_SetTextInputRect
-        try win.renderRect(window, style.colors.cursor, .{
-            .x = cursorRect.x + pos.x,
-            .y = cursorRect.y + pos.y,
-            .w = cursorRect.w,
-            .h = cursorRect.h,
-        });
-        // win.setTextInputRect(window, .{})
     }
 };
 
