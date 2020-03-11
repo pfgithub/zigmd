@@ -326,7 +326,6 @@ const CharacterPosition = struct {
 const TextInfo = struct {
     pub const LineInfo = struct {
         yTop: u64,
-        width: u64,
         drawCalls: std.ArrayList(LineDrawCall),
         characterPositions: std.ArrayList(CharacterPosition),
         fn init(arena: *std.heap.ArenaAllocator, yTop: u64) !LineInfo {
@@ -337,7 +336,6 @@ const TextInfo = struct {
 
             return LineInfo{
                 .yTop = yTop,
-                .width = 0,
                 .drawCalls = drawCalls,
                 .characterPositions = characterPositions,
             };
@@ -351,6 +349,7 @@ const TextInfo = struct {
         x: u64,
     },
     arena: *std.heap.ArenaAllocator,
+    parsingState: ParsingState,
     // y/h must be determined by the line when drawing
     fn init(arena: *std.heap.ArenaAllocator, maxWidth: u64) !TextInfo {
         var alloc = &arena.allocator;
@@ -366,6 +365,7 @@ const TextInfo = struct {
                 .lineHeight = 10,
                 .x = 0,
             },
+            .parsingState = ParsingState.default(),
             .arena = arena,
         };
     }
@@ -377,6 +377,9 @@ const TextInfo = struct {
         const text = [_]u8{ char, 0 };
         var font = hlStyle.font;
         var color = hlStyle.color;
+
+        try ti.appendCharacterPosition(char, font, color);
+
         var latestDrawCall = &ti.progress.activeDrawCall;
         latestDrawCall.* = .{
             .text = [64]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -389,18 +392,56 @@ const TextInfo = struct {
         std.mem.copy(u8, &latestDrawCall.*.?.text, &text);
     }
 
+    // append the character position from the active draw call
+    fn appendCharacterPosition(ti: *TextInfo, char: u8, font: *const win.Font, color: win.Color) !void {
+        var characterMeasure = try win.measureText(color, &singleCharacter);
+        var latestLine = &ti.lines.items[ti.lines.len - 1];
+
+        try ti.appendCharacterPositionMeasure(characterMeasure.w);
+    }
+
+    fn appendCharacterPositionMeasure(ti: *TextInfo, width: u64) !void {
+        var singleCharacter = [_]u8{ char, 0 };
+        var lineOverX = blk: {
+            var latestDrawCall = &ti.progress.activeDrawCall;
+            break :blk if (latestDrawCall) |ldc| (try win.measureText(font, &ldc.text)).w else 0;
+        };
+
+        try latestLine.characterPositions.append(.{ .x = lineMeasure.w + ti.progress.x, .w = width });
+    }
+
     /// append a new character to the existing draw call
     /// activeDrawCall must exist
     fn extendDrawCall(ti: *TextInfo, char: u8) !void {
         var latestDrawCall = &ti.progress.activeDrawCall.?;
+
+        try ti.appendCharacterPosition(char, latestDrawCall.font, latestDrawCall.color);
 
         latestDrawCall.text[latestDrawCall.textLength] = char;
         latestDrawCall.textLength += 1;
         latestDrawCall.text[latestDrawCall.textLength] = 0;
     }
 
+    fn addCharacter(ti: *TextInfo, char: u8) !void {
+        var hl = ti.parsingState.handleCharacter(char);
+
+        switch (hl) {
+            .flow => |f| switch (f) {
+                .newline => {
+                    try textInfo.addNewlineCharacter();
+                },
+            },
+            .text => |txt| {
+                try textInfo.addCharacter(char, .{
+                    .font = app.getFont(txt.font),
+                    .color = app.getColor(txt.color),
+                });
+            },
+        }
+    }
+
     /// append a new character
-    fn addCharacter(ti: *TextInfo, char: u8, hlStyle: TextHLStyleReal) !void {
+    fn addRenderedCharacter(ti: *TextInfo, char: u8, hlStyle: TextHLStyleReal) !void {
         // check if character is the end of a unicode codepoint, else ignore. or something like that.
         var latestDrawCallOpt = &ti.progress.activeDrawCall;
         if (latestDrawCallOpt.* == null or
@@ -447,7 +488,7 @@ const TextInfo = struct {
     }
 
     /// start a new line
-    fn startNewLine(ti: *TextInfo) !void {
+    fn addNewlineCharacter(ti: *TextInfo) !void {
         try ti.commit();
 
         var latestLine = &ti.lines.items[ti.lines.len - 1];
@@ -455,6 +496,8 @@ const TextInfo = struct {
         ti.progress.lineHeight = 10;
         ti.progress.x = 0;
         try ti.lines.append(nextLine);
+
+        try ti.appendCharacterPositionMeasure(0); // newline has 0 width and is the first character of the line
     }
 };
 
@@ -627,24 +670,8 @@ pub const App = struct {
         }
 
         var textInfo = try TextInfo.init(&arena, @intCast(u64, pos.w));
-
-        var parsingState = ParsingState.default();
         for (app.text[0..app.textLength]) |char| {
-            var hl = parsingState.handleCharacter(char);
-
-            switch (hl) {
-                .flow => |f| switch (f) {
-                    .newline => {
-                        try textInfo.startNewLine();
-                    },
-                },
-                .text => |txt| {
-                    try textInfo.addCharacter(char, .{
-                        .font = app.getFont(txt.font),
-                        .color = app.getColor(txt.color),
-                    });
-                },
-            }
+            try textInfo.addCharacter(char);
         }
         try textInfo.commit();
 
