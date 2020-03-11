@@ -389,6 +389,8 @@ const TextInfo = struct {
             .arena = arena,
         };
     }
+
+    /// start a new draw call and append a new character
     fn startNewDrawCall(ti: *TextInfo, char: u8, hlStyle: TextHLStyleReal) !void {
         try ti.commit();
 
@@ -406,20 +408,20 @@ const TextInfo = struct {
         };
         std.mem.copy(u8, &latestDrawCall.*.?.text, &text);
     }
+
+    /// append a new character to the existing draw call
+    /// activeDrawCall must exist
+    fn extendDrawCall(ti: *TextInfo, char: u8) !void {
+        var latestDrawCall = &ti.progress.activeDrawCall.?;
+
+        latestDrawCall.text[latestDrawCall.textLength] = char;
+        latestDrawCall.textLength += 1;
+        latestDrawCall.text[latestDrawCall.textLength] = 0;
+    }
+
+    /// append a new character
     fn addCharacter(ti: *TextInfo, char: u8, hlStyle: TextHLStyleReal) !void {
         // check if character is the end of a unicode codepoint, else ignore. or something like that.
-
-        // measure width + new char
-        // if over length
-        //   startNewLine, insert
-        // if
-        //   | different hl format
-        //   | over 64 character limit
-        //, commit, startNew, insert
-        // otherwise add to string
-
-        // var line = &ti.lines.items[ti.lines.len - 1];
-        // var latestDrawCall = line.
         var latestDrawCallOpt = &ti.progress.activeDrawCall;
         if (latestDrawCallOpt.* == null or
             latestDrawCallOpt.*.?.differentStyle(hlStyle) or
@@ -445,11 +447,11 @@ const TextInfo = struct {
         }
 
         // extend line
-        latestDrawCall.text[latestDrawCall.textLength] = char;
-        latestDrawCall.textLength += 1;
-        latestDrawCall.text[latestDrawCall.textLength] = 0;
+        try ti.extendDrawCall(char);
         return;
     }
+
+    /// if a draw call is active, finish it and append it
     fn commit(ti: *TextInfo) !void {
         if (ti.progress.activeDrawCall == null) return;
         var adc = ti.progress.activeDrawCall.?;
@@ -463,6 +465,8 @@ const TextInfo = struct {
         try latestLine.drawCalls.append(adc);
         ti.progress.x += @intCast(u64, adc.measure.w);
     }
+
+    /// start a new line
     fn startNewLine(ti: *TextInfo) !void {
         try ti.commit();
 
@@ -662,6 +666,7 @@ pub const App = struct {
                 },
             }
         }
+        try textInfo.commit();
 
         for (textInfo.lines.toSliceConst()) |line| {
             for (line.drawCalls.toSliceConst()) |drawCall| {
