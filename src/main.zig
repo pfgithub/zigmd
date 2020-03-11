@@ -339,8 +339,8 @@ const LineDrawCall = struct {
     }
 };
 const CharacterPosition = struct {
-    x: c_int,
-    w: c_int,
+    x: u64,
+    w: u64,
     // y/h are determined by the line.
 };
 const TextInfo = struct {
@@ -670,9 +670,9 @@ pub const App = struct {
                     drawCall.font,
                     drawCall.color,
                     &drawCall.text,
-                    @intCast(c_int, drawCall.x + @intCast(u64, pos.x)),
-                    @intCast(c_int, line.yTop + @intCast(u64, pos.y)), // + (line.yTop - call.height)
-                    .{ .w = @intCast(c_int, drawCall.measure.w), .h = @intCast(c_int, drawCall.measure.h) },
+                    drawCall.x + pos.x,
+                    line.yTop + pos.y, // + (line.height - call.height) // seems we forgot about the height..
+                    .{ .w = drawCall.measure.w, .h = drawCall.measure.h },
                 );
             }
         }

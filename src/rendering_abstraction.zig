@@ -70,11 +70,11 @@ pub const Color = struct {
 };
 
 pub const WindowSize = struct {
-    w: c_int,
-    h: c_int,
+    w: u64,
+    h: u64,
 };
 
-pub const Key = enum(c_int) {
+pub const Key = enum(u64) {
     Left,
     Right,
     Backspace,
@@ -219,48 +219,48 @@ pub const Window = struct {
         var screenHeight: c_int = undefined;
         if (c.SDL_GetRendererOutputSize(window.sdlRenderer, &screenWidth, &screenHeight) < 0) return sdlError();
         return WindowSize{
-            .w = screenWidth,
-            .h = screenHeight,
+            .w = @intCast(u64, screenWidth), // should never fail
+            .h = @intCast(u64, screenHeight),
         };
     }
 };
 
 pub const TextSize = struct {
-    w: c_int,
-    h: c_int,
+    w: u64,
+    h: u64,
 };
 pub fn measureText(font: *const Font, text: [*c]const u8) !TextSize {
     var w: c_int = undefined;
     var h: c_int = undefined;
     if (c.TTF_SizeUTF8(font.sdlFont, text, &w, &h) < 0) return ttfError();
-    return TextSize{ .w = w, .h = h };
+    return TextSize{ .w = @intCast(u64, w), .h = @intCast(u64, h) };
 }
 
-pub fn renderText(window: *const Window, font: *const Font, color: Color, text: [*c]const u8, x: c_int, y: c_int, size: TextSize) !void {
+pub fn renderText(window: *const Window, font: *const Font, color: Color, text: [*c]const u8, x: u64, y: u64, size: TextSize) !void {
     var surface = c.TTF_RenderUTF8_Blended(font.sdlFont, text, color.toSDL());
     defer c.SDL_FreeSurface(surface);
     var texture = c.SDL_CreateTextureFromSurface(window.sdlRenderer, surface);
     defer c.SDL_DestroyTexture(texture);
     var rect = c.SDL_Rect{
-        .x = x,
-        .y = y,
-        .w = size.w,
-        .h = size.h,
+        .x = @intCast(c_int, x),
+        .y = @intCast(c_int, y),
+        .w = @intCast(c_int, size.w),
+        .h = @intCast(c_int, size.h),
     };
     if (c.SDL_RenderCopy(window.sdlRenderer, texture, null, &rect) < 0) return sdlError();
 }
 
 pub const Rect = struct {
-    x: c_int,
-    y: c_int,
-    w: c_int,
-    h: c_int,
+    x: u64,
+    y: u64,
+    w: u64,
+    h: u64,
     fn toSDL(rect: *const Rect) c.SDL_Rect {
         return c.SDL_Rect{
-            .x = rect.x,
-            .y = rect.y,
-            .w = rect.w,
-            .h = rect.h,
+            .x = @intCast(c_int, rect.x),
+            .y = @intCast(c_int, rect.y),
+            .w = @intCast(c_int, rect.w),
+            .h = @intCast(c_int, rect.h),
         };
     }
 };
