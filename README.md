@@ -15,6 +15,12 @@ format:
 -   install prettier (globally)
 -   use prettier and zig fmt to format all files.
 
+## generate docs
+
+```
+zig test src/main.zig -lc -I/usr/include/SDL2 -femit-docs -fno-emit-bin --output-dir junk && node -e "(() => {const fs = require(\"fs\");const datain = fs.readFileSync(__dirname + \"/junk/docs/data.js\", \"utf-8\");const json = JSON.parse(datain.substring(12, datain.length - 1));let truemain = json.packages[0];let extra = json.packages[truemain.table.root];extra.main = truemain.main;fs.writeFileSync(__dirname + \"/junk/docs/data.js\", \"zigAnalysis=\"+JSON.stringify(json)+\";\", \"utf-8\");console.log(\"done\");})()" # workaround documentation generation bug #4646
+```
+
 ## todo
 
 using SDL rendering right now

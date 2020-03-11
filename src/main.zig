@@ -1,27 +1,7 @@
 const std = @import("std");
-const win = @import("./rendering_abstraction.zig");
+pub const win = @import("./rendering_abstraction.zig");
 const List = std.SinglyLinkedList;
 const ArrayList = std.ArrayList;
-
-const CodeLine = struct {
-    code: String,
-    height: ?u32, // update whenever height is calculated, such as when rendering text
-};
-const CodeList = List([]CodeLine);
-const String = ArrayList(u8);
-
-pub const ImDataStore = struct {
-    // data: Map(key: u128, value: *ImData)
-    // get(key, default)
-    // tick: finds any data that was not used last frame and deinits it
-    //
-    //eg: I don't remember the use case
-    //
-};
-
-pub const ImGlobals = struct {
-    // if(click) click = false // stopPropagation
-};
 
 pub const Style = struct {
     colors: struct {
@@ -757,4 +737,8 @@ pub fn main() !void {
         try app.render(&window, &event, &size);
         window.present();
     }
+}
+
+test "" {
+    std.meta.refAllDecls(@This());
 }
