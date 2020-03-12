@@ -318,34 +318,33 @@ const LineDrawCall = struct {
         return hlStyle.font != ldc.font or !hlStyle.color.equal(ldc.color);
     }
 };
+const LineInfo = struct {
+    yTop: u64,
+    height: u64,
+    drawCalls: std.ArrayList(LineDrawCall),
+    fn init(arena: *std.heap.ArenaAllocator, yTop: u64, height: u64) LineInfo {
+        var alloc = &arena.allocator;
+        const drawCalls = std.ArrayList(LineDrawCall).init(alloc);
+
+        return LineInfo{
+            .yTop = yTop,
+            .height = height,
+            .drawCalls = drawCalls,
+        };
+    }
+};
 const CharacterPosition = struct {
     x: u64,
     w: u64,
+    line: *LineInfo,
     // y/h are determined by the line.
 };
 const TextInfo = struct {
-    pub const LineInfo = struct {
-        yTop: u64,
-        drawCalls: std.ArrayList(LineDrawCall),
-        characterPositions: std.ArrayList(CharacterPosition),
-        fn init(arena: *std.heap.ArenaAllocator, yTop: u64) !LineInfo {
-            var alloc = &arena.allocator;
-            const drawCalls = std.ArrayList(LineDrawCall).init(alloc);
-
-            const characterPositions = std.ArrayList(CharacterPosition).init(alloc);
-
-            return LineInfo{
-                .yTop = yTop,
-                .drawCalls = drawCalls,
-                .characterPositions = characterPositions,
-            };
-        }
-    };
     maxWidth: u64,
     lines: std.ArrayList(LineInfo),
+    characterPositions: std.ArrayList(CharacterPosition),
     progress: struct {
         activeDrawCall: ?LineDrawCall,
-        lineHeight: u64,
         x: u64,
     },
     arena: *std.heap.ArenaAllocator,
@@ -355,14 +354,16 @@ const TextInfo = struct {
         var alloc = &arena.allocator;
         var lines = std.ArrayList(LineInfo).init(alloc);
 
-        try lines.append(try LineInfo.init(arena, 0));
+        const characterPositions = std.ArrayList(CharacterPosition).init(alloc);
+
+        try lines.append(LineInfo.init(arena, 0, 10));
 
         return TextInfo{
             .maxWidth = maxWidth,
             .lines = lines,
+            .characterPositions = characterPositions,
             .progress = .{
                 .activeDrawCall = null,
-                .lineHeight = 10,
                 .x = 0,
             },
             .parsingState = ParsingState.default(),
@@ -394,20 +395,22 @@ const TextInfo = struct {
 
     // append the character position from the active draw call
     fn appendCharacterPosition(ti: *TextInfo, char: u8, font: *const win.Font, color: win.Color) !void {
-        var characterMeasure = try win.measureText(color, &singleCharacter);
-        var latestLine = &ti.lines.items[ti.lines.len - 1];
-
+        var singleCharacter = [_]u8{ char, 0 };
+        var characterMeasure = try win.measureText(font, &singleCharacter);
         try ti.appendCharacterPositionMeasure(characterMeasure.w);
     }
 
     fn appendCharacterPositionMeasure(ti: *TextInfo, width: u64) !void {
-        var singleCharacter = [_]u8{ char, 0 };
         var lineOverX = blk: {
             var latestDrawCall = &ti.progress.activeDrawCall;
-            break :blk if (latestDrawCall) |ldc| (try win.measureText(font, &ldc.text)).w else 0;
+            break :blk if (latestDrawCall.*) |ldc| (try win.measureText(ldc.font, &ldc.text)).w else 0;
         };
 
-        try latestLine.characterPositions.append(.{ .x = lineMeasure.w + ti.progress.x, .w = width });
+        try ti.characterPositions.append(.{
+            .x = lineOverX + ti.progress.x,
+            .w = width,
+            .line = &ti.lines.items[ti.lines.len - 1],
+        });
     }
 
     /// append a new character to the existing draw call
@@ -422,17 +425,17 @@ const TextInfo = struct {
         latestDrawCall.text[latestDrawCall.textLength] = 0;
     }
 
-    fn addCharacter(ti: *TextInfo, char: u8) !void {
+    fn addCharacter(ti: *TextInfo, char: u8, app: *App) !void {
         var hl = ti.parsingState.handleCharacter(char);
 
         switch (hl) {
             .flow => |f| switch (f) {
                 .newline => {
-                    try textInfo.addNewlineCharacter();
+                    try ti.addNewlineCharacter();
                 },
             },
             .text => |txt| {
-                try textInfo.addCharacter(char, .{
+                try ti.addRenderedCharacter(char, .{
                     .font = app.getFont(txt.font),
                     .color = app.getColor(txt.color),
                 });
@@ -462,7 +465,7 @@ const TextInfo = struct {
         if (@intCast(u64, measure.w) + latestDrawCall.x >= ti.maxWidth) {
             // start new line
             // try again
-            try ti.startNewLine();
+            try ti.addNewlineCharacter();
             try ti.startNewDrawCall(char, hlStyle);
             return;
         }
@@ -481,8 +484,8 @@ const TextInfo = struct {
         const measure = try win.measureText(adc.font, &adc.text);
         adc.measure = .{ .w = @intCast(u64, measure.w), .h = @intCast(u64, measure.h) };
 
-        if (ti.progress.lineHeight < adc.measure.h) ti.progress.lineHeight = adc.measure.h;
         var latestLine = &ti.lines.items[ti.lines.len - 1];
+        if (latestLine.height < adc.measure.h) latestLine.height = adc.measure.h;
         try latestLine.drawCalls.append(adc);
         ti.progress.x += @intCast(u64, adc.measure.w);
     }
@@ -492,8 +495,7 @@ const TextInfo = struct {
         try ti.commit();
 
         var latestLine = &ti.lines.items[ti.lines.len - 1];
-        var nextLine = try LineInfo.init(ti.arena, ti.progress.lineHeight + latestLine.yTop);
-        ti.progress.lineHeight = 10;
+        var nextLine = LineInfo.init(ti.arena, latestLine.height + latestLine.yTop, 10);
         ti.progress.x = 0;
         try ti.lines.append(nextLine);
 
@@ -671,7 +673,7 @@ pub const App = struct {
 
         var textInfo = try TextInfo.init(&arena, @intCast(u64, pos.w));
         for (app.text[0..app.textLength]) |char| {
-            try textInfo.addCharacter(char);
+            try textInfo.addCharacter(char, app);
         }
         try textInfo.commit();
 
@@ -683,10 +685,26 @@ pub const App = struct {
                     drawCall.color,
                     &drawCall.text,
                     drawCall.x + pos.x,
-                    line.yTop + pos.y, // + (line.height - call.height) // seems we forgot about the height..
+                    line.yTop + pos.y + (line.height - drawCall.measure.h), // + (line.height - call.height) // seems we forgot about the height..
                     .{ .w = drawCall.measure.w, .h = drawCall.measure.h },
                 );
             }
+        }
+
+        if (app.cursorLocation > 0) {
+            const cursorPosition = textInfo.characterPositions.items[app.cursorLocation - 1];
+            try win.renderRect(
+                window,
+                app.style.colors.cursor,
+                .{
+                    .x = cursorPosition.x + cursorPosition.w + pos.x,
+                    .y = cursorPosition.line.yTop + pos.y,
+                    .w = 2,
+                    .h = cursorPosition.line.height,
+                },
+            );
+        } else {
+            // render cursor at position 0
         }
     }
 };

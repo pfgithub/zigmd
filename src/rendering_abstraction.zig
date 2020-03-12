@@ -265,6 +265,7 @@ pub const Rect = struct {
     }
 };
 pub fn renderRect(window: *const Window, color: Color, rect: Rect) !void {
+    if (rect.w == 0 or rect.h == 0) return;
     var sdlRect = rect.toSDL();
     if (c.SDL_SetRenderDrawColor(window.sdlRenderer, color.r, color.g, color.b, color.a) != 0) return sdlError();
     if (c.SDL_RenderFillRect(window.sdlRenderer, &sdlRect) != 0) return sdlError();
