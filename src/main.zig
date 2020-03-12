@@ -677,8 +677,9 @@ pub const App = struct {
         }
         try textInfo.commit();
 
-        for (textInfo.lines.toSliceConst()) |line| {
+        for (textInfo.lines.toSliceConst()) |line| blk: {
             for (line.drawCalls.toSliceConst()) |drawCall| {
+                if (line.yTop + line.height > pos.h) break :blk;
                 try win.renderText(
                     window,
                     drawCall.font,
