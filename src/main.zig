@@ -337,6 +337,7 @@ const CharacterPosition = struct {
     x: u64,
     w: u64,
     line: *LineInfo,
+    index: u64,
     // y/h are determined by the line.
 };
 const TextInfo = struct {
@@ -415,6 +416,7 @@ const TextInfo = struct {
             .x = lineOverX + ti.progress.x,
             .w = width,
             .line = &ti.lines.items[ti.lines.len - 1],
+            .index = ti.characterPositions.len,
         });
     }
 
@@ -470,7 +472,7 @@ const TextInfo = struct {
         if (@intCast(u64, measure.w) + latestDrawCall.x >= ti.maxWidth) {
             // start new line
             // try again
-            try ti.addNewlineCharacter();
+            try ti.addNewline();
             try ti.startNewDrawCall(char, hlStyle);
             return;
         }
@@ -497,15 +499,18 @@ const TextInfo = struct {
 
     /// start a new line
     fn addNewlineCharacter(ti: *TextInfo) !void {
+        try ti.addNewline();
+
+        try ti.appendCharacterPositionMeasure(0);
+        // newline has 0 width and is the first character of the line
+    }
+    fn addNewline(ti: *TextInfo) !void {
         try ti.commit();
 
         var latestLine = &ti.lines.items[ti.lines.len - 1];
         var nextLine = LineInfo.init(ti.arena, latestLine.height + latestLine.yTop, 10);
         ti.progress.x = 0;
         try ti.lines.append(nextLine);
-
-        try ti.appendCharacterPositionMeasure(0);
-        // newline has 0 width and is the first character of the line
     }
 };
 
@@ -682,6 +687,26 @@ pub const App = struct {
             try textInfo.addCharacter(char, app);
         }
         try textInfo.commit();
+
+        switch (event.*) {
+            .MouseDown => |mouse| blk: {
+                if (mouse.y < pos.y or mouse.y > pos.y + pos.h or
+                    mouse.x < pos.x or mouse.x > pos.x + pos.w)
+                {
+                    break :blk; // ignored,  out of area
+                }
+                for (textInfo.characterPositions.toSliceConst()) |cp| {
+                    if (mouse.x - @intCast(i64, pos.x) > (cp.x + @divFloor((cp.w), 2)) and
+                        mouse.y > cp.line.yTop + pos.y)
+                    {
+                        app.cursorLocation = cp.index;
+                    }
+                }
+            },
+            else => {},
+        }
+
+        // ==== rendering ====
 
         for (textInfo.lines.toSliceConst()) |line| blk: {
             for (line.drawCalls.toSliceConst()) |drawCall| {

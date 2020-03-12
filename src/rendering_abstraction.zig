@@ -94,14 +94,14 @@ pub const Event = union(enum) {
     };
     KeyDown: KeyEvent,
     pub const MouseEvent = struct {
-        x: i32,
-        y: i32,
+        x: i64,
+        y: i64,
     };
     MouseDown: MouseEvent,
     MouseUp: MouseEvent,
     pub const MouseMotionEvent = struct {
-        x: i32,
-        y: i32,
+        x: i64,
+        y: i64,
     };
     MouseMotion: MouseMotionEvent,
     pub const TextInputEvent = struct {
