@@ -383,7 +383,12 @@ const TextInfo = struct {
 
         var latestDrawCall = &ti.progress.activeDrawCall;
         latestDrawCall.* = .{
-            .text = [64]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+            .text = [64]u8{
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            },
             .textLength = 1,
             .font = font,
             .color = color,
@@ -499,7 +504,8 @@ const TextInfo = struct {
         ti.progress.x = 0;
         try ti.lines.append(nextLine);
 
-        try ti.appendCharacterPositionMeasure(0); // newline has 0 width and is the first character of the line
+        try ti.appendCharacterPositionMeasure(0);
+        // newline has 0 width and is the first character of the line
     }
 };
 
@@ -686,7 +692,7 @@ pub const App = struct {
                     drawCall.color,
                     &drawCall.text,
                     drawCall.x + pos.x,
-                    line.yTop + pos.y + (line.height - drawCall.measure.h), // + (line.height - call.height) // seems we forgot about the height..
+                    line.yTop + pos.y + (line.height - drawCall.measure.h),
                     .{ .w = drawCall.measure.w, .h = drawCall.measure.h },
                 );
             }
