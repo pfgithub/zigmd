@@ -696,11 +696,21 @@ pub const App = struct {
                     break :blk; // ignored,  out of area
                 }
                 for (textInfo.characterPositions.toSliceConst()) |cp| {
+                    // try win.renderRect(
+                    //     window,
+                    //     app.style.colors.cursor,
+                    //     .{
+                    //         .x = cp.x + @divFloor((cp.w), 2) + pos.x,
+                    //         .y = cp.line.yTop + pos.y,
+                    //         .w = @divFloor((cp.w), 2),
+                    //         .h = cp.line.height,
+                    //     },
+                    // );
                     if (mouse.x - @intCast(i64, pos.x) > (cp.x + @divFloor((cp.w), 2)) and
                         mouse.y > cp.line.yTop + pos.y)
                     {
-                        app.cursorLocation = cp.index;
-                    }
+                        app.cursorLocation = cp.index + 1;
+                    } else {}
                 }
             },
             else => {},
