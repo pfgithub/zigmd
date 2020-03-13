@@ -11,6 +11,7 @@ pub const Style = struct {
         cursor: win.Color,
         special: win.Color,
         errorc: win.Color,
+        linebg: win.Color,
     },
     fonts: struct {
         standard: win.Font,
@@ -729,6 +730,22 @@ pub const App = struct {
 
         // ==== rendering ====
 
+        if (app.cursorLocation > 0) {
+            const cursorPosition = textInfo.characterPositions.items[app.cursorLocation - 1];
+            try win.renderRect(
+                window,
+                app.style.colors.linebg,
+                .{
+                    .x = pos.x,
+                    .y = cursorPosition.line.yTop + pos.y,
+                    .w = pos.w,
+                    .h = cursorPosition.line.height,
+                },
+            );
+        } else {
+            // render cursor at position 0
+        }
+
         for (textInfo.lines.toSliceConst()) |line| blk: {
             for (line.drawCalls.toSliceConst()) |drawCall| {
                 if (line.yTop > pos.h) break :blk;
@@ -792,6 +809,7 @@ pub fn main() !void {
             .cursor = win.Color.rgb(128, 128, 255),
             .special = win.Color.rgb(128, 255, 128),
             .errorc = win.Color.rgb(255, 128, 128),
+            .linebg = win.Color.hex(0x3f4757),
         },
         .fonts = .{
             .standard = standardFont,
