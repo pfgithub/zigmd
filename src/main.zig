@@ -11,6 +11,7 @@ pub const Style = struct {
         cursor: win.Color,
         special: win.Color,
         errorc: win.Color,
+        linebg: win.Color,
     },
     fonts: struct {
         standard: win.Font,
@@ -315,6 +316,12 @@ pub const Action = union(enum) {
         direction: enum { up, down },
         mode: LineStop,
     };
+    save: Save,
+    pub const Save = struct {
+        fn apply(save: *const Save, app: *App) void {
+            app.saveFile();
+        }
+    };
 };
 
 const LineDrawCall = struct {
@@ -543,17 +550,17 @@ pub const App = struct {
     text: []u8,
     textLength: usize,
     readOnly: bool,
+    filename: []const u8,
 
-    fn init(alloc: *std.mem.Allocator, style: *const Style) !App {
-        var loadErrorText = try std.mem.dupe(alloc, u8, "File load error.");
-        defer alloc.free(loadErrorText);
+    fn init(alloc: *std.mem.Allocator, style: *const Style, filename: []const u8) !App {
+        const loadErrorText = "File load error.";
 
         var readOnly = false;
 
-        var file: []u8 = std.fs.cwd().readFileAlloc(alloc, "README.md", 10000) catch |e| blk: {
+        var file: []u8 = std.fs.cwd().readFileAlloc(alloc, filename, 10000) catch |e| blk: {
             std.debug.warn("File load error: {}", .{e});
             readOnly = true;
-            break :blk loadErrorText;
+            break :blk try std.mem.dupe(alloc, u8, loadErrorText);
         };
         defer alloc.free(file);
 
@@ -572,10 +579,19 @@ pub const App = struct {
             .text = text,
             .textLength = textLength,
             .readOnly = readOnly,
+            .filename = filename,
         };
     }
     fn deinit(app: *App) void {
         alloc.free(app.text);
+    }
+    fn saveFile(app: *App) void {
+        std.debug.warn("Save {}...", .{app.filename});
+        std.fs.cwd().writeFile(app.filename, app.textSlice()) catch |e| @panic("not handled");
+        std.debug.warn(" Saved\n", .{});
+    }
+    fn textSlice(app: *App) []const u8 {
+        return app.text[0..app.textLength];
     }
 
     fn findStop(app: *App, stop: CharacterStop, direction: Direction) usize {
@@ -688,6 +704,12 @@ pub const App = struct {
                     };
                     action.delete.apply(app);
                 },
+                .Escape => {
+                    const action: Action = .{
+                        .save = .{},
+                    };
+                    action.save.apply(app);
+                },
                 else => {},
             },
             .TextInput => |textin| {
@@ -731,9 +753,25 @@ pub const App = struct {
 
         // ==== rendering ====
 
+        if (app.cursorLocation > 0) {
+            const cursorPosition = textInfo.characterPositions.items[app.cursorLocation - 1];
+            try win.renderRect(
+                window,
+                app.style.colors.linebg,
+                .{
+                    .x = pos.x,
+                    .y = cursorPosition.line.yTop + pos.y,
+                    .w = pos.w,
+                    .h = cursorPosition.line.height,
+                },
+            );
+        } else {
+            // render cursor at position 0
+        }
+
         for (textInfo.lines.toSliceConst()) |line| blk: {
             for (line.drawCalls.toSliceConst()) |drawCall| {
-                if (line.yTop + line.height > pos.h) break :blk;
+                if (line.yTop > pos.h) break :blk;
                 try win.renderText(
                     window,
                     drawCall.font,
@@ -794,6 +832,7 @@ pub fn main() !void {
             .cursor = win.Color.rgb(128, 128, 255),
             .special = win.Color.rgb(128, 255, 128),
             .errorc = win.Color.rgb(255, 128, 128),
+            .linebg = win.Color.hex(0x3f4757),
         },
         .fonts = .{
             .standard = standardFont,
@@ -806,7 +845,7 @@ pub fn main() !void {
 
     std.debug.warn("Style: {}\n", .{style});
 
-    var appV = try App.init(alloc, &style);
+    var appV = try App.init(alloc, &style, "README.md");
     var app = &appV;
 
     defer stdout.print("Quitting!\n", .{}) catch unreachable;

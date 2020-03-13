@@ -81,6 +81,8 @@ pub const Key = enum(u64) {
     Return,
     Delete,
     Unknown,
+    S,
+    Escape,
 };
 
 pub const Event = union(enum) {
@@ -120,6 +122,8 @@ pub const Event = union(enum) {
                         .SDL_SCANCODE_BACKSPACE => .Backspace,
                         .SDL_SCANCODE_RETURN => .Return,
                         .SDL_SCANCODE_DELETE => .Delete,
+                        .SDL_SCANCODE_S => .S,
+                        .SDL_SCANCODE_ESCAPE => .Escape,
                         else => Key.Unknown,
                     },
                 },

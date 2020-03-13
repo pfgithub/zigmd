@@ -1,9 +1,14 @@
 {
-    "ctrl+s": {
-        "action": "save"
+    "Ctrl <S>": {
+        "save": {}
     },
-    "left": {
-        "action": "movecursor",
-        "direction": "left"
+    "<Left>": {
+        "moveCursorLR": {
+            "direction": "left",
+            "stop": "byte"
+        }
+    },
+    "Ctrl <A> Ctrl <E>": {
+        "exit": {}
     }
 }
