@@ -305,6 +305,12 @@ pub const Action = union(enum) {
         direction: enum { up, down },
         mode: LineStop,
     };
+    save: Save,
+    pub const Save = struct {
+        fn apply(save: *const Save, app: *App) void {
+            app.saveFile();
+        }
+    };
 };
 
 const LineDrawCall = struct {
@@ -556,6 +562,14 @@ pub const App = struct {
     fn deinit(app: *App) void {
         alloc.free(app.text);
     }
+    fn saveFile(app: *App) void {
+        std.debug.warn("Save...", .{});
+        std.fs.cwd().writeFile("README.md", app.textSlice()) catch |e| @panic("not handled");
+        std.debug.warn(" Saved\n", .{});
+    }
+    fn textSlice(app: *App) []const u8 {
+        return app.text[0..app.textLength];
+    }
 
     fn findStop(app: *App, stop: CharacterStop, direction: Direction) usize {
         return switch (stop) {
@@ -666,6 +680,12 @@ pub const App = struct {
                         },
                     };
                     action.delete.apply(app);
+                },
+                .S => {
+                    const action: Action = .{
+                        .save = .{},
+                    };
+                    action.save.apply(app);
                 },
                 else => {},
             },
