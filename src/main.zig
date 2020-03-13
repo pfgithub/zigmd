@@ -683,7 +683,7 @@ pub const App = struct {
                     };
                     action.delete.apply(app);
                 },
-                .S => {
+                .Escape => {
                     const action: Action = .{
                         .save = .{},
                     };
