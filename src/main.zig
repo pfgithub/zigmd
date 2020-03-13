@@ -528,14 +528,15 @@ pub const App = struct {
     text: []u8,
     textLength: usize,
     readOnly: bool,
+    filename: []const u8,
 
-    fn init(alloc: *std.mem.Allocator, style: *const Style) !App {
+    fn init(alloc: *std.mem.Allocator, style: *const Style, filename: []const u8) !App {
         var loadErrorText = try std.mem.dupe(alloc, u8, "File load error.");
         defer alloc.free(loadErrorText);
 
         var readOnly = false;
 
-        var file: []u8 = std.fs.cwd().readFileAlloc(alloc, "README.md", 10000) catch |e| blk: {
+        var file: []u8 = std.fs.cwd().readFileAlloc(alloc, filename, 10000) catch |e| blk: {
             std.debug.warn("File load error: {}", .{e});
             readOnly = true;
             break :blk loadErrorText;
@@ -557,6 +558,7 @@ pub const App = struct {
             .text = text,
             .textLength = textLength,
             .readOnly = readOnly,
+            .filename = filename,
         };
     }
     fn deinit(app: *App) void {
@@ -564,7 +566,7 @@ pub const App = struct {
     }
     fn saveFile(app: *App) void {
         std.debug.warn("Save...", .{});
-        std.fs.cwd().writeFile("README.md", app.textSlice()) catch |e| @panic("not handled");
+        std.fs.cwd().writeFile(app.filename, app.textSlice()) catch |e| @panic("not handled");
         std.debug.warn(" Saved\n", .{});
     }
     fn textSlice(app: *App) []const u8 {
@@ -803,7 +805,7 @@ pub fn main() !void {
 
     std.debug.warn("Style: {}\n", .{style});
 
-    var appV = try App.init(alloc, &style);
+    var appV = try App.init(alloc, &style, "README.md");
     var app = &appV;
 
     defer stdout.print("Quitting!\n", .{}) catch unreachable;
