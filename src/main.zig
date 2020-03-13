@@ -710,7 +710,7 @@ pub const App = struct {
 
         for (textInfo.lines.toSliceConst()) |line| blk: {
             for (line.drawCalls.toSliceConst()) |drawCall| {
-                if (line.yTop + line.height > pos.h) break :blk;
+                if (line.yTop > pos.h) break :blk;
                 try win.renderText(
                     window,
                     drawCall.font,
