@@ -54,6 +54,7 @@ pub const ParsingState = struct {
         stars: u8,
         backticks: u8,
         hashtags: u8,
+        newlines: bool,
         none: void,
         pub const Type = @TagType(@This());
     };
@@ -105,13 +106,16 @@ pub const ParsingState = struct {
             .hashtags => |hashtags| {
                 this.heading = hashtags;
             },
+            .newlines => |nl| {
+                // do nothing
+            },
             .none => {},
         }
         this.modeProgress = ModeProgress{ .none = {} };
         this.lineStart = false;
     }
-    fn handleCharacter(this: *ParsingState, char: u8) union(enum) {
-        text: TextHLStyle, flow: enum { newline }
+    fn handleCharacter(this: *ParsingState, char: u8, next: ?u8) union(enum) {
+        text: TextHLStyle, flow: enum { newline, nonewline }
     } {
         // if state is multiline code block, ignore probably
         // or other similar things
@@ -136,13 +140,16 @@ pub const ParsingState = struct {
                     return .{ .text = .{ .color = .text, .font = this.getFont() } };
                 },
                 '\n' => {
+                    if (next != null and next.? == '\n') {
+                        this.modeProgress = ModeProgress{ .newlines = true };
+                    }
                     this.heading = 0;
-                    this.commitState();
+                    if (this.modeProgress != .newlines) this.commitState();
                     this.lineStart = true;
                     this.bold = false;
                     this.italic = false;
                     this.escape = false;
-                    return .{ .flow = .newline };
+                    return if (this.modeProgress == .newlines) .{ .flow = .newline } else .{ .flow = .nonewline };
                 },
                 else => {
                     this.commitState();
@@ -192,13 +199,16 @@ pub const ParsingState = struct {
                 },
             },
             '\n' => {
+                if (next != null and next.? == '\n') {
+                    this.modeProgress = ModeProgress{ .newlines = true };
+                }
                 this.heading = 0;
-                this.commitState();
+                if (this.modeProgress != .newlines) this.commitState();
                 this.lineStart = true;
                 this.bold = false;
                 this.italic = false;
                 this.escape = false;
-                return .{ .flow = .newline };
+                return if (this.modeProgress == .newlines) .{ .flow = .newline } else .{ .flow = .nonewline };
             },
             else => {
                 this.commitState();
@@ -432,13 +442,24 @@ const TextInfo = struct {
         latestDrawCall.text[latestDrawCall.textLength] = 0;
     }
 
-    fn addCharacter(ti: *TextInfo, char: u8, app: *App) !void {
-        var hl = ti.parsingState.handleCharacter(char);
+    fn addCharacter(ti: *TextInfo, char: u8, next: ?u8, app: *App) !void {
+        var hl = ti.parsingState.handleCharacter(char, next);
 
         switch (hl) {
             .flow => |f| switch (f) {
                 .newline => {
                     try ti.addNewlineCharacter();
+                },
+                .nonewline => {
+                    for ("⏎") |byte| {
+                        try ti.addRenderedCharacter(byte, .{
+                            .font = app.getFont(.normal),
+                            .color = app.getColor(.control),
+                            // .exists = false,
+                        });
+                        _ = ti.characterPositions.pop();
+                    }
+                    try ti.appendCharacterPositionMeasure(0);
                 },
             },
             .text => |txt| {
@@ -683,8 +704,10 @@ pub const App = struct {
         }
 
         var textInfo = try TextInfo.init(&arena, @intCast(u64, pos.w));
+        var i: usize = 0;
         for (app.text[0..app.textLength]) |char| {
-            try textInfo.addCharacter(char, app);
+            try textInfo.addCharacter(char, if (app.textLength > i + 1) app.text[i + 1] else null, app);
+            i += 1;
         }
         try textInfo.commit();
 
