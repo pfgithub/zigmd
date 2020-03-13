@@ -531,15 +531,14 @@ pub const App = struct {
     filename: []const u8,
 
     fn init(alloc: *std.mem.Allocator, style: *const Style, filename: []const u8) !App {
-        var loadErrorText = try std.mem.dupe(alloc, u8, "File load error.");
-        defer alloc.free(loadErrorText);
+        const loadErrorText = "File load error.";
 
         var readOnly = false;
 
         var file: []u8 = std.fs.cwd().readFileAlloc(alloc, filename, 10000) catch |e| blk: {
             std.debug.warn("File load error: {}", .{e});
             readOnly = true;
-            break :blk loadErrorText;
+            break :blk try std.mem.dupe(alloc, u8, loadErrorText);
         };
         defer alloc.free(file);
 
@@ -565,7 +564,7 @@ pub const App = struct {
         alloc.free(app.text);
     }
     fn saveFile(app: *App) void {
-        std.debug.warn("Save...", .{});
+        std.debug.warn("Save {}...", .{app.filename});
         std.fs.cwd().writeFile(app.filename, app.textSlice()) catch |e| @panic("not handled");
         std.debug.warn(" Saved\n", .{});
     }
