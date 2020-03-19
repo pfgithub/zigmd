@@ -653,6 +653,7 @@ pub const App = struct {
         const textLength = file.len;
 
         const textRenderCache = TextRenderCache.init(alloc);
+        errdefer textRenderCache.deinit();
 
         // const initialText = "Test! **Bold**.";
         return App{
@@ -669,6 +670,7 @@ pub const App = struct {
     }
     fn deinit(app: *App) void {
         alloc.free(app.text);
+        app.textRenderCache.deinit();
     }
     fn saveFile(app: *App) void {
         std.debug.warn("Save {}...", .{app.filename});
@@ -731,6 +733,10 @@ pub const App = struct {
     }
 
     fn render(app: *App, window: *win.Window, event: *win.Event, pos: *win.Rect) !void {
+        try app.textRenderCache.clean();
+
+        var timer = try std.time.Timer.start();
+
         const style = app.style;
 
         var arena = std.heap.ArenaAllocator.init(app.alloc);
@@ -809,14 +815,19 @@ pub const App = struct {
             },
             else => {},
         }
+        std.debug.warn("Handling took {}.\n", .{timer.read()});
+        timer.reset();
 
-        var textInfo = try TextInfo.init(&arena, @intCast(u64, pos.w));
+        var textInfo = try TextInfo.init(&arena, pos.w);
         var i: usize = 0;
         for (app.text[0..app.textLength]) |char| {
             try textInfo.addCharacter(char, if (app.textLength > i + 1) app.text[i + 1] else null, app);
             i += 1;
         }
         try textInfo.commit();
+
+        std.debug.warn("Measuring took {}.\n", .{timer.read()});
+        timer.reset();
 
         switch (event.*) {
             .MouseDown => |mouse| blk: {
@@ -835,6 +846,9 @@ pub const App = struct {
             },
             else => {},
         }
+
+        std.debug.warn("Click handling took {}.\n", .{timer.read()});
+        timer.reset();
 
         // ==== rendering ====
 
@@ -876,7 +890,6 @@ pub const App = struct {
                 );
             }
         }
-        try app.textRenderCache.clean();
 
         if (app.cursorLocation > 0) {
             const cursorPosition = textInfo.characterPositions.items[app.cursorLocation - 1];
@@ -893,6 +906,9 @@ pub const App = struct {
         } else {
             // render cursor at position 0
         }
+
+        std.debug.warn("Rendering took {}.\n", .{timer.read()});
+        timer.reset();
     }
 };
 
