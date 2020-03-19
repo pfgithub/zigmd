@@ -233,26 +233,63 @@ pub const TextSize = struct {
     w: u64,
     h: u64,
 };
-pub fn measureText(font: *const Font, text: [*c]const u8) !TextSize {
-    var w: c_int = undefined;
-    var h: c_int = undefined;
-    if (c.TTF_SizeUTF8(font.sdlFont, text, &w, &h) < 0) return ttfError();
-    return TextSize{ .w = @intCast(u64, w), .h = @intCast(u64, h) };
-}
 
-pub fn renderText(window: *const Window, font: *const Font, color: Color, text: [*c]const u8, x: u64, y: u64, size: TextSize) !void {
-    var surface = c.TTF_RenderUTF8_Blended(font.sdlFont, text, color.toSDL());
-    defer c.SDL_FreeSurface(surface);
-    var texture = c.SDL_CreateTextureFromSurface(window.sdlRenderer, surface);
-    defer c.SDL_DestroyTexture(texture);
-    var rect = c.SDL_Rect{
-        .x = @intCast(c_int, x),
-        .y = @intCast(c_int, y),
-        .w = @intCast(c_int, size.w),
-        .h = @intCast(c_int, size.h),
-    };
-    if (c.SDL_RenderCopy(window.sdlRenderer, texture, null, &rect) < 0) return sdlError();
-}
+pub const Text = struct {
+    texture: *c.SDL_Texture,
+    size: TextSize,
+    pub fn measure(
+        font: *const Font,
+        text: [*c]const u8,
+    ) !TextSize {
+        var w: c_int = undefined;
+        var h: c_int = undefined;
+        if (c.TTF_SizeUTF8(font.sdlFont, text, &w, &h) < 0) return ttfError();
+        return TextSize{ .w = @intCast(u64, w), .h = @intCast(u64, h) };
+    }
+    pub fn init(
+        font: *const Font,
+        color: Color,
+        text: [*c]const u8,
+        size: ?TextSize,
+        window: *const Window,
+    ) !Text {
+        var surface = c.TTF_RenderUTF8_Blended(
+            font.sdlFont,
+            text,
+            color.toSDL(),
+        );
+        if (surface == null) return sdlError();
+        defer c.SDL_FreeSurface(surface);
+        var texture = c.SDL_CreateTextureFromSurface(
+            window.sdlRenderer,
+            surface,
+        );
+        if (texture == null) return sdlError();
+        errdefer c.SDL_DestroyTexture(texture);
+
+        return Text{
+            .texture = texture.?,
+            .size = if (size) |sz| sz else try Text.measure(font, text),
+        };
+    }
+    pub fn deinit(text: *Text) void {
+        c.SDL_DestroyTexture(text.texture);
+    }
+    pub fn render(text: *Text, window: *const Window, x: u64, y: u64) !void {
+        var rect = c.SDL_Rect{
+            .x = @intCast(c_int, x),
+            .y = @intCast(c_int, y),
+            .w = @intCast(c_int, text.size.w),
+            .h = @intCast(c_int, text.size.h),
+        };
+        if (c.SDL_RenderCopy(
+            window.sdlRenderer,
+            text.texture,
+            null,
+            &rect,
+        ) < 0) return sdlError();
+    }
+};
 
 pub const Rect = struct {
     x: u64,

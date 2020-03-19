@@ -1,3 +1,5 @@
+not actual markdown, just a reasonably sized file to test with
+
 const std = @import("std");
 pub const win = @import("./rendering_abstraction.zig");
 const List = std.SinglyLinkedList;
@@ -409,14 +411,14 @@ const TextInfo = struct {
     // append the character position from the active draw call
     fn appendCharacterPosition(ti: *TextInfo, char: u8, font: *const win.Font, color: win.Color) !void {
         var singleCharacter = [_]u8{ char, 0 };
-        var characterMeasure = try win.Text.measure(font, &singleCharacter);
+        var characterMeasure = try win.measureText(font, &singleCharacter);
         try ti.appendCharacterPositionMeasure(characterMeasure.w);
     }
 
     fn appendCharacterPositionMeasure(ti: *TextInfo, width: u64) !void {
         var lineOverX = blk: {
             var latestDrawCall = &ti.progress.activeDrawCall;
-            break :blk if (latestDrawCall.*) |ldc| (try win.Text.measure(ldc.font, &ldc.text)).w else 0;
+            break :blk if (latestDrawCall.*) |ldc| (try win.measureText(ldc.font, &ldc.text)).w else 0;
         };
 
         try ti.characterPositions.append(.{
@@ -475,7 +477,7 @@ const TextInfo = struct {
         lenCopy += 1;
         textCopy[lenCopy] = 0;
 
-        const measure = try win.Text.measure(latestDrawCall.font, &textCopy);
+        const measure = try win.measureText(latestDrawCall.font, &textCopy);
         if (@intCast(u64, measure.w) + latestDrawCall.x >= ti.maxWidth) {
             // start new line
             // try again
@@ -495,7 +497,7 @@ const TextInfo = struct {
         var adc = ti.progress.activeDrawCall.?;
         defer ti.progress.activeDrawCall = null;
 
-        const measure = try win.Text.measure(adc.font, &adc.text);
+        const measure = try win.measureText(adc.font, &adc.text);
         adc.measure = .{ .w = @intCast(u64, measure.w), .h = @intCast(u64, measure.h) };
 
         var latestLine = &ti.lines.items[ti.lines.len - 1];
@@ -521,84 +523,27 @@ const TextInfo = struct {
     }
 };
 
-pub fn Cache(comptime Key: type, comptime Value: type) type {
-    const Hashmap = std.AutoHashMap(
-        Key,
-        struct { used: bool, value: Value },
-    );
-
-    return struct {
-        const ThisCache = @This();
-
-        hashmap: Hashmap,
-
-        pub fn init(alloc: *std.mem.Allocator) ThisCache {
-            var map = Hashmap.init(alloc);
-            return .{
-                .hashmap = map,
-            };
-        }
-        pub fn deinit(cache: *ThisCache) ThisCache {
-            while (it.next()) |next| {
-                next.value.value.deinit();
-            }
-            cache.map.deinit();
-        }
-
-        pub fn clean(cache: *ThisCache) void {
-            var it = cache.hashmap.iterator();
-            while (it.next()) |next| {
-                if (!next.value.used) {
-                    // next.value.value.deinit();
-                    // std.debug.warn("TODO delete: {}\n", .{next.key});
-                    // TODO
-                }
-                next.value.used = false;
-            }
-        }
-        pub fn getOrCreate(cache: *ThisCache, key: Key) !*Value {
-            var result = try cache.hashmap.getOrPut(key);
-            if (!result.found_existing) {
-                var item = try Value.init(key);
-                result.kv.value = .{
-                    .used = true,
-                    .value = item,
-                };
-                std.debug.warn("Created new cache item\n", .{});
-            } else {
-                std.debug.warn("Reused cache item\n", .{});
-            }
-            result.kv.value.used = true;
-            return &result.kv.value.value;
-        }
-    };
-}
-
-pub const TextRenderInfo = struct {
-    font: *const win.Font,
-    color: win.Color,
-    text: [64]u8,
-    size: win.TextSize,
-    window: *const win.Window,
-};
-pub const TextRenderData = struct {
-    text: win.Text,
-    pub fn init(tri: TextRenderInfo) !TextRenderData {
-        return TextRenderData{
-            .text = try win.Text.init(
-                tri.font,
-                tri.color,
-                &tri.text,
-                tri.size,
-                tri.window,
-            ),
-        };
-    }
-    pub fn deinit(trd: *TextRenderData) void {
-        trd.text.deinit();
-    }
-};
-pub const TextRenderCache = Cache(TextRenderInfo, TextRenderData);
+// pub fn Cache(comptime handler: type) {
+//     return struct {
+//         const ThisCache = @This();
+//         pub fn get(hash: [64]u8) !void {
+//
+//         }
+//         pub fn clear() !void {
+//
+//         }
+//     };
+// }
+//
+// test "aa" {
+//     const TextCache = Cache(struct {
+//         pub fn ()
+//     }, win.);
+// }
+// hashmap = std.AutoHashMap(key type, value type)
+// for each item (.hit = false)
+// use items (.hit = true)
+// for each item (if !.hit, remove)
 
 pub const App = struct {
     scrollY: i32, // scrollX is only for individual parts of the UI, such as tables.
@@ -610,14 +555,12 @@ pub const App = struct {
     readOnly: bool,
     filename: []const u8,
 
-    textRenderCache: TextRenderCache,
-
     fn init(alloc: *std.mem.Allocator, style: *const Style, filename: []const u8) !App {
         const loadErrorText = "File load error.";
 
         var readOnly = false;
 
-        var file: []u8 = std.fs.cwd().readFileAlloc(alloc, filename, 10000000) catch |e| blk: {
+        var file: []u8 = std.fs.cwd().readFileAlloc(alloc, filename, 10000) catch |e| blk: {
             std.debug.warn("File load error: {}", .{e});
             readOnly = true;
             break :blk try std.mem.dupe(alloc, u8, loadErrorText);
@@ -630,8 +573,6 @@ pub const App = struct {
         std.mem.copy(u8, text, file);
         const textLength = file.len;
 
-        const textRenderCache = TextRenderCache.init(alloc);
-
         // const initialText = "Test! **Bold**.";
         return App{
             .scrollY = 0,
@@ -642,7 +583,6 @@ pub const App = struct {
             .textLength = textLength,
             .readOnly = readOnly,
             .filename = filename,
-            .textRenderCache = textRenderCache,
         };
     }
     fn deinit(app: *App) void {
@@ -833,26 +773,17 @@ pub const App = struct {
         for (textInfo.lines.toSliceConst()) |line| blk: {
             for (line.drawCalls.toSliceConst()) |drawCall| {
                 if (line.yTop > pos.h) break :blk;
-                const text = try app.textRenderCache.getOrCreate(.{
-                    .font = drawCall.font,
-                    .color = drawCall.color,
-                    .text = drawCall.text,
-                    .size = .{
-                        .w = drawCall.measure.w,
-                        .h = drawCall.measure.h,
-                    },
-                    .window = window,
-                });
-                try text.text.render(
+                try win.renderText(
                     window,
+                    drawCall.font,
+                    drawCall.color,
+                    &drawCall.text,
                     drawCall.x + pos.x,
-                    line.yTop +
-                        pos.y +
-                        (line.height - drawCall.measure.h),
+                    line.yTop + pos.y + (line.height - drawCall.measure.h),
+                    .{ .w = drawCall.measure.w, .h = drawCall.measure.h },
                 );
             }
         }
-        app.textRenderCache.clean();
 
         if (app.cursorLocation > 0) {
             const cursorPosition = textInfo.characterPositions.items[app.cursorLocation - 1];
@@ -950,4 +881,331 @@ pub fn main() !void {
 
 test "" {
     std.meta.refAllDecls(@This());
+}
+
+
+const c = @cImport({
+    @cDefine("_NO_CRT_STDIO_INLINE", "1");
+    @cInclude("stdio.h");
+    @cInclude("SDL.h");
+    @cInclude("SDL_ttf.h");
+});
+const std = @import("std");
+
+// usingnamespace c ?
+
+const RenderingError = error{
+    SDLError,
+    TTFError,
+};
+
+fn sdlError() RenderingError {
+    _ = c.printf("SDL Method Failed: %s\n", c.SDL_GetError());
+    return RenderingError.SDLError;
+}
+
+fn ttfError() RenderingError {
+    _ = c.printf("TTF Method Failed: %s\n", c.TTF_GetError());
+    return RenderingError.TTFError;
+}
+
+pub const Font = struct {
+    sdlFont: *c.TTF_Font,
+    pub fn init(ttfPath: [*c]const u8, size: u16) !Font {
+        var font = c.TTF_OpenFont(ttfPath, size);
+        if (font == null) return ttfError();
+        errdefer c.TTF_CloseFont(font);
+
+        return Font{
+            .sdlFont = font.?,
+        };
+    }
+    pub fn deinit(font: *Font) void {
+        c.TTF_CloseFont(font.sdlFont);
+    }
+};
+
+pub const Color = struct {
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8,
+    pub fn rgb(r: u8, g: u8, b: u8) Color {
+        return Color.rgba(r, g, b, 255);
+    }
+    pub fn rgba(r: u8, g: u8, b: u8, a: u8) Color {
+        return Color{ .r = r, .g = g, .b = b, .a = a };
+    }
+    pub fn hex(comptime color: u24) Color {
+        return Color{
+            .r = (color >> 16),
+            .g = (color >> 8) & 0xFF,
+            .b = color & 0xFF,
+            .a = 0xFF,
+        };
+    }
+    fn fromSDL(color: c.SDL_Color) Color {
+        return Color{ .r = color.r, .g = color.g, .b = color.b, .a = color.a };
+    }
+    fn toSDL(color: Color) c.SDL_Color {
+        return c.SDL_Color{ .r = color.r, .g = color.g, .b = color.b, .a = color.a };
+    }
+    fn equal(a: Color, b: Color) bool {
+        return a.r == b.r and a.g == b.g and a.b == b.b and a.a == b.a;
+    }
+};
+
+pub const WindowSize = struct {
+    w: u64,
+    h: u64,
+};
+
+pub const Key = enum(u64) {
+    Left,
+    Right,
+    Backspace,
+    Return,
+    Delete,
+    Unknown,
+    S,
+    Escape,
+};
+
+pub const Event = union(enum) {
+    Quit: void,
+    pub const UnknownEvent = struct {
+        type: u32,
+    };
+    Unknown: UnknownEvent,
+    pub const KeyEvent = struct {
+        key: Key,
+    };
+    KeyDown: KeyEvent,
+    pub const MouseEvent = struct {
+        x: i64,
+        y: i64,
+    };
+    MouseDown: MouseEvent,
+    MouseUp: MouseEvent,
+    pub const MouseMotionEvent = struct {
+        x: i64,
+        y: i64,
+    };
+    MouseMotion: MouseMotionEvent,
+    pub const TextInputEvent = struct {
+        text: [100]u8,
+        length: u32,
+    };
+    TextInput: TextInputEvent,
+    fn fromSDL(event: c.SDL_Event) Event {
+        return switch (event.type) {
+            c.SDL_QUIT => Event{ .Quit = {} },
+            c.SDL_KEYDOWN => Event{
+                .KeyDown = .{
+                    .key = switch (event.key.keysym.scancode) {
+                        .SDL_SCANCODE_LEFT => .Left,
+                        .SDL_SCANCODE_RIGHT => .Right,
+                        .SDL_SCANCODE_BACKSPACE => .Backspace,
+                        .SDL_SCANCODE_RETURN => .Return,
+                        .SDL_SCANCODE_DELETE => .Delete,
+                        .SDL_SCANCODE_S => .S,
+                        .SDL_SCANCODE_ESCAPE => .Escape,
+                        else => Key.Unknown,
+                    },
+                },
+            },
+            c.SDL_MOUSEBUTTONDOWN => Event{
+                .MouseDown = .{
+                    .x = event.button.x,
+                    .y = event.button.y,
+                },
+            },
+            c.SDL_MOUSEBUTTONUP => Event{
+                .MouseUp = .{
+                    .x = event.button.x,
+                    .y = event.button.y,
+                },
+            },
+            c.SDL_MOUSEMOTION => Event{
+                .MouseMotion = .{
+                    .x = event.motion.x,
+                    .y = event.motion.y,
+                },
+            },
+            c.SDL_TEXTINPUT => blk: {
+                var text: [100]u8 = undefined;
+                std.mem.copy(u8, &text, &event.text.text); // does the event.text.text memory get leaked? what happens to it?
+                break :blk Event{
+                    .TextInput = .{ .text = text, .length = @intCast(u32, c.strlen(&event.text.text)) },
+                };
+            },
+            else => Event{ .Unknown = UnknownEvent{ .type = event.type } },
+        };
+
+        // if (event.type == c.SDL_QUIT) {
+        //     break;
+        // }
+        // if (event.type == c.SDL_MOUSEMOTION) {
+        //     try stdout.print("MouseMotion: {}\n", .{event.motion});
+        // } else if (event.type == c.SDL_MOUSEWHEEL) {
+        //     try stdout.print("MouseWheel: {}\n", .{event.wheel});
+        // } else if (event.type == c.SDL_KEYDOWN) {
+        //     // use for hotkeys
+        //     try stdout.print("KeyDown: {} {}\n", .{ event.key.keysym.sym, event.key.keysym.mod });
+        // } else if (event.type == c.SDL_TEXTINPUT) {
+        //     // use for typing
+        //     try stdout.print("TextInput: {}\n", .{event.text});
+        // } else {
+        //     try stdout.print("Event: {}\n", .{event.type});
+        // }
+    }
+    pub const Type = @TagType(@This());
+};
+
+pub const Window = struct {
+    sdlWindow: *c.SDL_Window,
+    sdlRenderer: *c.SDL_Renderer,
+    pub fn init() !Window {
+        var window = c.SDL_CreateWindow(
+            "hello_sdl2",
+            c.SDL_WINDOWPOS_UNDEFINED,
+            c.SDL_WINDOWPOS_UNDEFINED,
+            640,
+            480,
+            c.SDL_WINDOW_SHOWN | c.SDL_WINDOW_RESIZABLE,
+        );
+        if (window == null) return sdlError();
+        errdefer c.SDL_DestroyWindow(window);
+
+        var renderer = c.SDL_CreateRenderer(window, -1, c.SDL_RENDERER_ACCELERATED);
+        if (renderer == null) return sdlError();
+        errdefer c.SDL_DestroyRenderer(renderer);
+
+        return Window{
+            .sdlWindow = window.?,
+            .sdlRenderer = renderer.?,
+        };
+    }
+    pub fn deinit(window: *Window) void {
+        c.SDL_DestroyRenderer(window.sdlRenderer);
+        c.SDL_DestroyWindow(window.sdlWindow);
+    }
+
+    pub fn waitEvent(window: *Window) !Event {
+        var event: c.SDL_Event = undefined;
+        if (c.SDL_WaitEvent(&event) != 1) return sdlError();
+        return Event.fromSDL(event);
+    }
+
+    pub fn clear(window: *Window) !void {
+        if (c.SDL_SetRenderDrawColor(window.sdlRenderer, 0, 0, 0, 0) != 0) return sdlError();
+        if (c.SDL_RenderClear(window.sdlRenderer) < 0) return sdlError();
+    }
+    pub fn present(window: *Window) void {
+        c.SDL_RenderPresent(window.sdlRenderer);
+    }
+    pub fn getSize(window: *Window) !WindowSize {
+        var screenWidth: c_int = undefined;
+        var screenHeight: c_int = undefined;
+        if (c.SDL_GetRendererOutputSize(window.sdlRenderer, &screenWidth, &screenHeight) < 0) return sdlError();
+        return WindowSize{
+            .w = @intCast(u64, screenWidth), // should never fail
+            .h = @intCast(u64, screenHeight),
+        };
+    }
+};
+
+pub const TextSize = struct {
+    w: u64,
+    h: u64,
+};
+pub fn measureText(font: *const Font, text: [*c]const u8) !TextSize {
+    var w: c_int = undefined;
+    var h: c_int = undefined;
+    if (c.TTF_SizeUTF8(font.sdlFont, text, &w, &h) < 0) return ttfError();
+    return TextSize{ .w = @intCast(u64, w), .h = @intCast(u64, h) };
+}
+
+pub fn renderText(window: *const Window, font: *const Font, color: Color, text: [*c]const u8, x: u64, y: u64, size: TextSize) !void {
+    var surface = c.TTF_RenderUTF8_Blended(font.sdlFont, text, color.toSDL());
+    defer c.SDL_FreeSurface(surface);
+    var texture = c.SDL_CreateTextureFromSurface(window.sdlRenderer, surface);
+    defer c.SDL_DestroyTexture(texture);
+    var rect = c.SDL_Rect{
+        .x = @intCast(c_int, x),
+        .y = @intCast(c_int, y),
+        .w = @intCast(c_int, size.w),
+        .h = @intCast(c_int, size.h),
+    };
+    if (c.SDL_RenderCopy(window.sdlRenderer, texture, null, &rect) < 0) return sdlError();
+}
+
+pub const Text = struct {
+    texture: *c.SDL_Texture,
+    size: TextSize,
+    pub fn init(font: *const Font, color: Color, text: [*c]const u8, size: ?TextSize) !Text {
+        var surface = c.TTF_RenderUTF8_Blended(font.sdlFont, text, color.toSDL());
+        defer c.SDL_FreeSurface(surface);
+        var texture = c.SDL_CreateTextureFromSurface(window.sdlRenderer, surface);
+        errdefer c.SDL_DestroyTexture(texture);
+
+        return .{
+            .texture = texture,
+            .size = if (size) |size| size else try measureText(font, text),
+        };
+    }
+    pub fn deinit(text: *Text) void {
+        c.SDL_DestroyTexture(text.texture);
+    }
+    pub fn render(text: *Text, window: *const Window) !void {
+        var rect = c.SDL_Rect{
+            .x = @intCast(c_int, x),
+            .y = @intCast(c_int, y),
+            .w = @intCast(c_int, text.size.w),
+            .h = @intCast(c_int, text.size.h),
+        };
+        if (c.SDL_RenderCopy(window.sdlRenderer, texture, null, &rect) < 0) return sdlError();
+    }
+};
+
+pub fn createText() !void {
+    // create and return texture
+}
+
+pub fn renderText(window: *const Window, text: Text) !void {}
+
+pub const Rect = struct {
+    x: u64,
+    y: u64,
+    w: u64,
+    h: u64,
+    fn toSDL(rect: *const Rect) c.SDL_Rect {
+        return c.SDL_Rect{
+            .x = @intCast(c_int, rect.x),
+            .y = @intCast(c_int, rect.y),
+            .w = @intCast(c_int, rect.w),
+            .h = @intCast(c_int, rect.h),
+        };
+    }
+};
+pub fn renderRect(window: *const Window, color: Color, rect: Rect) !void {
+    if (rect.w == 0 or rect.h == 0) return;
+    var sdlRect = rect.toSDL();
+    if (c.SDL_SetRenderDrawColor(window.sdlRenderer, color.r, color.g, color.b, color.a) != 0) return sdlError();
+    if (c.SDL_RenderFillRect(window.sdlRenderer, &sdlRect) != 0) return sdlError();
+}
+
+pub fn init() RenderingError!void {
+    if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) return sdlError();
+    errdefer c.SDL_Quit();
+
+    if (c.TTF_Init() < 0) return sdlError();
+    errdefer c.TTF_Quit();
+
+    c.SDL_StartTextInput(); // todo
+}
+
+pub fn deinit() void {
+    c.TTF_Quit();
+    c.SDL_Quit();
 }
