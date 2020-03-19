@@ -552,11 +552,13 @@ pub fn Cache(comptime Key: type, comptime Value: type) type {
         const ThisCache = @This();
 
         hashmap: Hashmap,
+        alloc: *std.mem.Allocator,
 
         pub fn init(alloc: *std.mem.Allocator) ThisCache {
             var map = Hashmap.init(alloc);
             return .{
                 .hashmap = map,
+                .alloc = alloc,
             };
         }
         pub fn deinit(cache: *ThisCache) ThisCache {
@@ -566,15 +568,17 @@ pub fn Cache(comptime Key: type, comptime Value: type) type {
             cache.map.deinit();
         }
 
-        pub fn clean(cache: *ThisCache) void {
+        pub fn clean(cache: *ThisCache) !void {
             var it = cache.hashmap.iterator();
+            var toRemove = std.ArrayList(Key).init(cache.alloc);
             while (it.next()) |next| {
-                if (!next.value.used) {
-                    // next.value.value.deinit();
-                    // std.debug.warn("TODO delete: {}\n", .{next.key});
-                    // TODO
-                }
+                if (!next.value.used)
+                    try toRemove.append(next.key);
                 next.value.used = false;
+            }
+            for (toRemove.toSliceConst()) |key| {
+                var removed = cache.hashmap.remove(key).?;
+                removed.value.value.deinit();
             }
         }
         pub fn getOrCreate(cache: *ThisCache, key: Key) !*Value {
@@ -585,9 +589,6 @@ pub fn Cache(comptime Key: type, comptime Value: type) type {
                     .used = true,
                     .value = item,
                 };
-                std.debug.warn("Created new cache item\n", .{});
-            } else {
-                std.debug.warn("Reused cache item\n", .{});
             }
             result.kv.value.used = true;
             return &result.kv.value.value;
@@ -875,7 +876,7 @@ pub const App = struct {
                 );
             }
         }
-        app.textRenderCache.clean();
+        try app.textRenderCache.clean();
 
         if (app.cursorLocation > 0) {
             const cursorPosition = textInfo.characterPositions.items[app.cursorLocation - 1];
