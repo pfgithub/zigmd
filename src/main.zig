@@ -942,6 +942,8 @@ pub const App = struct {
 };
 
 pub fn main() !void {
+    var font = try win.Font.loadFromName("Arial");
+
     const alloc = std.heap.page_allocator;
 
     const stdout = &std.io.getStdOut().outStream().stream;

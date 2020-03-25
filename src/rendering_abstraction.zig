@@ -3,6 +3,7 @@ const c = @cImport({
     @cInclude("stdio.h");
     @cInclude("SDL.h");
     @cInclude("SDL_ttf.h");
+    @cInclude("fontconfig/fontconfig.h");
 });
 const std = @import("std");
 
@@ -36,6 +37,33 @@ pub const Font = struct {
     }
     pub fn deinit(font: *Font) void {
         c.TTF_CloseFont(font.sdlFont);
+    }
+    pub fn loadFromName(name: [*c]const u8) !Font {
+        var config = c.FcInitLoadConfigAndFonts().?; // !! this should be global instead of happening every time !!!! memory leak + unnecessary slowness
+        var pattern = c.FcNameParse(name).?;
+        defer c.FcPatternDestroy(pattern);
+        // FcPattern* pat = FcNameParse((const FcChar8*)"Arial");
+        if (c.FcConfigSubstitute(
+            config,
+            pattern,
+            @intToEnum(c.FcMatchKind, c.FcMatchPattern),
+        ) == c.FcFalse)
+            return error.OutOfMemory;
+        c.FcDefaultSubstitute(pattern);
+
+        var fontFile: [*c]u8 = undefined;
+        var result: c.FcResult = undefined;
+        if (c.FcFontMatch(config, pattern, &result)) |font| {
+            var file: [*c]c.FcChar8 = null;
+            if (c.FcPatternGetString(font, c.FC_FILE, 0, &file) ==
+                @intToEnum(c.FcResult, c.FcResultMatch))
+            {
+                fontFile = file;
+                _ = c.printf("%s\n", fontFile);
+                return error.NotImplementedYet;
+            }
+        }
+        return error.NotFound;
     }
 };
 

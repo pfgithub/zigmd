@@ -9,6 +9,7 @@ pub fn build(b: *Builder) void {
     exe.linkLibC();
     exe.linkSystemLibrary("SDL2");
     exe.linkSystemLibrary("SDL2_ttf");
+    exe.linkSystemLibrary("fontconfig");
     exe.install();
 
     const run_cmd = exe.run();
