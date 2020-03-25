@@ -24,6 +24,26 @@ fn ttfError() RenderingError {
     return RenderingError.TTFError;
 }
 
+pub const FontLoader = struct {
+    config: *c.FcConfig,
+    pub fn init() FontLoader {
+        return .{
+            .config = c.FcInitLoadConfigAndFonts().?,
+        };
+    }
+    pub fn loadFromName(
+        loader: *const FontLoader,
+        name: [*c]const u8,
+        fontSize: u16,
+    ) !Font {
+        return Font.loadFromName(loader, name, fontSize);
+    }
+    pub fn deinit(fontLoader: *FontLoader) void {
+        // do something
+        // !!! ?? potential memory leak?
+    }
+};
+
 pub const Font = struct {
     sdlFont: *c.TTF_Font,
     pub fn init(ttfPath: [*c]const u8, size: u16) !Font {
@@ -38,11 +58,23 @@ pub const Font = struct {
     pub fn deinit(font: *Font) void {
         c.TTF_CloseFont(font.sdlFont);
     }
-    pub fn loadFromName(name: [*c]const u8) !Font {
-        var config = c.FcInitLoadConfigAndFonts().?; // !! this should be global instead of happening every time !!!! memory leak + unnecessary slowness
+    pub fn loadFromName(
+        loader: *const FontLoader,
+        name: [*c]const u8,
+        fontSize: u16,
+    ) !Font {
+        var config = loader.config;
         var pattern = c.FcNameParse(name).?;
+
+        // font size
+        var v: c.FcValue = .{
+            .type = @intToEnum(c.FcType, c.FcTypeInteger),
+            .u = .{ .i = fontSize },
+        };
+        if (c.FcPatternAdd(pattern, c.FC_SIZE, v, c.FcTrue) == c.FcFalse)
+            return error.FontConfigError;
+
         defer c.FcPatternDestroy(pattern);
-        // FcPattern* pat = FcNameParse((const FcChar8*)"Arial");
         if (c.FcConfigSubstitute(
             config,
             pattern,
@@ -51,16 +83,14 @@ pub const Font = struct {
             return error.OutOfMemory;
         c.FcDefaultSubstitute(pattern);
 
-        var fontFile: [*c]u8 = undefined;
         var result: c.FcResult = undefined;
         if (c.FcFontMatch(config, pattern, &result)) |font| {
             var file: [*c]c.FcChar8 = null;
             if (c.FcPatternGetString(font, c.FC_FILE, 0, &file) ==
                 @intToEnum(c.FcResult, c.FcResultMatch))
             {
-                fontFile = file;
-                _ = c.printf("%s\n", fontFile);
-                return error.NotImplementedYet;
+                var resFont = Font.init(file, fontSize);
+                return resFont;
             }
         }
         return error.NotFound;

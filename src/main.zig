@@ -942,9 +942,9 @@ pub const App = struct {
 };
 
 pub fn main() !void {
-    var font = try win.Font.loadFromName("Arial");
-
     const alloc = std.heap.page_allocator;
+
+    const loader = win.FontLoader.init();
 
     const stdout = &std.io.getStdOut().outStream().stream;
     try stdout.print("Hello, {}!\n", .{"world"});
@@ -954,15 +954,15 @@ pub fn main() !void {
 
     var window = try win.Window.init();
 
-    var standardFont = try win.Font.init("font/FreeSans.ttf", 16);
+    var standardFont = try loader.loadFromName("Arial", 16);
     defer standardFont.deinit();
-    var boldFont = try win.Font.init("font/FreeSansBold.ttf", 16);
+    var boldFont = try loader.loadFromName("Arial", 16);
     defer boldFont.deinit();
-    var italicFont = try win.Font.init("font/FreeSansOblique.ttf", 16);
+    var italicFont = try loader.loadFromName("Arial", 16);
     defer italicFont.deinit();
-    var boldItalicFont = try win.Font.init("font/FreeSansBoldOblique.ttf", 16);
+    var boldItalicFont = try loader.loadFromName("Arial", 16);
     defer boldItalicFont.deinit();
-    var headingFont = try win.Font.init("font/FreeSansBold.ttf", 24);
+    var headingFont = try loader.loadFromName("Arial", 24);
     defer headingFont.deinit();
 
     var style = Style{
