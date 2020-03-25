@@ -956,13 +956,13 @@ pub fn main() !void {
 
     var standardFont = try loader.loadFromName("Arial", 16);
     defer standardFont.deinit();
-    var boldFont = try loader.loadFromName("Arial", 16);
+    var boldFont = try loader.loadFromName("Arial:weight=200", 16);
     defer boldFont.deinit();
-    var italicFont = try loader.loadFromName("Arial", 16);
+    var italicFont = try loader.loadFromName("Arial:slant=100", 16);
     defer italicFont.deinit();
-    var boldItalicFont = try loader.loadFromName("Arial", 16);
+    var boldItalicFont = try loader.loadFromName("Arial:weight=200:slant=100", 16);
     defer boldItalicFont.deinit();
-    var headingFont = try loader.loadFromName("Arial", 24);
+    var headingFont = try loader.loadFromName("Arial:weight=200", 24);
     defer headingFont.deinit();
 
     var style = Style{

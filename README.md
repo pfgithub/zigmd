@@ -1,5 +1,7 @@
 ## build
 
+**bold test** *italic test* ***bold italic test***
+
 setup:
 
 -   install zig version `0.5.0+d89650025`
