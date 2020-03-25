@@ -989,7 +989,7 @@ pub fn main() !void {
 
     std.debug.warn("Style: {}\n", .{style});
 
-    var appV = try App.init(alloc, &style, "README.md");
+    var appV = try App.init(alloc, &style, "tests/demo file.md");
     var app = &appV;
 
     defer stdout.print("Quitting!\n", .{}) catch unreachable;
