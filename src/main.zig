@@ -19,6 +19,7 @@ pub const Style = struct {
         italic: win.Font,
         bolditalic: win.Font,
         heading: win.Font,
+        monospace: win.Font,
     },
 };
 
@@ -35,6 +36,7 @@ pub const HLFont = enum {
     italic,
     bolditalic,
     heading,
+    monospace,
 };
 pub const TextHLStyle = struct {
     font: HLFont,
@@ -51,6 +53,10 @@ pub const ParsingState = struct {
     heading: u8,
     lineStart: bool,
     escape: bool,
+    inlineCode: bool,
+    multilineCode: bool,
+    nextError: bool,
+
     const ModeProgress = union(enum) {
         stars: u8,
         backticks: u8,
@@ -68,152 +74,174 @@ pub const ParsingState = struct {
             .lineStart = true,
             .escape = false,
             .modeProgress = ModeProgress{ .none = {} },
+            .inlineCode = false,
+            .multilineCode = false,
+            .nextError = false,
         };
     }
-    fn getFont(this: *ParsingState) HLFont {
-        if (false) { // if is control character
-            return HLFont.normal;
-        }
-        if (this.heading > 0) {
-            return HLFont.heading;
-        } else if (this.bold and this.italic) {
-            return HLFont.bolditalic;
-        } else if (this.bold) {
-            return HLFont.bold;
-        } else if (this.italic) {
-            return HLFont.italic;
-        } else {
-            return HLFont.normal;
-        }
+    fn getFont(ps: *ParsingState) HLFont {
+        return if (ps.multilineCode)
+            HLFont.monospace
+        else if (ps.inlineCode)
+            HLFont.monospace
+        else if (ps.heading > 0)
+            HLFont.heading
+        else if (ps.bold and ps.italic)
+            HLFont.bolditalic
+        else if (ps.bold)
+            HLFont.bold
+        else if (ps.italic)
+            HLFont.italic
+        else
+            HLFont.normal;
     }
-    fn commitState(this: *ParsingState) void {
-        switch (this.modeProgress) {
+    fn commitState(state: *ParsingState) void {
+        switch (state.modeProgress) {
             .stars => |stars| {
                 if (stars == 1) {
-                    this.italic = !this.italic;
+                    state.italic = !state.italic;
                 } else if (stars == 2) {
-                    this.bold = !this.bold;
+                    state.bold = !state.bold;
                 } else if (stars == 3) {
-                    this.italic = !this.italic;
-                    this.bold = !this.bold;
+                    state.italic = !state.italic;
+                    state.bold = !state.bold;
                 } else {
                     std.debug.panic("[unreachable] Stars: {}", .{stars});
                 }
             },
             .backticks => |backticks| {
-                // 1 = nothing, 3 = enter multiline code block
-                std.debug.panic("[unreachable] Backticks: {}", .{backticks});
+                if (backticks == 1) {
+                    state.inlineCode = !state.inlineCode;
+                } else if (backticks == 2) {
+                    state.nextError = true;
+                } else if (backticks == 3) {
+                    state.nextError = true;
+                    //state.multilineCode = !state.multilineCode;
+                } else {
+                    state.nextError = true;
+                }
             },
             .hashtags => |hashtags| {
-                this.heading = hashtags;
+                state.heading = hashtags;
             },
             .newlines => |nl| {
                 // do nothing
             },
             .none => {},
         }
-        this.modeProgress = ModeProgress{ .none = {} };
-        this.lineStart = false;
+        state.modeProgress = ModeProgress{ .none = {} };
+        state.lineStart = false;
     }
-    fn handleCharacter(this: *ParsingState, char: u8, next: ?u8) union(enum) {
+    fn handleCharacter(state: *ParsingState, char: u8, next: ?u8) union(enum) {
         text: TextHLStyle, flow: enum { newline, nonewline }
     } {
-        // if state is multiline code block, ignore probably
-        // or other similar things
-        if (this.escape) {
-            this.escape = false;
+        if (char == '\n') {
+            if (next != null and next.? == '\n') {
+                state.modeProgress = ModeProgress{ .newlines = true };
+            } else {
+                if (state.modeProgress != .newlines) state.commitState();
+            }
+            state.heading = 0;
+            state.lineStart = true;
+            state.bold = false;
+            state.italic = false;
+            state.escape = false;
+            state.inlineCode = false;
+            return if (state.modeProgress == .newlines) .{ .flow = .newline } else .{ .flow = .nonewline };
+        }
+        if (state.nextError) {
+            state.nextError = false;
+            return .{ .text = .{ .color = .errorc, .font = .normal } };
+        }
+        if (state.inlineCode) {
+            state.commitState();
+            if (char == '`') {
+                state.modeProgress = .{ .backticks = 1 };
+                return .{ .text = .{ .color = .control, .font = .normal } };
+            }
+            return .{ .text = .{ .color = .text, .font = state.getFont() } };
+        }
+        if (state.escape) {
+            state.escape = false;
             return switch (char) {
                 '\\' => {
                     // if(next is valid)
-                    this.commitState();
-                    return .{ .text = .{ .color = .text, .font = this.getFont() } };
+                    state.commitState();
+                    return .{ .text = .{ .color = .text, .font = state.getFont() } };
                 },
                 '*' => {
-                    this.commitState();
-                    return .{ .text = .{ .color = .text, .font = this.getFont() } };
+                    state.commitState();
+                    return .{ .text = .{ .color = .text, .font = state.getFont() } };
                 },
                 '`' => {
-                    this.commitState();
-                    return .{ .text = .{ .color = .text, .font = this.getFont() } };
+                    state.commitState();
+                    return .{ .text = .{ .color = .text, .font = state.getFont() } };
                 },
                 '#' => {
-                    this.commitState();
-                    return .{ .text = .{ .color = .text, .font = this.getFont() } };
-                },
-                '\n' => {
-                    if (next != null and next.? == '\n') {
-                        this.modeProgress = ModeProgress{ .newlines = true };
-                    }
-                    this.heading = 0;
-                    if (this.modeProgress != .newlines) this.commitState();
-                    this.lineStart = true;
-                    this.bold = false;
-                    this.italic = false;
-                    this.escape = false;
-                    return if (this.modeProgress == .newlines) .{ .flow = .newline } else .{ .flow = .nonewline };
+                    state.commitState();
+                    return .{ .text = .{ .color = .text, .font = state.getFont() } };
                 },
                 else => {
-                    this.commitState();
+                    state.commitState();
                     return .{ .text = .{ .color = .errorc, .font = .normal } };
                 },
             };
         }
         return switch (char) {
-            '\\' => {
-                this.escape = true;
-                this.commitState();
-                return .{ .text = .{ .color = .control, .font = .normal } };
-            },
-            '*' => {
-                switch (this.modeProgress) {
-                    .stars => |stars| {
-                        if (stars >= 3) {
-                            this.commitState();
-                            this.modeProgress = ModeProgress{ .stars = 1 };
-                        } else {
-                            this.modeProgress = ModeProgress{ .stars = stars + 1 };
-                        }
+            '`' => {
+                switch (state.modeProgress) {
+                    .backticks => |backticks| {
+                        state.modeProgress = ModeProgress{ .backticks = backticks + 1 };
                     },
                     else => {
-                        this.modeProgress = ModeProgress{ .stars = 1 };
+                        state.modeProgress = ModeProgress{ .backticks = 1 };
                     },
                 }
                 return .{ .text = .{ .color = .control, .font = .normal } };
             },
-            '#' => switch (this.modeProgress) {
+            '\\' => {
+                state.escape = true;
+                state.commitState();
+                return .{ .text = .{ .color = .control, .font = .normal } };
+            },
+            '*' => {
+                switch (state.modeProgress) {
+                    .stars => |stars| {
+                        if (stars >= 3) {
+                            state.commitState();
+                            state.modeProgress = ModeProgress{ .stars = 1 };
+                        } else {
+                            state.modeProgress = ModeProgress{ .stars = stars + 1 };
+                        }
+                    },
+                    else => {
+                        state.modeProgress = ModeProgress{ .stars = 1 };
+                    },
+                }
+                return .{ .text = .{ .color = .control, .font = .normal } };
+            },
+            '#' => switch (state.modeProgress) {
                 .hashtags => |hashtags| {
                     if (hashtags >= 6) {
-                        this.commitState();
+                        state.commitState();
                     } else {
-                        this.modeProgress = ModeProgress{ .hashtags = hashtags + 1 };
+                        state.modeProgress = ModeProgress{ .hashtags = hashtags + 1 };
                     }
                     return .{ .text = .{ .color = .control, .font = .normal } };
                 },
                 else => {
-                    if (this.lineStart) {
-                        this.modeProgress = ModeProgress{ .hashtags = 1 };
+                    if (state.lineStart) {
+                        state.modeProgress = ModeProgress{ .hashtags = 1 };
                         return .{ .text = .{ .color = .control, .font = .normal } };
                     } else {
-                        this.commitState();
-                        return .{ .text = .{ .color = .text, .font = this.getFont() } };
+                        state.commitState();
+                        return .{ .text = .{ .color = .text, .font = state.getFont() } };
                     }
                 },
             },
-            '\n' => {
-                if (next != null and next.? == '\n') {
-                    this.modeProgress = ModeProgress{ .newlines = true };
-                }
-                this.heading = 0;
-                if (this.modeProgress != .newlines) this.commitState();
-                this.lineStart = true;
-                this.bold = false;
-                this.italic = false;
-                this.escape = false;
-                return if (this.modeProgress == .newlines) .{ .flow = .newline } else .{ .flow = .nonewline };
-            },
             else => {
-                this.commitState();
-                return .{ .text = .{ .color = .text, .font = this.getFont() } };
+                state.commitState();
+                return .{ .text = .{ .color = .text, .font = state.getFont() } };
             },
         };
     }
@@ -720,6 +748,7 @@ pub const App = struct {
             .italic => &style.fonts.italic,
             .bolditalic => &style.fonts.bolditalic,
             .heading => &style.fonts.heading,
+            .monospace => &style.fonts.monospace,
         };
     }
     fn getColor(app: *App, color: HLColor) win.Color {
@@ -950,6 +979,7 @@ pub fn main() !void {
             .italic = italicFont,
             .bolditalic = boldItalicFont,
             .heading = headingFont,
+            .monospace = boldFont,
         },
     };
 
