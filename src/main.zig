@@ -964,6 +964,8 @@ pub fn main() !void {
     defer boldItalicFont.deinit();
     var headingFont = try loader.loadFromName("Arial:weight=200", 24);
     defer headingFont.deinit();
+    var monospaceFont = try loader.loadFromName("Consolas", 16);
+    defer monospaceFont.deinit();
 
     var style = Style{
         .colors = .{
@@ -981,7 +983,7 @@ pub fn main() !void {
             .italic = italicFont,
             .bolditalic = boldItalicFont,
             .heading = headingFont,
-            .monospace = boldFont,
+            .monospace = monospaceFont,
         },
     };
 
