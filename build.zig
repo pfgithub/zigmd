@@ -7,13 +7,16 @@ pub fn build(b: *Builder) void {
     const exe = b.addExecutable("zigmd", "src/parser.zig");
     exe.setBuildMode(mode);
     exe.linkLibC();
+    exe.linkSystemLibrary("stdc++");
     exe.linkSystemLibrary("SDL2");
     exe.linkSystemLibrary("SDL2_ttf");
     exe.linkSystemLibrary("fontconfig");
+    exe.addCSourceFile("deps/build/tree-sitter/lib/src/lib.c", &[_][]const u8{});
+    exe.addIncludeDir("deps/build/tree-sitter/lib/src");
     exe.addIncludeDir("deps/build/tree-sitter/lib/include");
-    // exe.addCSourceFile("deps/build/tree-sitter-markdown/src/parser.c", &[_][]const u8{});
+    exe.addCSourceFile("deps/build/tree-sitter-markdown/src/parser.c", &[_][]const u8{});
+    exe.addObjectFile("deps/build/tree-sitter-markdown/src/scanner.o"); // built c++ code
     exe.addCSourceFile("deps/build/tree-sitter-json/src/parser.c", &[_][]const u8{});
-    exe.addObjectFile("deps/build/tree-sitter/libtree-sitter.a");
     exe.install();
 
     const run_cmd = exe.run();

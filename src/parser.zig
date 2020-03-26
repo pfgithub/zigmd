@@ -2,11 +2,12 @@ const c = @import("./c.zig");
 const std = @import("std");
 
 extern fn tree_sitter_json() ?*c.TSLanguage;
+extern fn tree_sitter_markdown() ?*c.TSLanguage;
 
 pub fn main() !void {
     var parser = c.ts_parser_new();
     defer c.ts_parser_delete(parser);
-    if (c.ts_parser_set_language(parser, tree_sitter_json()) == false) return error.IncompatibleLanguageVersion;
+    if (c.ts_parser_set_language(parser, tree_sitter_markdown()) == false) return error.IncompatibleLanguageVersion;
 
     // const sourceCode = "Test **Markdown**\n\n# a";
     const sourceCode = "{\"Test\": \"JSON\"}";
