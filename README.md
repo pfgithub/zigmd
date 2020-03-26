@@ -22,10 +22,20 @@ format:
 
 good luck
 
-## short term todo
+## todo list
 
-- proper text rendering that uses system fonts (fontconfig) and possibly harfbuzz
-- null character support. right now, a file with a null character will do some strange things in rendering because c strings exist.
+### completed
+
+- fontconfig
+
+### todo
+
+- text rendering that does not use sdl_ttf
+- less text measurement
+- null character support (should be pretty simple)
+- tree-sitter instead of a custom parser, initially just reparse the entire code every update
+- use tree-sitter to its full potential
+- https://en.wikipedia.org/wiki/Rope_(data_structure)
 
 using SDL rendering right now
 
