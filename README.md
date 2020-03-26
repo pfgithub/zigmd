@@ -5,6 +5,7 @@
 setup:
 
 -   install zig version `0.5.0+d89650025`
+-   download and build dependencies (`./deps/download.sh`)
 
 build:
 
