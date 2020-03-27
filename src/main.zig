@@ -1017,12 +1017,7 @@ pub fn main() !void {
             .x = 40,
             .y = 40,
         };
-        app.render(&window, &event, &size) catch |e| {
-            // draw error on screen
-            // try win.renderRect(window, style.colors.background, pos.*);
-            // var errorText = win.Text.init("Error! :(")
-            return e;
-        };
+        try app.render(&window, &event, &size);
         window.present();
     }
 }
