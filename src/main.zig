@@ -773,8 +773,6 @@ pub const App = struct {
 
         var alloc = &arena.allocator;
 
-        try win.renderRect(window, style.colors.background, pos.*);
-
         switch (event.*) {
             .KeyDown => |keyev| switch (keyev.key) {
                 // this will be handled by the keybinding resolver in the future.,
@@ -880,6 +878,8 @@ pub const App = struct {
         timer.reset();
 
         // ==== rendering ====
+
+        try win.renderRect(window, style.colors.background, pos.*);
 
         if (app.cursorLocation > 0) {
             const cursorPosition = textInfo.characterPositions.items[app.cursorLocation - 1];
@@ -1017,7 +1017,12 @@ pub fn main() !void {
             .x = 40,
             .y = 40,
         };
-        try app.render(&window, &event, &size);
+        app.render(&window, &event, &size) catch |e| {
+            // draw error on screen
+            // try win.renderRect(window, style.colors.background, pos.*);
+            // var errorText = win.Text.init("Error! :(")
+            return e;
+        };
         window.present();
     }
 }
