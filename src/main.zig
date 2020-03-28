@@ -594,16 +594,19 @@ pub fn Cache(comptime Key: type, comptime Value: type) type {
                 next.value.value.deinit();
             }
             cache.map.deinit();
+            // uuh, this never gets called.
         }
 
         pub fn clean(cache: *ThisCache) !void {
-            var it = cache.hashmap.iterator();
             var toRemove = std.ArrayList(Key).init(cache.alloc);
+
+            var it = cache.hashmap.iterator();
             while (it.next()) |next| {
                 if (!next.value.used)
                     try toRemove.append(next.key);
                 next.value.used = false;
             }
+
             for (toRemove.toSliceConst()) |key| {
                 var removed = cache.hashmap.remove(key).?;
                 removed.value.value.deinit();
