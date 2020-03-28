@@ -494,7 +494,7 @@ const TextInfo = struct {
                         });
                         _ = ti.characterPositions.pop();
                     }
-                    try ti.appendCharacterPositionMeasure(0);
+                    try ti.appendCharacterPositionMeasure(0); // uh oh, this means clicking doesn't work properly. it should take the start x position and subtract from the x end position but default to 0 if it goes backwards
                 },
             },
             .text => |txt| {
@@ -775,7 +775,6 @@ pub const App = struct {
 
         switch (event.*) {
             .KeyDown => |keyev| switch (keyev.key) {
-                // this will be handled by the keybinding resolver in the future.,
                 .Left => {
                     const action: Action = .{
                         .moveCursorLR = .{
