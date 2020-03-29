@@ -4,7 +4,7 @@ pub fn build(b: *Builder) void {
     const fmt = b.addFmt(&[_][]const u8{ "src", "build.zig" });
 
     const mode = b.standardReleaseOptions();
-    const exe = b.addExecutable("zigmd", "src/main.zig");
+    const exe = b.addExecutable("zigmd", "src/parser.zig");
     exe.setBuildMode(mode);
     exe.linkLibC();
     exe.linkSystemLibrary("stdc++");
