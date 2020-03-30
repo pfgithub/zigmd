@@ -8,6 +8,31 @@ pub fn main() !void {
     try testParser();
 }
 
+const RenderStyle = union(enum) {
+    control: void,
+    text: struct {
+        bold: bool,
+        italic: bool,
+    },
+    heading: struct {},
+    display: union(enum) {
+        eolSpace: bool, // `·`
+        newline: bool, // `⏎`
+    },
+};
+
+const Class = struct {
+    document: bool,
+    paragraph: bool,
+    strong: bool, // text && bold
+    emphasis: bool, // text && italic
+    text: bool, // !text: control character, monospace
+    atx_heading: bool, // text && heading
+    atx_heading_marker: bool,
+    heading_content: bool,
+    hard_line_break: bool, // control character, monospace, `·`
+};
+
 const Position = struct { from: u64, to: u64 };
 const Node = struct {
     node: c.TSNode,
