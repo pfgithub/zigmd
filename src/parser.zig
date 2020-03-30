@@ -22,15 +22,15 @@ const RenderStyle = union(enum) {
 };
 
 const Class = struct {
-    document: bool,
-    paragraph: bool,
-    strong: bool, // text && bold
-    emphasis: bool, // text && italic
-    text: bool, // !text: control character, monospace
-    atx_heading: bool, // text && heading
-    atx_heading_marker: bool,
-    heading_content: bool,
-    hard_line_break: bool, // control character, monospace, `·`
+    document: bool = false,
+    paragraph: bool = false,
+    strong: bool = false, // text && bold
+    emphasis: bool = false, // text && italic
+    text: bool = false, // !text: control character, monospace
+    atx_heading: bool = false, // text && heading
+    atx_heading_marker: bool = false,
+    heading_content: bool = false,
+    hard_line_break: bool = false, // control character, monospace, `·`
 };
 
 const Position = struct { from: u64, to: u64 };
@@ -44,6 +44,21 @@ const Node = struct {
             .from = c.ts_node_start_byte(n.node),
             .to = c.ts_node_end_byte(n.node),
         };
+    }
+    fn createClassesStructInternal(n: Node, classesStruct: *Class) void {
+        var className = n.class();
+        inline for (@typeInfo(Class).Struct.fields) |field| {
+            if (std.mem.eql(u8, field.name, std.mem.span(className))) {
+                @field(classesStruct, field.name) = true;
+                break;
+            }
+        }
+        if (n.parent()) |p| p.createClassesStructInternal(classesStruct);
+    }
+    pub fn createClassesStruct(n: Node) Class {
+        var classes: Class = .{};
+        n.createClassesStructInternal(&classes);
+        return classes;
     }
     pub fn class(n: Node) [*c]const u8 {
         return c.ts_node_type(n.node);
@@ -155,13 +170,16 @@ fn testParser() !void {
     var i: u64 = 0;
     for (sourceCode) |charStr| {
         std.debug.warn(
-            "Char: [{}]`{c}`, Class: ",
-            .{ i, switch (charStr) {
-                '\n' => '!',
-                else => |q| q,
-            } },
+            "Char: [{}]`{c}`, Class: {}\n",
+            .{
+                i,
+                switch (charStr) {
+                    '\n' => '!',
+                    else => |q| q,
+                },
+                getNodeAtPosition(i, rootNode).createClassesStruct(),
+            },
         );
-        getNodeAtPosition(i, rootNode).printClasses();
         i += 1;
     }
     std.debug.warn("Root: {}\n", .{rootNode});
