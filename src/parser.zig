@@ -27,14 +27,13 @@ pub const RenderStyle = union(enum) {
 const Class = struct {
     document: bool = false,
     paragraph: bool = false,
-    strong: bool = false, // text && bold
     emphasis: bool = false, // text && italic
+    strong_emphasis: bool = false, // text && bold
     text: bool = false, // !text: control character, monospace
     atx_heading: bool = false, // text && heading
     atx_heading_marker: bool = false,
     heading_content: bool = false,
     hard_line_break: bool = false, // .display.eolSpace
-    strong_emphasis: bool = false,
     soft_line_break: bool = false, // .display.newline
     code_fence_content: bool = false,
     fenced_code_block: bool = false,
@@ -58,7 +57,7 @@ const Class = struct {
     html_open_tag: bool = false,
     html_tag_name: bool = false,
     html_close_tag: bool = false,
-    backslash_escape: bool = false,
+    backslash_escape: bool = false, // this is set for both \*, we only want it on the \ itself but want the * to be text. This means, we need to do some manual work so the \ itself is highlighted but the * is not, and make sure it works for other things like \\ where the second \ needs to be plain text. I think looking at the node structure would make that clear (hopefully), so this struct might need a tiny bit of node structural information (eg, this is the second character in this node)
     strikethrough: bool = false,
     code_span: bool = false,
     thematic_break: bool = false,
@@ -68,9 +67,9 @@ const Class = struct {
         if (cs.hard_line_break) return .{ .display = .eolSpace };
         if (cs.text) {
             if (cs.atx_heading) return .{ .heading = .{} };
-            if (cs.strong and cs.emphasis)
+            if (cs.strong_emphasis and cs.emphasis)
                 return .{ .text = .bolditalic };
-            if (cs.strong) return .{ .text = .bold };
+            if (cs.strong_emphasis) return .{ .text = .bold };
             if (cs.emphasis) return .{ .text = .italic };
             return .{ .text = .normal };
         }

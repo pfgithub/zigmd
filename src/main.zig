@@ -263,7 +263,7 @@ const TextInfo = struct {
     }
 
     fn addFakeCharacter(ti: *TextInfo, char: []const u8, hlStyle: TextHLStyleReal) !void {
-        for ("·") |byte| {
+        for (char) |byte| {
             try ti.addRenderedCharacter(byte, hlStyle);
             _ = ti.characterPositions.pop();
         }
@@ -273,19 +273,19 @@ const TextInfo = struct {
         var index = ti.characterPositions.len; // if this is not equal to the current character index, there are bigger issues.
         var renderStyle = parser.getNodeAtPosition(index, ti.rootNode).createClassesStruct().renderStyle();
 
-        if (char == '\n') {
-            try ti.addNewlineCharacter();
-            return;
-        }
-
         var style = app.getStyle(renderStyle);
+
         switch (renderStyle) {
             .display => |f| switch (f) {
                 .eolSpace => {
-                    try ti.addFakeCharacter("·", .{
-                        .font = style.font,
-                        .color = style.color,
-                    });
+                    if (char == '\n') {
+                        try ti.addNewlineCharacter();
+                    } else {
+                        try ti.addFakeCharacter("·", .{
+                            .font = style.font,
+                            .color = style.color,
+                        });
+                    }
                 },
                 .newline => {
                     try ti.addFakeCharacter("⏎", .{
@@ -295,10 +295,14 @@ const TextInfo = struct {
                 },
             },
             else => {
-                try ti.addRenderedCharacter(char, .{
-                    .font = style.font,
-                    .color = style.color,
-                });
+                if (char == '\n') {
+                    try ti.addNewlineCharacter();
+                } else {
+                    try ti.addRenderedCharacter(char, .{
+                        .font = style.font,
+                        .color = style.color,
+                    });
+                }
             },
         }
     }
@@ -756,6 +760,13 @@ pub const App = struct {
                     .h = cursorPosition.line.height,
                 },
             );
+
+            var styleBeforeCursor = parser.getNodeAtPosition(
+                app.cursorLocation - 1,
+                tree.root(),
+            );
+            std.debug.warn("Style: {}, Classes: ", .{styleBeforeCursor.createClassesStruct().renderStyle()});
+            styleBeforeCursor.printClasses();
         } else {
             // render cursor at position 0
         }
@@ -813,7 +824,7 @@ pub fn main() !void {
 
     std.debug.warn("Style: {}\n", .{style});
 
-    var appV = try App.init(alloc, &style, "tests/demo file.md");
+    var appV = try App.init(alloc, &style, "tests/a.md");
     var app = &appV;
 
     defer stdout.print("Quitting!\n", .{}) catch unreachable;
