@@ -10,9 +10,11 @@ pub fn main() !void {
 
 pub const RenderStyle = union(enum) {
     control: void,
-    text: struct {
-        bold: bool = false,
-        italic: bool = false,
+    text: union(enum) {
+        bolditalic: void,
+        bold: void,
+        italic: void,
+        normal: void,
     },
     heading: struct {},
     display: union(enum) {
@@ -34,6 +36,32 @@ const Class = struct {
     hard_line_break: bool = false, // .display.eolSpace
     strong_emphasis: bool = false,
     soft_line_break: bool = false, // .display.newline
+    code_fence_content: bool = false,
+    fenced_code_block: bool = false,
+    info_string: bool = false,
+    line_break: bool = false,
+    table: bool = false,
+    table_cell: bool = false,
+    table_data_row: bool = false,
+    table_delimiter_row: bool = false,
+    table_column_alignment: bool = false,
+    table_header_row: bool = false,
+    block_quote: bool = false,
+    tight_list: bool = false,
+    list_item: bool = false,
+    list_marker: bool = false,
+    image: bool = false,
+    image_description: bool = false,
+    link: bool = false,
+    link_text: bool = false,
+    link_destination: bool = false,
+    html_open_tag: bool = false,
+    html_tag_name: bool = false,
+    html_close_tag: bool = false,
+    backslash_escape: bool = false,
+    strikethrough: bool = false,
+    code_span: bool = false,
+    thematic_break: bool = false,
 
     pub fn renderStyle(cs: Class) RenderStyle {
         if (cs.soft_line_break) return .{ .display = .newline };
@@ -41,10 +69,10 @@ const Class = struct {
         if (cs.text) {
             if (cs.atx_heading) return .{ .heading = .{} };
             if (cs.strong and cs.emphasis)
-                return .{ .text = .{ .bold = true, .italic = true } };
-            if (cs.strong) return .{ .text = .{ .bold = true } };
-            if (cs.emphasis) return .{ .text = .{ .italic = true } };
-            return .{ .text = .{} };
+                return .{ .text = .bolditalic };
+            if (cs.strong) return .{ .text = .bold };
+            if (cs.emphasis) return .{ .text = .italic };
+            return .{ .text = .normal };
         }
         return .control; // note that raw newlines will become control. these should be handled as a special case.
     }
@@ -187,16 +215,39 @@ pub fn getNodeAtPosition(char: u64, parentNode: Node) Node {
     return bestMatch;
 }
 
+pub const Tree = struct {
+    parser: *c.TSParser,
+    tree: *c.TSTree,
+    pub fn init(sourceCode: []const u8) !Tree {
+        var parser = c.ts_parser_new().?;
+        errdefer c.ts_parser_delete(parser);
+        if (!c.ts_parser_set_language(parser, tree_sitter_markdown()))
+            return error.IncompatibleLanguageVersion;
+
+        var tree = c.ts_parser_parse_string(parser, null, sourceCode.ptr, @intCast(u32, sourceCode.len)).?; // does this mean tree sitter can't handle files more than 4.3gb? probably. it's probably not a good idea to give it files that size anyway.
+        errdefer c.ts_tree_delete(tree);
+
+        return Tree{
+            .parser = parser,
+            .tree = tree,
+        };
+    }
+    pub fn deinit(ts: *Tree) void {
+        c.ts_tree_delete(ts.tree);
+        c.ts_parser_delete(ts.parser);
+    }
+    pub fn root(ts: *Tree) Node {
+        return Node.wrap(c.ts_tree_root_node(ts.tree));
+    }
+};
+
 fn testParser() !void {
-    var parser = c.ts_parser_new();
-    defer c.ts_parser_delete(parser);
-    if (c.ts_parser_set_language(parser, tree_sitter_markdown()) == false) return error.IncompatibleLanguageVersion;
-
     const sourceCode = "Test **Markdown**\n\n# a\n\nText  \nMore Text\nHi!\n\nHola";
-    var tree = c.ts_parser_parse_string(parser, null, sourceCode, sourceCode.len);
-    defer c.ts_tree_delete(tree);
 
-    var rootNode = Node.wrap(c.ts_tree_root_node(tree));
+    var tree = try Tree.init(sourceCode);
+    defer tree.deinit();
+
+    var rootNode = tree.root();
 
     var cursor = TreeCursor.init(rootNode);
 

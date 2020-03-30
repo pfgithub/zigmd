@@ -1,5 +1,6 @@
 const std = @import("std");
 pub const win = @import("./rendering_abstraction.zig");
+pub const parser = @import("./parser.zig");
 const List = std.SinglyLinkedList;
 const ArrayList = std.ArrayList;
 
@@ -22,229 +23,9 @@ pub const Style = struct {
         monospace: win.Font,
     },
 };
-
-pub const HLColor = enum {
-    text,
-    control,
-    special,
-    errorc,
-};
-
-pub const HLFont = enum {
-    normal,
-    bold,
-    italic,
-    bolditalic,
-    heading,
-    monospace,
-};
-pub const TextHLStyle = struct {
-    font: HLFont,
-    color: HLColor,
-};
 pub const TextHLStyleReal = struct {
     font: *const win.Font,
     color: win.Color,
-};
-
-pub const ParsingState = struct {
-    bold: bool,
-    italic: bool,
-    heading: u8,
-    lineStart: bool,
-    escape: bool,
-    inlineCode: bool,
-    multilineCode: bool,
-    nextError: bool,
-
-    const ModeProgress = union(enum) {
-        stars: u8,
-        backticks: u8,
-        hashtags: u8,
-        newlines: bool,
-        none: void,
-        pub const Type = @TagType(@This());
-    };
-    modeProgress: ModeProgress,
-    fn default() ParsingState {
-        return ParsingState{
-            .bold = false,
-            .italic = false,
-            .heading = 0,
-            .lineStart = true,
-            .escape = false,
-            .modeProgress = ModeProgress{ .none = {} },
-            .inlineCode = false,
-            .multilineCode = false,
-            .nextError = false,
-        };
-    }
-    fn getFont(ps: *ParsingState) HLFont {
-        return if (ps.multilineCode)
-            HLFont.monospace
-        else if (ps.inlineCode)
-            HLFont.monospace
-        else if (ps.heading > 0)
-            HLFont.heading
-        else if (ps.bold and ps.italic)
-            HLFont.bolditalic
-        else if (ps.bold)
-            HLFont.bold
-        else if (ps.italic)
-            HLFont.italic
-        else
-            HLFont.normal;
-    }
-    fn commitState(state: *ParsingState) void {
-        switch (state.modeProgress) {
-            .stars => |stars| {
-                if (stars == 1) {
-                    state.italic = !state.italic;
-                } else if (stars == 2) {
-                    state.bold = !state.bold;
-                } else if (stars == 3) {
-                    state.italic = !state.italic;
-                    state.bold = !state.bold;
-                } else {
-                    std.debug.panic("[unreachable] Stars: {}", .{stars});
-                }
-            },
-            .backticks => |backticks| {
-                if (backticks == 1) {
-                    state.inlineCode = !state.inlineCode;
-                } else if (backticks == 2) {
-                    state.nextError = true;
-                } else if (backticks == 3) {
-                    state.nextError = true;
-                    //state.multilineCode = !state.multilineCode;
-                } else {
-                    state.nextError = true;
-                }
-            },
-            .hashtags => |hashtags| {
-                state.heading = hashtags;
-            },
-            .newlines => |nl| {
-                // do nothing
-            },
-            .none => {},
-        }
-        state.modeProgress = ModeProgress{ .none = {} };
-        state.lineStart = false;
-    }
-    fn handleCharacter(state: *ParsingState, char: u8, next: ?u8) union(enum) {
-        text: TextHLStyle, flow: enum { newline, nonewline }
-    } {
-        if (char == '\n') {
-            if (next != null and next.? == '\n') {
-                state.modeProgress = ModeProgress{ .newlines = true };
-            } else {
-                if (state.modeProgress != .newlines) state.commitState();
-            }
-            state.heading = 0;
-            state.lineStart = true;
-            state.bold = false;
-            state.italic = false;
-            state.escape = false;
-            state.inlineCode = false;
-            return if (state.modeProgress == .newlines) .{ .flow = .newline } else .{ .flow = .nonewline };
-        }
-        if (state.nextError) {
-            state.nextError = false;
-            return .{ .text = .{ .color = .errorc, .font = .normal } };
-        }
-        if (state.inlineCode) {
-            state.commitState();
-            if (char == '`') {
-                state.modeProgress = .{ .backticks = 1 };
-                return .{ .text = .{ .color = .control, .font = .normal } };
-            }
-            return .{ .text = .{ .color = .text, .font = state.getFont() } };
-        }
-        if (state.escape) {
-            state.escape = false;
-            return switch (char) {
-                '\\' => {
-                    // if(next is valid)
-                    state.commitState();
-                    return .{ .text = .{ .color = .text, .font = state.getFont() } };
-                },
-                '*' => {
-                    state.commitState();
-                    return .{ .text = .{ .color = .text, .font = state.getFont() } };
-                },
-                '`' => {
-                    state.commitState();
-                    return .{ .text = .{ .color = .text, .font = state.getFont() } };
-                },
-                '#' => {
-                    state.commitState();
-                    return .{ .text = .{ .color = .text, .font = state.getFont() } };
-                },
-                else => {
-                    state.commitState();
-                    return .{ .text = .{ .color = .errorc, .font = .normal } };
-                },
-            };
-        }
-        return switch (char) {
-            '`' => {
-                switch (state.modeProgress) {
-                    .backticks => |backticks| {
-                        state.modeProgress = ModeProgress{ .backticks = backticks + 1 };
-                    },
-                    else => {
-                        state.modeProgress = ModeProgress{ .backticks = 1 };
-                    },
-                }
-                return .{ .text = .{ .color = .control, .font = .normal } };
-            },
-            '\\' => {
-                state.escape = true;
-                state.commitState();
-                return .{ .text = .{ .color = .control, .font = .normal } };
-            },
-            '*' => {
-                switch (state.modeProgress) {
-                    .stars => |stars| {
-                        if (stars >= 3) {
-                            state.commitState();
-                            state.modeProgress = ModeProgress{ .stars = 1 };
-                        } else {
-                            state.modeProgress = ModeProgress{ .stars = stars + 1 };
-                        }
-                    },
-                    else => {
-                        state.modeProgress = ModeProgress{ .stars = 1 };
-                    },
-                }
-                return .{ .text = .{ .color = .control, .font = .normal } };
-            },
-            '#' => switch (state.modeProgress) {
-                .hashtags => |hashtags| {
-                    if (hashtags >= 6) {
-                        state.commitState();
-                    } else {
-                        state.modeProgress = ModeProgress{ .hashtags = hashtags + 1 };
-                    }
-                    return .{ .text = .{ .color = .control, .font = .normal } };
-                },
-                else => {
-                    if (state.lineStart) {
-                        state.modeProgress = ModeProgress{ .hashtags = 1 };
-                        return .{ .text = .{ .color = .control, .font = .normal } };
-                    } else {
-                        state.commitState();
-                        return .{ .text = .{ .color = .text, .font = state.getFont() } };
-                    }
-                },
-            },
-            else => {
-                state.commitState();
-                return .{ .text = .{ .color = .text, .font = state.getFont() } };
-            },
-        };
-    }
 };
 
 pub const Direction = enum {
@@ -394,9 +175,13 @@ const TextInfo = struct {
         x: u64,
     },
     arena: *std.heap.ArenaAllocator,
-    parsingState: ParsingState,
+    rootNode: parser.Node,
     // y/h must be determined by the line when drawing
-    fn init(arena: *std.heap.ArenaAllocator, maxWidth: u64) !TextInfo {
+    fn init(
+        arena: *std.heap.ArenaAllocator,
+        maxWidth: u64,
+        rootNode: parser.Node,
+    ) !TextInfo {
         var alloc = &arena.allocator;
         var lines = std.ArrayList(LineInfo).init(alloc);
 
@@ -412,8 +197,8 @@ const TextInfo = struct {
                 .activeDrawCall = null,
                 .x = 0,
             },
-            .parsingState = ParsingState.default(),
             .arena = arena,
+            .rootNode = rootNode,
         };
     }
 
@@ -477,30 +262,42 @@ const TextInfo = struct {
         latestDrawCall.text[latestDrawCall.textLength] = 0;
     }
 
-    fn addCharacter(ti: *TextInfo, char: u8, next: ?u8, app: *App) !void {
-        var hl = ti.parsingState.handleCharacter(char, next);
+    fn addFakeCharacter(ti: *TextInfo, char: []const u8, hlStyle: TextHLStyleReal) !void {
+        for ("·") |byte| {
+            try ti.addRenderedCharacter(byte, hlStyle);
+            _ = ti.characterPositions.pop();
+        }
+        try ti.appendCharacterPositionMeasure(0); // uh oh, this means clicking doesn't work properly. it should take the start x position and subtract from the x end position but default to 0 if it goes backwards
+    }
+    fn addCharacter(ti: *TextInfo, char: u8, app: *App) !void {
+        var index = ti.characterPositions.len; // if this is not equal to the current character index, there are bigger issues.
+        var renderStyle = parser.getNodeAtPosition(index, ti.rootNode).createClassesStruct().renderStyle();
 
-        switch (hl) {
-            .flow => |f| switch (f) {
-                .newline => {
-                    try ti.addNewlineCharacter();
+        if (char == '\n') {
+            try ti.addNewlineCharacter();
+            return;
+        }
+
+        var style = app.getStyle(renderStyle);
+        switch (renderStyle) {
+            .display => |f| switch (f) {
+                .eolSpace => {
+                    try ti.addFakeCharacter("·", .{
+                        .font = style.font,
+                        .color = style.color,
+                    });
                 },
-                .nonewline => {
-                    for ("⏎") |byte| {
-                        try ti.addRenderedCharacter(byte, .{
-                            .font = app.getFont(.normal),
-                            .color = app.getColor(.control),
-                            // .exists = false,
-                        });
-                        _ = ti.characterPositions.pop();
-                    }
-                    try ti.appendCharacterPositionMeasure(0); // uh oh, this means clicking doesn't work properly. it should take the start x position and subtract from the x end position but default to 0 if it goes backwards
+                .newline => {
+                    try ti.addFakeCharacter("⏎", .{
+                        .font = style.font,
+                        .color = style.color,
+                    });
                 },
             },
-            .text => |txt| {
+            else => {
                 try ti.addRenderedCharacter(char, .{
-                    .font = app.getFont(txt.font),
-                    .color = app.getColor(txt.color),
+                    .font = style.font,
+                    .color = style.color,
                 });
             },
         }
@@ -743,24 +540,45 @@ pub const App = struct {
         }
     }
 
-    fn getFont(app: *App, font: HLFont) *const win.Font {
+    fn getStyle(app: *App, renderStyle: parser.RenderStyle) TextHLStyleReal {
         const style = app.style;
-        return switch (font) {
-            .normal => &style.fonts.standard,
-            .bold => &style.fonts.bold,
-            .italic => &style.fonts.italic,
-            .bolditalic => &style.fonts.bolditalic,
-            .heading => &style.fonts.heading,
-            .monospace => &style.fonts.monospace,
-        };
-    }
-    fn getColor(app: *App, color: HLColor) win.Color {
-        const style = app.style;
-        return switch (color) {
-            .control => style.colors.control,
-            .text => style.colors.text,
-            .special => style.colors.special,
-            .errorc => style.colors.errorc,
+        const colors = &style.colors;
+        const fonts = &style.fonts;
+        return switch (renderStyle) {
+            .control => .{
+                .font = &fonts.monospace,
+                .color = colors.control,
+            },
+            .text => |txt| switch (txt) {
+                .bolditalic => TextHLStyleReal{
+                    .font = &fonts.bolditalic,
+                    .color = colors.text,
+                },
+                .bold => TextHLStyleReal{
+                    .font = &fonts.bold,
+                    .color = colors.text,
+                },
+                .italic => TextHLStyleReal{
+                    .font = &fonts.italic,
+                    .color = colors.text,
+                },
+                .normal => TextHLStyleReal{
+                    .font = &fonts.standard,
+                    .color = colors.text,
+                },
+            },
+            .heading => .{
+                .font = &style.fonts.heading,
+                .color = colors.text,
+            },
+            .display => .{
+                .font = &fonts.monospace,
+                .color = colors.control,
+            },
+            .errort => .{
+                .font = &fonts.monospace,
+                .color = colors.errorc,
+            },
         };
     }
 
@@ -847,11 +665,15 @@ pub const App = struct {
         std.debug.warn("Handling took {}.\n", .{timer.read()});
         timer.reset();
 
-        var textInfo = try TextInfo.init(&arena, pos.w);
-        var i: usize = 0;
+        var tree = try parser.Tree.init(app.text);
+        defer tree.deinit();
+
+        var textInfo = try TextInfo.init(&arena, pos.w, tree.root());
         for (app.text[0..app.textLength]) |char| {
-            try textInfo.addCharacter(char, if (app.textLength > i + 1) app.text[i + 1] else null, app);
-            i += 1;
+            try textInfo.addCharacter(
+                char,
+                app,
+            );
         }
         try textInfo.commit();
 
