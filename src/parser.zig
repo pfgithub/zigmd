@@ -31,6 +31,20 @@ const Class = struct {
     atx_heading_marker: bool = false,
     heading_content: bool = false,
     hard_line_break: bool = false, // control character, monospace, `·`
+    pub fn format(
+        classesStruct: Class,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        context: var,
+        comptime Errors: type,
+        comptime output: fn (@TypeOf(context), []const u8) Errors!void,
+    ) Errors!void {
+        inline for (@typeInfo(Class).Struct.fields) |field| {
+            if (@field(classesStruct, field.name)) {
+                try std.fmt.format(context, Errors, output, ".{}", .{field.name});
+            }
+        }
+    }
 };
 
 const Position = struct { from: u64, to: u64 };
