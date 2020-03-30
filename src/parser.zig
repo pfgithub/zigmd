@@ -8,7 +8,7 @@ pub fn main() !void {
     try testParser();
 }
 
-const Position = struct { from: u32, to: u32 };
+const Position = struct { from: u64, to: u64 };
 const Node = struct {
     node: c.TSNode,
     fn wrap(rawNode: c.TSNode) Node {
@@ -19,6 +19,35 @@ const Node = struct {
             .from = c.ts_node_start_byte(n.node),
             .to = c.ts_node_end_byte(n.node),
         };
+    }
+    pub fn class(n: Node) [*c]const u8 {
+        return c.ts_node_type(n.node);
+    }
+    fn printClassesInternal(n: Node) void {
+        if (n.parent()) |up| {
+            up.printClassesInternal();
+            std.debug.warn(".", .{});
+        }
+        std.debug.warn("{s}", .{n.class()});
+    }
+    pub fn printClasses(n: Node) void {
+        n.printClassesInternal();
+        std.debug.warn("\n", .{});
+    }
+    pub fn firstChild(n: Node) ?Node {
+        const result = c.ts_node_parent(n.node);
+        if (c.ts_node_is_null(result)) return null;
+        return Node.wrap(result);
+    }
+    pub fn nextSibling(n: Node) ?Node {
+        const result = c.ts_node_parent(n.node);
+        if (c.ts_node_is_null(result)) return null;
+        return Node.wrap(result);
+    }
+    pub fn parent(n: Node) ?Node {
+        const result = c.ts_node_parent(n.node);
+        if (c.ts_node_is_null(result)) return null;
+        return Node.wrap(result);
     }
     pub fn format(
         n: Node,
@@ -36,20 +65,28 @@ const Node = struct {
 
 const TreeCursor = struct {
     cursor: c.TSTreeCursor,
-    const MoveError = error{NowhereToGo};
     fn init(initialNode: Node) TreeCursor {
         return .{
             .cursor = c.ts_tree_cursor_new(initialNode.node),
         };
     }
-    fn firstChild(tc: *TreeCursor) MoveError!void {
-        if (!c.ts_tree_cursor_goto_first_child(&tc.cursor)) return MoveError.NowhereToGo;
+    fn goFirstChild(tc: *TreeCursor) bool {
+        return c.ts_tree_cursor_goto_first_child(&tc.cursor);
     }
-    fn nextSibling(tc: *TreeCursor) MoveError!void {
-        if (!c.ts_tree_cursor_goto_next_sibling(&tc.cursor)) return MoveError.NowhereToGo;
+    fn goNextSibling(tc: *TreeCursor) bool {
+        return c.ts_tree_cursor_goto_next_sibling(&tc.cursor);
     }
-    fn parent(tc: *TreeCursor) MoveError!void {
-        if (!c.ts_tree_cursor_goto_parent(&tc.cursor)) return MoveError.NowhereToGo;
+    fn goParent(tc: *TreeCursor) bool {
+        return c.ts_tree_cursor_goto_parent(&tc.cursor);
+    }
+    fn advance(tc: *TreeCursor) bool {
+        // check if there are any children
+        if (tc.goFirstChild()) return true;
+        // go up and right
+        while (!tc.goNextSibling()) {
+            if (!tc.goParent()) return false;
+        }
+        return true;
     }
 
     fn node(tc: *TreeCursor) Node {
@@ -62,6 +99,20 @@ const TreeCursor = struct {
         return c.ts_tree_cursor_current_field_id(&tc.cursor);
     }
 };
+
+fn getNodeAtPosition(char: u64, parentNode: Node) Node {
+    var cursor = TreeCursor.init(parentNode);
+    var bestMatch: Node = parentNode;
+    while (char >= cursor.node().position().from) {
+        var currentPosition = cursor.node().position();
+        if (char >= currentPosition.from and char < currentPosition.to) {
+            bestMatch = cursor.node();
+        }
+        // advance cursor
+        if (!cursor.advance()) break;
+    }
+    return bestMatch;
+}
 
 fn testParser() !void {
     var parser = c.ts_parser_new();
@@ -76,22 +127,19 @@ fn testParser() !void {
 
     var cursor = TreeCursor.init(rootNode);
 
-    try cursor.firstChild();
-    std.debug.warn("First Child: {}\n", .{cursor.node()});
-    try cursor.firstChild();
-    std.debug.warn("First Child: {}\n", .{cursor.node()});
-    try cursor.nextSibling();
-    std.debug.warn("Next Sibling: {}\n", .{cursor.node()});
-    try cursor.parent();
-    std.debug.warn("Parent: {}\n", .{cursor.node()});
-    try cursor.nextSibling();
-    std.debug.warn("Next Sibling: {}\n", .{cursor.node()});
-    try cursor.firstChild();
-    std.debug.warn("First Child: {}\n", .{cursor.node()});
-    try cursor.nextSibling();
-    std.debug.warn("Next Sibling: {}\n", .{cursor.node()});
-    try cursor.nextSibling();
-    std.debug.warn("Next Sibling: {}\n", .{cursor.node()});
+    var i: u64 = 0;
+    for (sourceCode) |charStr| {
+        std.debug.warn(
+            "Char: [{}]`{c}`, Class: ",
+            .{ i, switch (charStr) {
+                '\n' => '!',
+                else => |q| q,
+            } },
+        );
+        getNodeAtPosition(i, rootNode).printClasses();
+        i += 1;
+    }
+    std.debug.warn("Root: {}\n", .{rootNode});
 
     // what we want is to be able to query the class of a character
     // it looks like that's not easy. how about instead, we use the "Walking Trees with Tree Cursors" thing
