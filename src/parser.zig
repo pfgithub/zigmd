@@ -8,17 +8,18 @@ pub fn main() !void {
     try testParser();
 }
 
-const RenderStyle = union(enum) {
+pub const RenderStyle = union(enum) {
     control: void,
     text: struct {
-        bold: bool,
-        italic: bool,
+        bold: bool = false,
+        italic: bool = false,
     },
     heading: struct {},
     display: union(enum) {
-        eolSpace: bool, // `·`
-        newline: bool, // `⏎`
+        eolSpace: void, // `·`
+        newline: void, // `⏎`
     },
+    errort: void,
 };
 
 const Class = struct {
@@ -30,7 +31,23 @@ const Class = struct {
     atx_heading: bool = false, // text && heading
     atx_heading_marker: bool = false,
     heading_content: bool = false,
-    hard_line_break: bool = false, // control character, monospace, `·`
+    hard_line_break: bool = false, // .display.eolSpace
+    strong_emphasis: bool = false,
+    soft_line_break: bool = false, // .display.newline
+
+    pub fn renderStyle(cs: Class) RenderStyle {
+        if (cs.soft_line_break) return .{ .display = .newline };
+        if (cs.hard_line_break) return .{ .display = .eolSpace };
+        if (cs.text) {
+            if (cs.atx_heading) return .{ .heading = .{} };
+            if (cs.strong and cs.emphasis)
+                return .{ .text = .{ .bold = true, .italic = true } };
+            if (cs.strong) return .{ .text = .{ .bold = true } };
+            if (cs.emphasis) return .{ .text = .{ .italic = true } };
+            return .{ .text = .{} };
+        }
+        return .control; // note that raw newlines will become control. these should be handled as a special case.
+    }
     pub fn format(
         classesStruct: Class,
         comptime fmt: []const u8,
@@ -47,8 +64,8 @@ const Class = struct {
     }
 };
 
-const Position = struct { from: u64, to: u64 };
-const Node = struct {
+pub const Position = struct { from: u64, to: u64 };
+pub const Node = struct {
     node: c.TSNode,
     fn wrap(rawNode: c.TSNode) Node {
         return .{ .node = rawNode };
@@ -66,6 +83,8 @@ const Node = struct {
                 @field(classesStruct, field.name) = true;
                 break;
             }
+        } else {
+            std.debug.warn("Unsupported class name: {s}\n", .{className});
         }
         if (n.parent()) |p| p.createClassesStructInternal(classesStruct);
     }
@@ -154,7 +173,7 @@ const TreeCursor = struct {
     }
 };
 
-fn getNodeAtPosition(char: u64, parentNode: Node) Node {
+pub fn getNodeAtPosition(char: u64, parentNode: Node) Node {
     var cursor = TreeCursor.init(parentNode);
     var bestMatch: Node = parentNode;
     while (char >= cursor.node().position().from) {
@@ -183,15 +202,17 @@ fn testParser() !void {
 
     var i: u64 = 0;
     for (sourceCode) |charStr| {
+        var classs = getNodeAtPosition(i, rootNode).createClassesStruct();
         std.debug.warn(
-            "Char: [{}]`{c}`, Class: {}\n",
+            "Char: [{}]`{c}`, Class: {}, Style: {}\n",
             .{
                 i,
                 switch (charStr) {
                     '\n' => '!',
                     else => |q| q,
                 },
-                getNodeAtPosition(i, rootNode).createClassesStruct(),
+                classs,
+                classs.renderStyle(),
             },
         );
         i += 1;
