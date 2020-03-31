@@ -163,12 +163,15 @@ pub const Node = struct {
     }
 };
 
-const TreeCursor = struct {
+pub const TreeCursor = struct {
     cursor: c.TSTreeCursor,
-    fn init(initialNode: Node) TreeCursor {
+    pub fn init(initialNode: Node) TreeCursor {
         return .{
             .cursor = c.ts_tree_cursor_new(initialNode.node),
         };
+    }
+    pub fn deinit(tc: *TreeCursor) void {
+        c.ts_tree_cursor_delete(&tc.cursor);
     }
     fn goFirstChild(tc: *TreeCursor) bool {
         return c.ts_tree_cursor_goto_first_child(&tc.cursor);
@@ -200,15 +203,16 @@ const TreeCursor = struct {
     }
 };
 
-pub fn getNodeAtPosition(char: u64, parentNode: Node) Node {
-    var cursor = TreeCursor.init(parentNode);
-    var bestMatch: Node = parentNode;
+pub fn getNodeAtPosition(char: u64, cursor: *TreeCursor) Node {
+    var bestMatch: Node = cursor.node();
+    while (char < cursor.node().position().from) {
+        std.debug.assert(cursor.goParent() == true);
+    }
     while (char >= cursor.node().position().from) {
         var currentPosition = cursor.node().position();
         if (char >= currentPosition.from and char < currentPosition.to) {
             bestMatch = cursor.node();
         }
-        // advance cursor
         if (!cursor.advance()) break;
     }
     return bestMatch;

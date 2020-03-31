@@ -175,12 +175,12 @@ const TextInfo = struct {
         x: u64,
     },
     arena: *std.heap.ArenaAllocator,
-    rootNode: parser.Node,
+    cursor: *parser.TreeCursor,
     // y/h must be determined by the line when drawing
     fn init(
         arena: *std.heap.ArenaAllocator,
         maxWidth: u64,
-        rootNode: parser.Node,
+        cursor: *parser.TreeCursor,
     ) !TextInfo {
         var alloc = &arena.allocator;
         var lines = std.ArrayList(LineInfo).init(alloc);
@@ -198,7 +198,7 @@ const TextInfo = struct {
                 .x = 0,
             },
             .arena = arena,
-            .rootNode = rootNode,
+            .cursor = cursor,
         };
     }
 
@@ -271,7 +271,8 @@ const TextInfo = struct {
     }
     fn addCharacter(ti: *TextInfo, char: u8, app: *App) !void {
         var index = ti.characterPositions.len; // if this is not equal to the current character index, there are bigger issues.
-        var renderStyle = parser.getNodeAtPosition(index, ti.rootNode).createClassesStruct().renderStyle();
+        var renderNode = parser.getNodeAtPosition(index, ti.cursor);
+        var renderStyle = renderNode.createClassesStruct().renderStyle();
 
         var style = app.getStyle(renderStyle);
 
@@ -672,7 +673,10 @@ pub const App = struct {
         var tree = try parser.Tree.init(app.text);
         defer tree.deinit();
 
-        var textInfo = try TextInfo.init(&arena, pos.w, tree.root());
+        var cursor = parser.TreeCursor.init(tree.root());
+        defer cursor.deinit();
+
+        var textInfo = try TextInfo.init(&arena, pos.w, &cursor);
         for (app.text[0..app.textLength]) |char| {
             try textInfo.addCharacter(
                 char,
@@ -761,9 +765,11 @@ pub const App = struct {
                 },
             );
 
+            var cursor2 = parser.TreeCursor.init(tree.root());
+            defer cursor2.deinit();
             var styleBeforeCursor = parser.getNodeAtPosition(
                 app.cursorLocation - 1,
-                tree.root(),
+                &cursor2,
             );
             std.debug.warn("Style: {}, Classes: ", .{styleBeforeCursor.createClassesStruct().renderStyle()});
             styleBeforeCursor.printClasses();
