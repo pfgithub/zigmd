@@ -218,6 +218,14 @@ pub fn getNodeAtPosition(char: u64, cursor: *TreeCursor) Node {
     return bestMatch;
 }
 
+pub const RowCol = struct {
+    row: u64,
+    col: u64,
+    fn point(cp: *CharacterPosition) c.TSPoint {
+        return .{ .row = cp.row, .column = cp.col };
+    }
+};
+
 pub const Tree = struct {
     parser: *c.TSParser,
     tree: *c.TSTree,
@@ -245,18 +253,18 @@ pub const Tree = struct {
         return Node.wrap(c.ts_tree_root_node(ts.tree));
     }
 
-    pub const CharacterPosition = struct {
-        row: u64,
-        col: u64,
-        fn point(cp: *CharacterPosition) c.TSPoint {
-            return .{ .row = cp.row, .column = cp.col };
-        }
-    };
-
     /// Update source text FIRST!
     /// Calling this function may invalidate any existing Node instances. Do not store node instances across frames.
     /// because tree-sitter, caller must calculate row and column of text. how do you calculate this when you don't know the start row? idk, glhf.
-    pub fn edit(ts: *Tree, startByte: u64, oldEndByte: u64, newEndByte: u64, start: CharacterPosition, oldEnd: CharacterPosition, newEnd: CharacterPosition) void {
+    pub fn edit(
+        ts: *Tree,
+        startByte: u64,
+        oldEndByte: u64,
+        newEndByte: u64,
+        start: RowCol,
+        oldEnd: RowCol,
+        newEnd: RowCol,
+    ) void {
         c.ts_tree_edit(ts.tree, &.{
             .start_byte = @intCast(u32, startByte),
             .old_end_byte = @intCast(u32, oldEndByte),

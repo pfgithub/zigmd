@@ -460,6 +460,7 @@ pub const App = struct {
     alloc: *std.mem.Allocator,
     style: *const Style,
     cursorLocation: usize,
+    cursorRowCol: parser.RowCol,
     text: []u8,
     textLength: usize,
     readOnly: bool,
@@ -493,7 +494,8 @@ pub const App = struct {
             .scrollY = 0,
             .alloc = alloc,
             .style = style,
-            .cursorLocation = 1,
+            .cursorLocation = 0,
+            .cursorRowCol = .{ .row = 0, .col = 0 },
             .text = text,
             .textLength = textLength,
             .readOnly = readOnly,
@@ -528,7 +530,7 @@ pub const App = struct {
                     if (app.cursorLocation + 1 < app.textLength) {
                         break :blk app.cursorLocation + 1;
                     } else {
-                        break :blk app.textLength - 1;
+                        break :blk app.textLength;
                     }
                 },
             },
@@ -726,7 +728,7 @@ pub const App = struct {
                 },
             );
         } else {
-            // render cursor at position 0
+            // render line at position 0
         }
 
         for (textInfo.lines.toSliceConst()) |line| blk: {
@@ -830,7 +832,7 @@ pub fn main() !void {
 
     std.debug.warn("Style: {}\n", .{style});
 
-    var appV = try App.init(alloc, &style, "tests/a.md");
+    var appV = try App.init(alloc, &style, "tests/b.md");
     var app = &appV;
 
     defer stdout.print("Quitting!\n", .{}) catch unreachable;
