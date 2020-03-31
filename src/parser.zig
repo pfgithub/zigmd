@@ -17,9 +17,10 @@ pub const RenderStyle = union(enum) {
         normal: void,
     },
     heading: struct {},
+    code: void,
+    showInvisibles: void,
     display: union(enum) {
-        eolSpace: void, // `·`
-        newline: void, // `⏎`
+        eolSpace: void,
     },
     errort: void,
 };
@@ -60,12 +61,20 @@ const Class = struct {
     backslash_escape: bool = false, // this is set for both \*, we only want it on the \ itself but want the * to be text. This means, we need to do some manual work so the \ itself is highlighted but the * is not, and make sure it works for other things like \\ where the second \ needs to be plain text. I think looking at the node structure would make that clear (hopefully), so this struct might need a tiny bit of node structural information (eg, this is the second character in this node)
     strikethrough: bool = false,
     code_span: bool = false,
-    thematic_break: bool = false,
+    thematic_break: bool = false, // should get represented by each character taking 1/3 of the page width and drawing a horizontal line
+    indented_code_block: bool = false,
+    ERROR: bool = false,
 
     pub fn renderStyle(cs: Class) RenderStyle {
-        if (cs.soft_line_break) return .{ .display = .newline };
+        if (cs.ERROR) return .errort;
+
+        if (cs.soft_line_break) return .showInvisibles;
         if (cs.hard_line_break) return .{ .display = .eolSpace };
         if (cs.text) {
+            if (cs.indented_code_block) return .code;
+            if (cs.fenced_code_block and cs.code_fence_content) return .code;
+            if (cs.code_span) return .code;
+
             if (cs.atx_heading) return .{ .heading = .{} };
             if (cs.strong_emphasis and cs.emphasis)
                 return .{ .text = .bolditalic };

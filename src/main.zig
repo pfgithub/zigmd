@@ -288,23 +288,34 @@ const TextInfo = struct {
                         });
                     }
                 },
-                .newline => {
-                    try ti.addFakeCharacter("⏎", .{
-                        .font = style.font,
-                        .color = style.color,
-                    });
-                },
             },
-            else => {
-                if (char == '\n') {
-                    try ti.addNewlineCharacter();
-                } else {
-                    try ti.addRenderedCharacter(char, .{
+            .showInvisibles => {
+                switch (char) {
+                    '\n' => try ti.addFakeCharacter("⏎", .{
                         .font = style.font,
                         .color = style.color,
-                    });
+                    }),
+                    ' ' => try ti.addFakeCharacter("·", .{
+                        .font = style.font,
+                        .color = style.color,
+                    }),
+                    '\t' => try ti.addFakeCharacter("⭲   ", .{
+                        .font = style.font,
+                        .color = style.color,
+                    }),
+                    else => try ti.addRenderedCharacter(char, .{
+                        .font = style.font,
+                        .color = style.color,
+                    }),
                 }
             },
+            else => if (char == '\n')
+                try ti.addNewlineCharacter()
+            else
+                try ti.addRenderedCharacter(char, .{
+                    .font = style.font,
+                    .color = style.color,
+                }),
         }
     }
 
@@ -577,6 +588,15 @@ pub const App = struct {
             .heading => .{
                 .font = &style.fonts.heading,
                 .color = colors.text,
+            },
+            .code => .{
+                .font = &fonts.monospace,
+                .color = colors.text,
+                // .bg = colors.codeBg
+            },
+            .showInvisibles => .{
+                .font = &fonts.monospace,
+                .color = colors.control,
             },
             .display => .{
                 .font = &fonts.monospace,
