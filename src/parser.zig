@@ -221,6 +221,8 @@ pub fn getNodeAtPosition(char: u64, cursor: *TreeCursor) Node {
 pub const Tree = struct {
     parser: *c.TSParser,
     tree: *c.TSTree,
+
+    /// source code must exist for Tree's lifetime.
     pub fn init(sourceCode: []const u8) !Tree {
         var parser = c.ts_parser_new().?;
         errdefer c.ts_parser_delete(parser);
@@ -241,6 +243,28 @@ pub const Tree = struct {
     }
     pub fn root(ts: *Tree) Node {
         return Node.wrap(c.ts_tree_root_node(ts.tree));
+    }
+
+    pub const CharacterPosition = struct {
+        row: u64,
+        col: u64,
+        fn point(cp: *CharacterPosition) c.TSPoint {
+            return .{ .row = cp.row, .column = cp.col };
+        }
+    };
+
+    /// Update source text FIRST!
+    /// Calling this function may invalidate any existing Node instances. Do not store node instances across frames.
+    /// because tree-sitter, caller must calculate row and column of text. how do you calculate this when you don't know the start row? idk, glhf.
+    pub fn edit(ts: *Tree, startByte: u64, oldEndByte: u64, newEndByte: u64, start: CharacterPosition, oldEnd: CharacterPosition, newEnd: CharacterPosition) void {
+        c.ts_tree_edit(ts.tree, &.{
+            .start_byte = @intCast(u32, startByte),
+            .old_end_byte = @intCast(u32, oldEndByte),
+            .new_end_byte = @intCast(u32, newEndByte),
+            .start_point = start.point(), // why do TSPoints exist, who needed this
+            .old_end_point = oldEnd.point(), // who why
+            .new_end_point = newEnd.point(), // can I get rid of this
+        });
     }
 };
 
