@@ -62,7 +62,7 @@ const Class = struct {
     strikethrough: bool = false,
     code_span: bool = false,
     thematic_break: bool = false, // should get represented by each character taking 1/3 of the page width and drawing a horizontal line
-    indented_code_block: bool = false,
+    indented_code_block: bool = false, // the indent before this should be show invisibles. unfortunately, tree-sitter doesn't output anything for that.
     ERROR: bool = false,
 
     pub fn renderStyle(cs: Class) RenderStyle {
@@ -115,6 +115,7 @@ pub const Node = struct {
     fn createClassesStructInternal(n: Node, classesStruct: *Class) void {
         var className = n.class();
         inline for (@typeInfo(Class).Struct.fields) |field| {
+            if (field.name[0] == '_') continue;
             if (std.mem.eql(u8, field.name, std.mem.span(className))) {
                 @field(classesStruct, field.name) = true;
                 break;
