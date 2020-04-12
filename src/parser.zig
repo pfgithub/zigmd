@@ -18,6 +18,8 @@ pub const RenderStyle = union(enum) {
     },
     heading: struct {},
     code: void,
+    inlineCode: void,
+    codeLanguage: void,
     showInvisibles: void,
     display: union(enum) {
         eolSpace: void,
@@ -73,7 +75,8 @@ const Class = struct {
         if (cs.text) {
             if (cs.indented_code_block) return .code;
             if (cs.fenced_code_block and cs.code_fence_content) return .code;
-            if (cs.code_span) return .code;
+            if (cs.code_span) return .inlineCode;
+            if (cs.info_string) return .codeLanguage;
 
             if (cs.atx_heading) return .{ .heading = .{} };
             if (cs.strong_emphasis and cs.emphasis)

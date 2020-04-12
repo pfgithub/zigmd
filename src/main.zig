@@ -6,13 +6,20 @@ const ArrayList = std.ArrayList;
 
 pub const Style = struct {
     colors: struct {
+        // syntax highlighting
         text: win.Color,
         control: win.Color,
-        background: win.Color,
-        cursor: win.Color,
         special: win.Color,
         errorc: win.Color,
+        inlineCode: win.Color,
+
+        // backgrounds
+        background: win.Color,
+        codeBackground: win.Color,
         linebg: win.Color,
+
+        // special
+        cursor: win.Color,
     },
     fonts: struct {
         standard: win.Font,
@@ -26,6 +33,7 @@ pub const Style = struct {
 pub const TextHLStyleReal = struct {
     font: *const win.Font,
     color: win.Color,
+    bg: ?win.Color = null,
 };
 
 pub const Direction = enum {
@@ -138,9 +146,18 @@ const LineDrawCall = struct {
     textLength: u8,
     font: *const win.Font,
     color: win.Color,
+    bg: ?win.Color, // to allow for rounded corners, backgrounds should probably kept in a sperate BackgroundDrawCall per-line. unfortunately, that means more text measurement because of how text measurement works, so not yet.
     measure: struct { w: u64, h: u64 },
     x: u64, // y is chosen based on line top, line height, and text baseline
     fn differentStyle(ldc: *LineDrawCall, hlStyle: TextHLStyleReal) bool {
+        if (ldc.bg) |bg1| {
+            if (hlStyle.bg) |bg2| {
+                if (!bg1.equal(bg2)) return true;
+            } else {
+                return true;
+            }
+        } else if (hlStyle.bg) |bg2| return true;
+
         return hlStyle.font != ldc.font or !hlStyle.color.equal(ldc.color);
     }
 };
@@ -223,6 +240,7 @@ const TextInfo = struct {
             .textLength = 1,
             .font = font,
             .color = color,
+            .bg = hlStyle.bg,
             .measure = .{ .w = 0, .h = 0 },
             .x = ti.progress.x, // lineStart
         };
@@ -291,31 +309,16 @@ const TextInfo = struct {
             },
             .showInvisibles => {
                 switch (char) {
-                    '\n' => try ti.addFakeCharacter("⏎", .{
-                        .font = style.font,
-                        .color = style.color,
-                    }),
-                    ' ' => try ti.addFakeCharacter("·", .{
-                        .font = style.font,
-                        .color = style.color,
-                    }),
-                    '\t' => try ti.addFakeCharacter("⭲   ", .{
-                        .font = style.font,
-                        .color = style.color,
-                    }),
-                    else => try ti.addRenderedCharacter(char, .{
-                        .font = style.font,
-                        .color = style.color,
-                    }),
+                    '\n' => try ti.addFakeCharacter("⏎", style),
+                    ' ' => try ti.addFakeCharacter("·", style),
+                    '\t' => try ti.addFakeCharacter("⭲   ", style),
+                    else => try ti.addRenderedCharacter(char, style),
                 }
             },
             else => if (char == '\n')
-                try ti.addNewlineCharacter()
+                try ti.addNewlineCharacter() // how does this work with bg styles? make a drawCall from current pos to eol for the style?
             else
-                try ti.addRenderedCharacter(char, .{
-                    .font = style.font,
-                    .color = style.color,
-                }),
+                try ti.addRenderedCharacter(char, style),
         }
     }
 
@@ -586,13 +589,21 @@ pub const App = struct {
                 },
             },
             .heading => .{
-                .font = &style.fonts.heading,
+                .font = &fonts.heading,
                 .color = colors.text,
+            },
+            .codeLanguage => .{
+                .font = &fonts.standard,
+                .color = colors.inlineCode,
             },
             .code => .{
                 .font = &fonts.monospace,
                 .color = colors.text,
-                // .bg = colors.codeBg
+            },
+            .inlineCode => .{
+                .font = &fonts.monospace,
+                .color = colors.inlineCode,
+                .bg = colors.codeBackground,
             },
             .showInvisibles => .{
                 .font = &fonts.monospace,
@@ -735,6 +746,24 @@ pub const App = struct {
 
         try win.renderRect(window, style.colors.background, pos.*);
 
+        for (textInfo.lines.toSliceConst()) |line| blk: {
+            for (line.drawCalls.toSliceConst()) |drawCall| {
+                if (line.yTop > pos.h) break :blk;
+                if (drawCall.bg) |bg| {
+                    try win.renderRect(
+                        window,
+                        bg,
+                        .{
+                            .x = drawCall.x + pos.x,
+                            .y = line.yTop + pos.y,
+                            .w = drawCall.measure.w,
+                            .h = line.height,
+                        },
+                    );
+                }
+            }
+        }
+
         if (app.cursorLocation > 0) {
             const cursorPosition = textInfo.characterPositions.items[app.cursorLocation - 1];
             try win.renderRect(
@@ -834,11 +863,15 @@ pub fn main() !void {
         .colors = .{
             .text = win.Color.rgb(255, 255, 255),
             .control = win.Color.rgb(128, 128, 128),
-            .background = win.Color.hex(0x2e3440),
-            .cursor = win.Color.rgb(128, 128, 255),
             .special = win.Color.rgb(128, 255, 128),
             .errorc = win.Color.rgb(255, 128, 128),
+            .inlineCode = win.Color.hex(0x8fbcbb),
+
+            .background = win.Color.hex(0x2e3440),
+            .codeBackground = win.Color.hex(0x21252f),
             .linebg = win.Color.hex(0x3f4757),
+
+            .cursor = win.Color.rgb(128, 128, 255),
         },
         .fonts = .{
             .standard = standardFont,
