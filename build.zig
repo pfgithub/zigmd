@@ -15,9 +15,9 @@ pub fn build(b: *Builder) void {
 
     // tree-sitter
     exe.linkSystemLibrary("c++");
-    exe.addCSourceFile("deps/build/tree-sitter/lib/src/lib.c", &[_][]const u8{});
     exe.addIncludeDir("deps/build/tree-sitter/lib/src");
     exe.addIncludeDir("deps/build/tree-sitter/lib/include");
+    exe.addCSourceFile("deps/build/tree-sitter/lib/src/lib.c", &[_][]const u8{});
     exe.addCSourceFile("deps/build/tree-sitter-markdown/src/parser.c", &[_][]const u8{});
     exe.addObjectFile("deps/build/tree-sitter-markdown/src/scanner.o");
     exe.addCSourceFile("deps/build/tree-sitter-json/src/parser.c", &[_][]const u8{});
