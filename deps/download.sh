@@ -14,4 +14,9 @@ cd deps/build
         zig c++ scanner.cc -I ../../tree-sitter/lib/include -c -o scanner.o
 		echo "Done building markdown scanner."
     cd ../..
+    cd tree-sitter/lib
+        echo "Building tree-sitter with allowed undefined behaviour"
+        gcc -O3 -c -o src/lib.o -I src -I include src/lib.c
+        echo "Done building tree-sitter"
+    cd ..
 cd ../..
