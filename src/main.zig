@@ -263,8 +263,8 @@ const TextInfo = struct {
         try ti.characterPositions.append(.{
             .x = lineOverX + ti.progress.x,
             .w = width,
-            .line = &ti.lines.items[ti.lines.len - 1],
-            .index = ti.characterPositions.len,
+            .line = &ti.lines.items[ti.lines.items.len - 1],
+            .index = ti.characterPositions.items.len,
         });
     }
 
@@ -288,7 +288,7 @@ const TextInfo = struct {
         try ti.appendCharacterPositionMeasure(0); // uh oh, this means clicking doesn't work properly. it should take the start x position and subtract from the x end position but default to 0 if it goes backwards
     }
     fn addCharacter(ti: *TextInfo, char: u8, app: *App) !void {
-        var index = ti.characterPositions.len; // if this is not equal to the current character index, there are bigger issues.
+        var index = ti.characterPositions.items.len;
         var renderNode = parser.getNodeAtPosition(index, ti.cursor);
         var renderStyle = renderNode.createClassesStruct().renderStyle();
 
@@ -363,7 +363,7 @@ const TextInfo = struct {
         const measure = try win.Text.measure(adc.font, &adc.text);
         adc.measure = .{ .w = @intCast(u64, measure.w), .h = @intCast(u64, measure.h) };
 
-        var latestLine = &ti.lines.items[ti.lines.len - 1];
+        var latestLine = &ti.lines.items[ti.lines.items.len - 1];
         if (latestLine.height < adc.measure.h) latestLine.height = adc.measure.h;
         try latestLine.drawCalls.append(adc);
         ti.progress.x += @intCast(u64, adc.measure.w);
@@ -379,7 +379,7 @@ const TextInfo = struct {
     fn addNewline(ti: *TextInfo) !void {
         try ti.commit();
 
-        var latestLine = &ti.lines.items[ti.lines.len - 1];
+        var latestLine = &ti.lines.items[ti.lines.items.len - 1];
         var nextLine = LineInfo.init(ti.arena, latestLine.height + latestLine.yTop, 10);
         ti.progress.x = 0;
         try ti.lines.append(nextLine);
@@ -423,7 +423,7 @@ pub fn Cache(comptime Key: type, comptime Value: type) type {
                 next.value.used = false;
             }
 
-            for (toRemove.toSliceConst()) |key| {
+            for (toRemove.items) |key| {
                 var removed = cache.hashmap.remove(key).?;
                 removed.value.value.deinit();
             }
@@ -728,7 +728,7 @@ pub const App = struct {
                 {
                     break :blk; // ignored,  out of area
                 }
-                for (textInfo.characterPositions.toSliceConst()) |cp| {
+                for (textInfo.characterPositions.items) |cp| {
                     if (mouse.x - @intCast(i64, pos.x) > (cp.x + @divFloor((cp.w), 2)) and
                         mouse.y > cp.line.yTop + pos.y)
                     {
@@ -746,8 +746,8 @@ pub const App = struct {
 
         try win.renderRect(window, style.colors.background, pos.*);
 
-        for (textInfo.lines.toSliceConst()) |line| blk: {
-            for (line.drawCalls.toSliceConst()) |drawCall| {
+        for (textInfo.lines.items) |line| blk: {
+            for (line.drawCalls.items) |drawCall| {
                 if (line.yTop > pos.h) break :blk;
                 if (drawCall.bg) |bg| {
                     try win.renderRect(
@@ -780,8 +780,8 @@ pub const App = struct {
             // render line at position 0
         }
 
-        for (textInfo.lines.toSliceConst()) |line| blk: {
-            for (line.drawCalls.toSliceConst()) |drawCall| {
+        for (textInfo.lines.items) |line| blk: {
+            for (line.drawCalls.items) |drawCall| {
                 if (line.yTop > pos.h) break :blk;
                 const text = try app.textRenderCache.getOrCreate(.{
                     .font = drawCall.font,
@@ -838,7 +838,7 @@ pub fn main() !void {
 
     const loader = win.FontLoader.init();
 
-    const stdout = &std.io.getStdOut().outStream().stream;
+    const stdout = std.io.getStdOut().outStream();
     try stdout.print("Hello, {}!\n", .{"world"});
 
     try win.init();
