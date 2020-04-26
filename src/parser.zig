@@ -250,7 +250,7 @@ pub const Tree = struct {
         if (!c.ts_parser_set_language(parser, tree_sitter_markdown()))
             return error.IncompatibleLanguageVersion;
 
-        var tree = c.ts_parser_parse_string(parser, null, sourceCode.ptr, @intCast(u32, sourceCode.len)).?; // does this mean tree sitter can't handle files more than 4.3gb? probably. it's probably not a good idea to give it files that size anyway.
+        var tree = c.ts_parser_parse_string(parser, null, sourceCode.ptr, @intCast(u32, sourceCode.len)).?;
         errdefer c.ts_tree_delete(tree);
 
         return Tree{

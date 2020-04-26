@@ -703,7 +703,7 @@ pub const App = struct {
         std.debug.warn("Handling took {}.\n", .{timer.read()});
         timer.reset();
 
-        var tree = try parser.Tree.init(app.text);
+        var tree = try parser.Tree.init(app.text[0..app.textLength]);
         defer tree.deinit();
 
         var cursor = parser.TreeCursor.init(tree.root());
