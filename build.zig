@@ -25,8 +25,8 @@ pub fn build(b: *Builder) void {
 
     const run_cmd = exe.run();
     run_cmd.step.dependOn(b.getInstallStep());
-    run_cmd.step.dependOn(&fmt.step);
+    fmt.step.dependOn(&run_cmd.step);
 
     const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
+    run_step.dependOn(&fmt.step);
 }

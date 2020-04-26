@@ -69,25 +69,8 @@ pub const Action = union(enum) {
         text: []const u8,
 
         fn apply(insert: *const Insert, app: *App) void {
-            // direction only affects where the cursor ends up
-            // mode is not supported
-            // copy text to the right
-            {
-                const newLength = app.textLength + insert.text.len;
-                app.expandToFit(newLength) catch |e| switch (e) {
-                    std.mem.Allocator.Error.OutOfMemory => return,
-                };
-                std.mem.copyBackwards(
-                    u8,
-                    app.text[app.cursorLocation + insert.text.len .. app.textLength + insert.text.len],
-                    app.text[app.cursorLocation..app.textLength],
-                );
-                app.textLength = newLength;
-            }
-
-            {
-                std.mem.copy(u8, app.text[app.cursorLocation .. app.cursorLocation + insert.text.len], insert.text);
-            }
+            app.text.insertSlice(app.cursorLocation, insert.text) catch
+                return; // rip, text could not be inserted. do nothing, do not move cursor.
 
             switch (insert.direction) {
                 .left => app.cursorLocation += insert.text.len,
@@ -106,9 +89,12 @@ pub const Action = union(enum) {
                 const left = std.math.min(app.cursorLocation, stopPos);
                 const right = std.math.max(app.cursorLocation, stopPos);
 
-                const newLength = app.textLength - (right - left);
-                std.mem.copy(u8, app.text[left..app.textLength], app.text[right..app.textLength]);
-                app.textLength = newLength;
+                std.mem.copy(
+                    u8,
+                    app.text.items[left..app.text.items.len],
+                    app.text.items[right..app.text.items.len],
+                );
+                app.text.items.len -= right - left;
 
                 break :blk right - left;
             };
@@ -475,30 +461,23 @@ pub const App = struct {
     style: *const Style,
     cursorLocation: usize,
     cursorRowCol: parser.RowCol,
-    text: []u8,
-    textLength: usize,
+    text: std.ArrayList(u8),
     readOnly: bool,
     filename: []const u8,
 
     textRenderCache: TextRenderCache,
 
     fn init(alloc: *std.mem.Allocator, style: *const Style, filename: []const u8) !App {
-        const loadErrorText = "File load error.";
-
         var readOnly = false;
-
         var file: []u8 = std.fs.cwd().readFileAlloc(alloc, filename, 10000000) catch |e| blk: {
             std.debug.warn("File load error: {}", .{e});
             readOnly = true;
-            break :blk try std.mem.dupe(alloc, u8, loadErrorText);
+            break :blk try std.mem.dupe(alloc, u8, "File load error.");
         };
         defer alloc.free(file);
 
-        var text = try alloc.alloc(u8, file.len * 2);
-        errdefer alloc.free(text);
-
-        std.mem.copy(u8, text, file);
-        const textLength = file.len;
+        var textList = try std.ArrayList(u8).initCapacity(alloc, file.len);
+        textList.appendSlice(file) catch unreachable;
 
         const textRenderCache = TextRenderCache.init(alloc);
         errdefer textRenderCache.deinit();
@@ -510,24 +489,23 @@ pub const App = struct {
             .style = style,
             .cursorLocation = 0,
             .cursorRowCol = .{ .row = 0, .col = 0 },
-            .text = text,
-            .textLength = textLength,
+            .text = textList,
             .readOnly = readOnly,
             .filename = filename,
             .textRenderCache = textRenderCache,
         };
     }
     fn deinit(app: *App) void {
-        alloc.free(app.text);
+        app.text.deinit();
         app.textRenderCache.deinit();
     }
     fn saveFile(app: *App) void {
         std.debug.warn("Save {}...", .{app.filename});
-        std.fs.cwd().writeFile(app.filename, app.textSlice()) catch |e| @panic("not handled");
+        std.fs.cwd().writeFile(app.filename, app.text.items) catch |e| {
+            std.debug.warn("Save failed: {}", .{e});
+            return;
+        };
         std.debug.warn(" Saved\n", .{});
-    }
-    fn textSlice(app: *App) []const u8 {
-        return app.text[0..app.textLength];
     }
 
     fn findStop(app: *App, stop: CharacterStop, direction: Direction) usize {
@@ -541,10 +519,10 @@ pub const App = struct {
                     }
                 },
                 .right => blk: {
-                    if (app.cursorLocation + 1 < app.textLength) {
+                    if (app.cursorLocation + 1 < app.text.items.len) {
                         break :blk app.cursorLocation + 1;
                     } else {
-                        break :blk app.textLength;
+                        break :blk app.text.items.len;
                     }
                 },
             },
@@ -703,14 +681,14 @@ pub const App = struct {
         std.debug.warn("Handling took {}.\n", .{timer.read()});
         timer.reset();
 
-        var tree = try parser.Tree.init(app.text[0..app.textLength]);
+        var tree = try parser.Tree.init(app.text.items);
         defer tree.deinit();
 
         var cursor = parser.TreeCursor.init(tree.root());
         defer cursor.deinit();
 
         var textInfo = try TextInfo.init(&arena, pos.w, &cursor);
-        for (app.text[0..app.textLength]) |char| {
+        for (app.text.items) |char| {
             try textInfo.addCharacter(
                 char,
                 app,
