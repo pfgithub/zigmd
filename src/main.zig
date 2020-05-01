@@ -507,6 +507,22 @@ pub const App = struct {
         };
         std.debug.warn(" Saved\n", .{});
     }
+    fn findCharacterPosition(app: *App, pos: usize) parser.RowCol {
+        // go backwards until \n or start of file
+        // uh oh uuh that's not enough, it also needs to know what the line number is
+        // uuh... for now loop from the beginning of the file to find the character ok perfect great
+        var finalPos: parser.RowCol = .{ .row = 0, .col = 0 };
+        for (app.text.items) |char, i| {
+            if (i == pos) return finalPos;
+            if (char == '\n') {
+                finalPos.row += 1;
+                finalPos.col = 0;
+            } else {
+                finalPos.col += 1;
+            }
+        }
+        @panic("Invalid position passed into findCharacterPosition");
+    }
 
     fn findStop(app: *App, stop: CharacterStop, direction: Direction) usize {
         return switch (stop) {
@@ -802,6 +818,11 @@ pub const App = struct {
             );
             std.debug.warn("Style: {}, Classes: ", .{styleBeforeCursor.createClassesStruct().renderStyle()});
             styleBeforeCursor.printClasses();
+
+            std.debug.warn(
+                "Character Position: {}\n",
+                .{app.findCharacterPosition(app.cursorLocation - 1)},
+            );
         } else {
             // render cursor at position 0
         }
