@@ -568,7 +568,7 @@ pub const App = struct {
                 finalPos.col += 1;
             }
         }
-        @panic("Invalid position passed into findCharacterPosition");
+        return finalPos;
     }
 
     fn findStop(app: *App, stop: CharacterStop, direction: Direction) usize {
