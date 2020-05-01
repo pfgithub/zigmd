@@ -72,6 +72,16 @@ pub const Action = union(enum) {
             app.text.insertSlice(app.cursorLocation, insert.text) catch
                 return; // rip, text could not be inserted. do nothing, do not move cursor.
 
+            const clpos = app.findCharacterPosition(app.cursorLocation);
+            app.tree.edit(
+                app.cursorLocation,
+                app.cursorLocation,
+                insert.text.len,
+                clpos,
+                clpos,
+                app.findCharacterPosition(app.cursorLocation + insert.text.len),
+            );
+
             switch (insert.direction) {
                 .left => app.cursorLocation += insert.text.len,
                 .right => {},
@@ -91,10 +101,20 @@ pub const Action = union(enum) {
 
                 std.mem.copy(
                     u8,
-                    app.text.items[left..app.text.items.len],
-                    app.text.items[right..app.text.items.len],
+                    app.text.items[left..],
+                    app.text.items[right..],
                 );
                 app.text.items.len -= right - left;
+
+                const clpos = app.findCharacterPosition(left);
+                app.tree.edit(
+                    left,
+                    right,
+                    left,
+                    clpos,
+                    app.findCharacterPosition(right),
+                    clpos,
+                );
 
                 break :blk right - left;
             };
@@ -391,12 +411,12 @@ pub fn Cache(comptime Key: type, comptime Value: type) type {
                 .alloc = alloc,
             };
         }
-        pub fn deinit(cache: *ThisCache) ThisCache {
+        pub fn deinit(cache: *ThisCache) void {
+            var it = cache.hashmap.iterator();
             while (it.next()) |next| {
                 next.value.value.deinit();
             }
-            cache.map.deinit();
-            // uuh, this never gets called.
+            cache.hashmap.deinit();
         }
 
         pub fn clean(cache: *ThisCache) !void {
@@ -464,6 +484,7 @@ pub const App = struct {
     text: std.ArrayList(u8),
     readOnly: bool,
     filename: []const u8,
+    tree: parser.Tree,
 
     textRenderCache: TextRenderCache,
 
@@ -472,15 +493,18 @@ pub const App = struct {
         var file: []u8 = std.fs.cwd().readFileAlloc(alloc, filename, 10000000) catch |e| blk: {
             std.debug.warn("File load error: {}", .{e});
             readOnly = true;
-            break :blk try std.mem.dupe(alloc, u8, "File load error.");
+            break :blk try std.fmt.allocPrint(alloc, "File load error: {}.", .{e});
         };
         defer alloc.free(file);
 
         var textList = try std.ArrayList(u8).initCapacity(alloc, file.len);
         textList.appendSlice(file) catch unreachable;
 
-        const textRenderCache = TextRenderCache.init(alloc);
+        var textRenderCache = TextRenderCache.init(alloc);
         errdefer textRenderCache.deinit();
+
+        var tree = try parser.Tree.init(textList.items);
+        errdefer tree.deinit();
 
         // const initialText = "Test! **Bold**.";
         return App{
@@ -493,6 +517,7 @@ pub const App = struct {
             .readOnly = readOnly,
             .filename = filename,
             .textRenderCache = textRenderCache,
+            .tree = tree,
         };
     }
     fn deinit(app: *App) void {
@@ -697,10 +722,11 @@ pub const App = struct {
         std.debug.warn("Handling took {}.\n", .{timer.read()});
         timer.reset();
 
-        var tree = try parser.Tree.init(app.text.items);
-        defer tree.deinit();
+        app.tree.reparse(app.text.items);
+        app.tree.lock();
+        defer app.tree.unlock();
 
-        var cursor = parser.TreeCursor.init(tree.root());
+        var cursor = parser.TreeCursor.init(app.tree.root());
         defer cursor.deinit();
 
         var textInfo = try TextInfo.init(&arena, pos.w, &cursor);
@@ -810,7 +836,7 @@ pub const App = struct {
                 },
             );
 
-            var cursor2 = parser.TreeCursor.init(tree.root());
+            var cursor2 = parser.TreeCursor.init(app.tree.root());
             defer cursor2.deinit();
             var styleBeforeCursor = parser.getNodeAtPosition(
                 app.cursorLocation - 1,

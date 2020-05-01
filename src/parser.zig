@@ -234,14 +234,15 @@ pub fn getNodeAtPosition(char: u64, cursor: *TreeCursor) Node {
 pub const RowCol = struct {
     row: u64,
     col: u64,
-    fn point(cp: *CharacterPosition) c.TSPoint {
-        return .{ .row = cp.row, .column = cp.col };
+    fn point(cp: RowCol) c.TSPoint {
+        return .{ .row = @intCast(u32, cp.row), .column = @intCast(u32, cp.col) };
     }
 };
 
 pub const Tree = struct {
     parser: *c.TSParser,
     tree: *c.TSTree,
+    locked: bool,
 
     /// source code must exist for Tree's lifetime.
     pub fn init(sourceCode: []const u8) !Tree {
@@ -256,11 +257,29 @@ pub const Tree = struct {
         return Tree{
             .parser = parser,
             .tree = tree,
+            .locked = false,
         };
     }
     pub fn deinit(ts: *Tree) void {
         c.ts_tree_delete(ts.tree);
         c.ts_parser_delete(ts.parser);
+    }
+    pub fn lock(ts: *Tree) void {
+        if (ts.locked) unreachable;
+        ts.locked = true;
+    }
+    pub fn unlock(ts: *Tree) void {
+        if (!ts.locked) unreachable;
+        ts.locked = false;
+    }
+    pub fn reparse(ts: *Tree, sourceCode: []const u8) void {
+        // not sure if it is necessary to reassign tree
+        ts.tree = c.ts_parser_parse_string(
+            ts.parser,
+            null,
+            sourceCode.ptr,
+            @intCast(u32, sourceCode.len),
+        ).?;
     }
     pub fn root(ts: *Tree) Node {
         return Node.wrap(c.ts_tree_root_node(ts.tree));
@@ -278,7 +297,8 @@ pub const Tree = struct {
         oldEnd: RowCol,
         newEnd: RowCol,
     ) void {
-        c.ts_tree_edit(ts.tree, &.{
+        if (ts.locked) unreachable;
+        c.ts_tree_edit(ts.tree, &c.TSInputEdit{
             .start_byte = @intCast(u32, startByte),
             .old_end_byte = @intCast(u32, oldEndByte),
             .new_end_byte = @intCast(u32, newEndByte),
