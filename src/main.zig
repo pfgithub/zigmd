@@ -81,6 +81,7 @@ pub const Action = union(enum) {
                 clpos,
                 app.findCharacterPosition(app.cursorLocation + insert.text.len),
             );
+            app.textChanged = true;
 
             switch (insert.direction) {
                 .left => app.cursorLocation += insert.text.len,
@@ -115,6 +116,7 @@ pub const Action = union(enum) {
                     app.findCharacterPosition(right),
                     clpos,
                 );
+                app.textChanged = true;
 
                 break :blk right - left;
             };
@@ -171,9 +173,8 @@ const LineInfo = struct {
     yTop: u64,
     height: u64,
     drawCalls: std.ArrayList(LineDrawCall),
-    fn init(arena: *std.heap.ArenaAllocator, yTop: u64, height: u64) LineInfo {
-        var alloc = &arena.allocator;
-        const drawCalls = std.ArrayList(LineDrawCall).init(alloc);
+    fn init(arena: *std.mem.Allocator, yTop: u64, height: u64) LineInfo {
+        const drawCalls = std.ArrayList(LineDrawCall).init(arena);
 
         return LineInfo{
             .yTop = yTop,
@@ -197,20 +198,26 @@ const TextInfo = struct {
         activeDrawCall: ?LineDrawCall,
         x: u64,
     },
+    rawAlloc: *std.mem.Allocator,
     arena: *std.heap.ArenaAllocator,
     cursor: *parser.TreeCursor,
     // y/h must be determined by the line when drawing
     fn init(
-        arena: *std.heap.ArenaAllocator,
+        rawAlloc: *std.mem.Allocator,
         maxWidth: u64,
         cursor: *parser.TreeCursor,
     ) !TextInfo {
+        // I didn't really want to do this but I don't see a way around it
+        var arena = try rawAlloc.create(std.heap.ArenaAllocator);
+        errdefer rawAlloc.destroy(arena);
+        arena.* = std.heap.ArenaAllocator.init(rawAlloc);
+
         var alloc = &arena.allocator;
         var lines = std.ArrayList(LineInfo).init(alloc);
 
         const characterPositions = std.ArrayList(CharacterPosition).init(alloc);
 
-        try lines.append(LineInfo.init(arena, 0, 10));
+        try lines.append(LineInfo.init(alloc, 0, 10));
 
         return TextInfo{
             .maxWidth = maxWidth,
@@ -221,8 +228,13 @@ const TextInfo = struct {
                 .x = 0,
             },
             .arena = arena,
+            .rawAlloc = rawAlloc,
             .cursor = cursor,
         };
+    }
+    fn deinit(ti: *TextInfo) void {
+        ti.arena.deinit();
+        ti.rawAlloc.destroy(ti.arena);
     }
 
     /// start a new draw call and append a new character
@@ -386,7 +398,11 @@ const TextInfo = struct {
         try ti.commit();
 
         var latestLine = &ti.lines.items[ti.lines.items.len - 1];
-        var nextLine = LineInfo.init(ti.arena, latestLine.height + latestLine.yTop, 10);
+        var nextLine = LineInfo.init(
+            &ti.arena.allocator,
+            latestLine.height + latestLine.yTop,
+            10,
+        );
         ti.progress.x = 0;
         try ti.lines.append(nextLine);
     }
@@ -485,6 +501,9 @@ pub const App = struct {
     readOnly: bool,
     filename: []const u8,
     tree: parser.Tree,
+    textChanged: bool,
+    textInfo: ?TextInfo,
+    prevPos: ?win.Rect,
 
     textRenderCache: TextRenderCache,
 
@@ -518,6 +537,9 @@ pub const App = struct {
             .filename = filename,
             .textRenderCache = textRenderCache,
             .tree = tree,
+            .textChanged = true,
+            .textInfo = null,
+            .prevPos = null,
         };
     }
     fn deinit(app: *App) void {
@@ -573,11 +595,32 @@ pub const App = struct {
         };
     }
 
-    fn expandToFit(app: *App, finalLength: usize) !void {
-        while (app.textLength + finalLength >= app.text.len) {
-            var newText = try app.alloc.realloc(app.text, app.text.len * 2);
-            app.text = newText;
+    fn remeasureText(app: *App, pos: win.Rect) !void {
+        // this logic took me way too long to figure out, that's why there is an empty if branch instead of if(!(...)) return
+        if (app.textChanged or
+            app.textInfo == null or
+            app.prevPos == null or
+            !std.meta.eql(pos, app.prevPos.?))
+        {} else return;
+        app.prevPos = pos;
+
+        std.debug.warn("Remeasuring\n", .{});
+
+        var cursor = parser.TreeCursor.init(app.tree.root());
+        defer cursor.deinit();
+
+        if (app.textInfo) |*ti| ti.deinit();
+        app.textInfo = try TextInfo.init(app.alloc, pos.w, &cursor);
+        // typescript would be better here, it would know that textInfo is not null
+        // not sure if that could even work in this language
+        for (app.text.items) |char| {
+            try app.textInfo.?.addCharacter(
+                char,
+                app,
+            );
         }
+        try app.textInfo.?.commit();
+        app.textChanged = false;
     }
 
     fn getStyle(app: *App, renderStyle: parser.RenderStyle) TextHLStyleReal {
@@ -639,7 +682,7 @@ pub const App = struct {
         };
     }
 
-    fn render(app: *App, window: *win.Window, event: *win.Event, pos: *win.Rect) !void {
+    fn render(app: *App, window: *win.Window, event: win.Event, pos: win.Rect) !void {
         try app.textRenderCache.clean();
 
         var timer = try std.time.Timer.start();
@@ -651,7 +694,7 @@ pub const App = struct {
 
         var alloc = &arena.allocator;
 
-        switch (event.*) {
+        switch (event) {
             .KeyDown => |keyev| switch (keyev.key) {
                 .Left => {
                     const action: Action = .{
@@ -726,22 +769,13 @@ pub const App = struct {
         app.tree.lock();
         defer app.tree.unlock();
 
-        var cursor = parser.TreeCursor.init(app.tree.root());
-        defer cursor.deinit();
-
-        var textInfo = try TextInfo.init(&arena, pos.w, &cursor);
-        for (app.text.items) |char| {
-            try textInfo.addCharacter(
-                char,
-                app,
-            );
-        }
-        try textInfo.commit();
+        try app.remeasureText(pos);
+        const textInfo = app.textInfo.?;
 
         std.debug.warn("Measuring took {}.\n", .{timer.read()});
         timer.reset();
 
-        switch (event.*) {
+        switch (event) {
             .MouseDown => |mouse| blk: {
                 if (mouse.y < pos.y or mouse.y > pos.y + pos.h or
                     mouse.x < pos.x or mouse.x > pos.x + pos.w)
@@ -764,7 +798,7 @@ pub const App = struct {
 
         // ==== rendering ====
 
-        try win.renderRect(window, style.colors.background, pos.*);
+        try win.renderRect(window, style.colors.background, pos);
 
         for (textInfo.lines.items) |line| blk: {
             for (line.drawCalls.items) |drawCall| {
@@ -938,7 +972,7 @@ pub fn main() !void {
             .x = 40,
             .y = 40,
         };
-        try app.render(&window, &event, &size);
+        try app.render(&window, event, size);
         window.present();
     }
 }
