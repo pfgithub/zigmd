@@ -65,6 +65,10 @@ const Class = struct {
     code_span: bool = false,
     thematic_break: bool = false, // should get represented by each character taking 1/3 of the page width and drawing a horizontal line
     indented_code_block: bool = false, // the indent before this should be show invisibles. unfortunately, tree-sitter doesn't output anything for that.
+    html_atrribute: bool = false, // [sic]
+    html_attribute_key: bool = false,
+    html_attribute_value: bool = false,
+    html_block: bool = false,
     ERROR: bool = false,
 
     pub fn renderStyle(cs: Class) RenderStyle {
