@@ -14,9 +14,16 @@ pub fn build(b: *Builder) void {
     exe.linkSystemLibrary("fontconfig");
 
     // tree-sitter
+    if (mode == .ReleaseFast) {
+        exe.addCSourceFile("deps/build/tree-sitter/lib/src/lib.c", &[_][]const u8{});
+        exe.addIncludeDir("deps/build/tree-sitter/lib/src");
+        exe.addIncludeDir("deps/build/tree-sitter/lib/include");
+    } else {
+        exe.addObjectFile("deps/build/tree-sitter/lib/src/lib.o");
+    }
+
     exe.linkSystemLibrary("c++");
     exe.addIncludeDir("deps/build/tree-sitter/lib/include");
-    exe.addObjectFile("deps/build/tree-sitter/lib/src/lib.o");
     exe.addCSourceFile("deps/build/tree-sitter-markdown/src/parser.c", &[_][]const u8{});
     exe.addObjectFile("deps/build/tree-sitter-markdown/src/scanner.o");
     exe.addCSourceFile("deps/build/tree-sitter-json/src/parser.c", &[_][]const u8{});
