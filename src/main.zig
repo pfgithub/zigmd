@@ -798,6 +798,9 @@ pub const App = struct {
 
         // ==== rendering ====
 
+        try window.pushClipRect(pos);
+        defer window.popClipRect();
+
         try win.renderRect(window, style.colors.background, pos);
 
         for (textInfo.lines.items) |line| blk: {
@@ -903,7 +906,7 @@ pub fn main() !void {
     try win.init();
     defer win.deinit();
 
-    var window = try win.Window.init();
+    var window = try win.Window.init(alloc);
 
     var standardFont = try loader.loadFromName("Arial", 16);
     defer standardFont.deinit();

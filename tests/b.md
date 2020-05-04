@@ -25,3 +25,5 @@ adding a letter to the thing above causes tree sitter markdown to crash (failed 
 ```
 
 `testing five`
+
+`testing six`

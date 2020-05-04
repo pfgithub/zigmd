@@ -231,7 +231,9 @@ pub const Event = union(enum) {
 pub const Window = struct {
     sdlWindow: *c.SDL_Window,
     sdlRenderer: *c.SDL_Renderer,
-    pub fn init() !Window {
+    clippingRectangles: std.ArrayList(Rect),
+
+    pub fn init(alloc: *std.mem.Allocator) !Window {
         var window = c.SDL_CreateWindow(
             "hello_sdl2",
             c.SDL_WINDOWPOS_UNDEFINED,
@@ -247,14 +249,37 @@ pub const Window = struct {
         if (renderer == null) return sdlError();
         errdefer c.SDL_DestroyRenderer(renderer);
 
+        var clippingRectangles = std.ArrayList(Rect).init(alloc);
+        errdefer clippingRectanges.deinit();
+
         return Window{
             .sdlWindow = window.?,
             .sdlRenderer = renderer.?,
+            .clippingRectangles = clippingRectangles,
         };
     }
     pub fn deinit(window: *Window) void {
         c.SDL_DestroyRenderer(window.sdlRenderer);
         c.SDL_DestroyWindow(window.sdlWindow);
+        window.clippingRectangles.deinit();
+    }
+
+    /// defer popClipRect
+    pub fn pushClipRect(window: *Window, rect: Rect) !void {
+        try window.clippingRectangles.append(rect);
+        errdefer _ = window.clippingRectangles.pop();
+        if (c.SDL_RenderSetClipRect(window.sdlRenderer, &rect.toSDL()) != 0)
+            return sdlError();
+    }
+    pub fn popClipRect(window: *Window) void {
+        // hopefully this can't fail
+        _ = if (window.clippingRectangles.items.len >= 1)
+            c.SDL_RenderSetClipRect(
+                window.sdlRenderer,
+                &window.clippingRectangles.pop().toSDL(),
+            )
+        else
+            c.SDL_RenderSetClipRect(window.sdlRenderer, null);
     }
 
     pub fn waitEvent(window: *Window) !Event {
@@ -348,7 +373,7 @@ pub const Rect = struct {
     y: u64,
     w: u64,
     h: u64,
-    fn toSDL(rect: *const Rect) c.SDL_Rect {
+    fn toSDL(rect: Rect) c.SDL_Rect {
         return c.SDL_Rect{
             .x = @intCast(c_int, rect.x),
             .y = @intCast(c_int, rect.y),
