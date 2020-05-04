@@ -299,6 +299,7 @@ const TextInfo = struct {
     }
 
     fn addFakeCharacter(ti: *TextInfo, char: []const u8, hlStyle: TextHLStyleReal) !void {
+        std.debug.warn("adding fake character {}\n", .{char});
         for (char) |byte| {
             try ti.addRenderedCharacter(byte, hlStyle);
             _ = ti.characterPositions.pop();
@@ -325,9 +326,13 @@ const TextInfo = struct {
                     }
                 },
             },
-            .showInvisibles => {
+            .showInvisibles => |sinvis| {
+                if (char == '\n')
+                    return switch (sinvis) {
+                        .all => try ti.addFakeCharacter("⏎", style),
+                        .inlin_ => try ti.addNewlineCharacter(),
+                    };
                 switch (char) {
-                    '\n' => try ti.addFakeCharacter("⏎", style),
                     ' ' => try ti.addFakeCharacter("·", style),
                     '\t' => try ti.addFakeCharacter("⭲   ", style),
                     else => try ti.addRenderedCharacter(char, style),

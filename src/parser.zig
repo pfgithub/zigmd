@@ -20,7 +20,7 @@ pub const RenderStyle = union(enum) {
     code: void,
     inlineCode: void,
     codeLanguage: void,
-    showInvisibles: void,
+    showInvisibles: enum { all, inlin_ }, // zig has too many keywords
     display: union(enum) {
         eolSpace: void,
     },
@@ -74,7 +74,7 @@ const Class = struct {
     pub fn renderStyle(cs: Class) RenderStyle {
         if (cs.ERROR) return .errort;
 
-        if (cs.soft_line_break) return .showInvisibles;
+        if (cs.soft_line_break) return .{ .showInvisibles = .all };
         if (cs.hard_line_break) return .{ .display = .eolSpace };
         if (cs.text) {
             if (cs.indented_code_block) return .code;
@@ -89,7 +89,7 @@ const Class = struct {
             if (cs.emphasis) return .{ .text = .italic };
             return .{ .text = .normal };
         }
-        return .control; // note that raw newlines will become control. these should be handled as a special case.
+        return .{ .showInvisibles = .inlin_ };
     }
     pub fn format(
         classesStruct: Class,

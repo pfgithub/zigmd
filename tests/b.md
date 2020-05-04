@@ -1,6 +1,11 @@
 # heading 1
 
-	indented code
+	tab indented code
+
+    space indented code
+    line two
+    line three
+    nice
 
 \escape \\escape \* \" <-- have to fix that
 
