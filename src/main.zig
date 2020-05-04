@@ -299,7 +299,6 @@ const TextInfo = struct {
     }
 
     fn addFakeCharacter(ti: *TextInfo, char: []const u8, hlStyle: TextHLStyleReal) !void {
-        std.debug.warn("adding fake character {}\n", .{char});
         for (char) |byte| {
             try ti.addRenderedCharacter(byte, hlStyle);
             _ = ti.characterPositions.pop();
