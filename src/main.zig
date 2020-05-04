@@ -314,18 +314,6 @@ const TextInfo = struct {
         var style = app.getStyle(renderStyle);
 
         switch (renderStyle) {
-            .display => |f| switch (f) {
-                .eolSpace => {
-                    if (char == '\n') {
-                        try ti.addNewlineCharacter();
-                    } else {
-                        try ti.addFakeCharacter("·", .{
-                            .font = style.font,
-                            .color = style.color,
-                        });
-                    }
-                },
-            },
             .showInvisibles => |sinvis| {
                 if (char == '\n')
                     return switch (sinvis) {
@@ -673,10 +661,6 @@ pub const App = struct {
                 .bg = colors.codeBackground,
             },
             .showInvisibles => .{
-                .font = &fonts.monospace,
-                .color = colors.control,
-            },
-            .display => .{
                 .font = &fonts.monospace,
                 .color = colors.control,
             },

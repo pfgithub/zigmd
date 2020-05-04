@@ -21,23 +21,20 @@ pub const RenderStyle = union(enum) {
     inlineCode: void,
     codeLanguage: void,
     showInvisibles: enum { all, inlin_ }, // zig has too many keywords
-    display: union(enum) {
-        eolSpace: void,
-    },
     errort: void,
 };
 
 const Class = struct {
     document: bool = false,
     paragraph: bool = false,
-    emphasis: bool = false, // text && italic
-    strong_emphasis: bool = false, // text && bold
-    text: bool = false, // !text: control character, monospace
-    atx_heading: bool = false, // text && heading
+    emphasis: bool = false,
+    strong_emphasis: bool = false,
+    text: bool = false,
+    atx_heading: bool = false,
     atx_heading_marker: bool = false,
     heading_content: bool = false,
-    hard_line_break: bool = false, // .display.eolSpace
-    soft_line_break: bool = false, // .display.newline
+    hard_line_break: bool = false,
+    soft_line_break: bool = false,
     code_fence_content: bool = false,
     fenced_code_block: bool = false,
     info_string: bool = false,
@@ -75,7 +72,7 @@ const Class = struct {
         if (cs.ERROR) return .errort;
 
         if (cs.soft_line_break) return .{ .showInvisibles = .all };
-        if (cs.hard_line_break) return .{ .display = .eolSpace };
+        if (cs.hard_line_break) return .{ .showInvisibles = .inlin_ };
         if (cs.text) {
             if (cs.indented_code_block) return .code;
             if (cs.fenced_code_block and cs.code_fence_content) return .code;
