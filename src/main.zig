@@ -890,6 +890,7 @@ pub fn main() !void {
     defer win.deinit();
 
     var window = try win.Window.init(alloc);
+    defer window.deinit();
 
     var standardFont = try loader.loadFromName("Arial", 16);
     defer standardFont.deinit();

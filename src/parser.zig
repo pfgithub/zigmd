@@ -275,12 +275,14 @@ pub const Tree = struct {
     pub fn reparse(ts: *Tree, sourceCode: []const u8) void {
         // not sure if it is necessary to reassign tree
         // this line crashes sometimes at some character counts:
-        ts.tree = c.ts_parser_parse_string(
+        var newTree = c.ts_parser_parse_string(
             ts.parser,
             null,
             sourceCode.ptr,
             @intCast(u32, sourceCode.len),
         ).?;
+        c.ts_tree_delete(ts.tree);
+        ts.tree = newTree;
     }
     pub fn root(ts: *Tree) Node {
         return Node.wrap(c.ts_tree_root_node(ts.tree));
