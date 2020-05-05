@@ -1,6 +1,7 @@
 const std = @import("std");
 pub const win = @import("./rendering_abstraction.zig");
 pub const parser = @import("./parser.zig");
+pub const imgui = @import("./imgui.zig");
 const List = std.SinglyLinkedList;
 const ArrayList = std.ArrayList;
 
@@ -155,8 +156,8 @@ const LineDrawCall = struct {
     font: *const win.Font,
     color: win.Color,
     bg: ?win.Color, // to allow for rounded corners, backgrounds should probably kept in a sperate BackgroundDrawCall per-line. unfortunately, that means more text measurement because of how text measurement works, so not yet.
-    measure: struct { w: u64, h: u64 },
-    x: u64, // y is chosen based on line top, line height, and text baseline
+    measure: struct { w: i64, h: i64 },
+    x: i64, // y is chosen based on line top, line height, and text baseline
     fn differentStyle(ldc: *LineDrawCall, hlStyle: TextHLStyleReal) bool {
         if (ldc.bg) |bg1| {
             if (hlStyle.bg) |bg2| {
@@ -170,10 +171,10 @@ const LineDrawCall = struct {
     }
 };
 const LineInfo = struct {
-    yTop: u64,
-    height: u64,
+    yTop: i64,
+    height: i64,
     drawCalls: std.ArrayList(LineDrawCall),
-    fn init(arena: *std.mem.Allocator, yTop: u64, height: u64) LineInfo {
+    fn init(arena: *std.mem.Allocator, yTop: i64, height: i64) LineInfo {
         const drawCalls = std.ArrayList(LineDrawCall).init(arena);
 
         return LineInfo{
@@ -184,19 +185,19 @@ const LineInfo = struct {
     }
 };
 const CharacterPosition = struct {
-    x: u64,
-    w: u64,
+    x: i64,
+    w: i64,
     line: *LineInfo,
     index: u64,
     // y/h are determined by the line.
 };
 const TextInfo = struct {
-    maxWidth: u64,
+    maxWidth: i64,
     lines: std.ArrayList(LineInfo),
     characterPositions: std.ArrayList(CharacterPosition),
     progress: struct {
         activeDrawCall: ?LineDrawCall,
-        x: u64,
+        x: i64,
     },
     rawAlloc: *std.mem.Allocator,
     arena: *std.heap.ArenaAllocator,
@@ -204,7 +205,7 @@ const TextInfo = struct {
     // y/h must be determined by the line when drawing
     fn init(
         rawAlloc: *std.mem.Allocator,
-        maxWidth: u64,
+        maxWidth: i64,
         cursor: *parser.TreeCursor,
     ) !TextInfo {
         // I didn't really want to do this but I don't see a way around it
@@ -272,7 +273,7 @@ const TextInfo = struct {
         try ti.appendCharacterPositionMeasure(characterMeasure.w);
     }
 
-    fn appendCharacterPositionMeasure(ti: *TextInfo, width: u64) !void {
+    fn appendCharacterPositionMeasure(ti: *TextInfo, width: i64) !void {
         var lineOverX = blk: {
             var latestDrawCall = &ti.progress.activeDrawCall;
             break :blk if (latestDrawCall.*) |ldc| (try win.Text.measure(ldc.font, &ldc.text)).w else 0;
@@ -351,7 +352,7 @@ const TextInfo = struct {
         textCopy[lenCopy] = 0;
 
         const measure = try win.Text.measure(latestDrawCall.font, &textCopy);
-        if (@intCast(u64, measure.w) + latestDrawCall.x >= ti.maxWidth) {
+        if (@intCast(i64, measure.w) + latestDrawCall.x >= ti.maxWidth) {
             // start new line
             // try again
             try ti.addNewline();
@@ -371,12 +372,12 @@ const TextInfo = struct {
         defer ti.progress.activeDrawCall = null;
 
         const measure = try win.Text.measure(adc.font, &adc.text);
-        adc.measure = .{ .w = @intCast(u64, measure.w), .h = @intCast(u64, measure.h) };
+        adc.measure = .{ .w = @intCast(i64, measure.w), .h = @intCast(i64, measure.h) };
 
         var latestLine = &ti.lines.items[ti.lines.items.len - 1];
         if (latestLine.height < adc.measure.h) latestLine.height = adc.measure.h;
         try latestLine.drawCalls.append(adc);
-        ti.progress.x += @intCast(u64, adc.measure.w);
+        ti.progress.x += @intCast(i64, adc.measure.w);
     }
 
     /// start a new line
@@ -765,14 +766,11 @@ pub const App = struct {
 
         switch (event) {
             .MouseDown => |mouse| blk: {
-                if (mouse.y < pos.y or mouse.y > pos.y + pos.h or
-                    mouse.x < pos.x or mouse.x > pos.x + pos.w)
-                {
+                if (!pos.containsPoint(mouse.pos))
                     break :blk; // ignored,  out of area
-                }
                 for (textInfo.characterPositions.items) |cp| {
-                    if (mouse.x - @intCast(i64, pos.x) > (cp.x + @divFloor((cp.w), 2)) and
-                        mouse.y > cp.line.yTop + pos.y)
+                    if (mouse.pos.x - @intCast(i64, pos.x) > (cp.x + @divFloor((cp.w), 2)) and
+                        mouse.pos.y > cp.line.yTop + pos.y)
                     {
                         app.cursorLocation = cp.index + 1;
                     } else {}
@@ -838,13 +836,12 @@ pub const App = struct {
                     },
                     .window = window,
                 });
-                try text.text.render(
-                    window,
-                    drawCall.x + pos.x,
-                    line.yTop +
+                try text.text.render(window, .{
+                    .x = drawCall.x + pos.x,
+                    .y = line.yTop +
                         pos.y +
                         (line.height - drawCall.measure.h),
-                );
+                });
             }
         }
 

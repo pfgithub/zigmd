@@ -122,8 +122,8 @@ pub const Color = struct {
 };
 
 pub const WindowSize = struct {
-    w: u64,
-    h: u64,
+    w: i64,
+    h: i64,
 };
 
 pub const Key = enum(u64) {
@@ -148,14 +148,12 @@ pub const Event = union(enum) {
     };
     KeyDown: KeyEvent,
     pub const MouseEvent = struct {
-        x: i64,
-        y: i64,
+        pos: Point,
     };
     MouseDown: MouseEvent,
     MouseUp: MouseEvent,
     pub const MouseMotionEvent = struct {
-        x: i64,
-        y: i64,
+        pos: Point,
     };
     MouseMotion: MouseMotionEvent,
     pub const TextInputEvent = struct {
@@ -182,20 +180,26 @@ pub const Event = union(enum) {
             },
             c.SDL_MOUSEBUTTONDOWN => Event{
                 .MouseDown = .{
-                    .x = event.button.x,
-                    .y = event.button.y,
+                    .pos = .{
+                        .x = event.button.x,
+                        .y = event.button.y,
+                    },
                 },
             },
             c.SDL_MOUSEBUTTONUP => Event{
                 .MouseUp = .{
-                    .x = event.button.x,
-                    .y = event.button.y,
+                    .pos = .{
+                        .x = event.button.x,
+                        .y = event.button.y,
+                    },
                 },
             },
             c.SDL_MOUSEMOTION => Event{
                 .MouseMotion = .{
-                    .x = event.motion.x,
-                    .y = event.motion.y,
+                    .pos = .{
+                        .x = event.motion.x,
+                        .y = event.motion.y,
+                    },
                 },
             },
             c.SDL_TEXTINPUT => blk: {
@@ -300,15 +304,15 @@ pub const Window = struct {
         var screenHeight: c_int = undefined;
         if (c.SDL_GetRendererOutputSize(window.sdlRenderer, &screenWidth, &screenHeight) < 0) return sdlError();
         return WindowSize{
-            .w = @intCast(u64, screenWidth), // should never fail
-            .h = @intCast(u64, screenHeight),
+            .w = @intCast(i64, screenWidth), // should never fail
+            .h = @intCast(i64, screenHeight),
         };
     }
 };
 
 pub const TextSize = struct {
-    w: u64,
-    h: u64,
+    w: i64,
+    h: i64,
 };
 
 pub const Text = struct {
@@ -321,12 +325,12 @@ pub const Text = struct {
         var w: c_int = undefined;
         var h: c_int = undefined;
         if (c.TTF_SizeUTF8(font.sdlFont, text, &w, &h) < 0) return ttfError();
-        return TextSize{ .w = @intCast(u64, w), .h = @intCast(u64, h) };
+        return TextSize{ .w = @intCast(i64, w), .h = @intCast(i64, h) };
     }
     pub fn init(
         font: *const Font,
         color: Color,
-        text: [*c]const u8,
+        text: [*c]const u8, // 0-terminated
         size: ?TextSize,
         window: *const Window,
     ) !Text {
@@ -352,10 +356,10 @@ pub const Text = struct {
     pub fn deinit(text: *Text) void {
         c.SDL_DestroyTexture(text.texture);
     }
-    pub fn render(text: *Text, window: *const Window, x: u64, y: u64) !void {
+    pub fn render(text: *Text, window: *const Window, pos: Point) !void {
         var rect = c.SDL_Rect{
-            .x = @intCast(c_int, x),
-            .y = @intCast(c_int, y),
+            .x = @intCast(c_int, pos.x),
+            .y = @intCast(c_int, pos.y),
             .w = @intCast(c_int, text.size.w),
             .h = @intCast(c_int, text.size.h),
         };
@@ -368,11 +372,15 @@ pub const Text = struct {
     }
 };
 
+pub const Point = struct {
+    x: i64,
+    y: i64,
+};
 pub const Rect = struct {
-    x: u64,
-    y: u64,
-    w: u64,
-    h: u64,
+    x: i64,
+    y: i64,
+    w: i64,
+    h: i64,
     fn toSDL(rect: Rect) c.SDL_Rect {
         return c.SDL_Rect{
             .x = @intCast(c_int, rect.x),
@@ -380,6 +388,10 @@ pub const Rect = struct {
             .w = @intCast(c_int, rect.w),
             .h = @intCast(c_int, rect.h),
         };
+    }
+    fn containsPoint(rect: Rect, point: Point) bool {
+        return point.x >= rect.x and point.x <= rect.x + rect.w and
+            point.y >= rect.y and point.y <= rect.y + rect.h;
     }
 };
 pub fn renderRect(window: *const Window, color: Color, rect: Rect) !void {
