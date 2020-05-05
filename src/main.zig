@@ -940,17 +940,18 @@ pub fn main() !void {
     // if in foreground, loop pollevent
     // if in background, waitevent
 
-    var imbtn = imgui.Button.init();
-    defer imbtn.deinit();
-    var updateMode = false; // eventually this will be an enum with the imgui enumeditor to show a segmented button or dropdown menu, but not yet. not sure how to implement a dropdown menu right now though because imev is completely broken.
+    const UpdateMode = enum { wait, poll };
+    var imedtr = imgui.EnumEditor(UpdateMode).init();
+    defer imedtr.deinit();
+    var updateMode: UpdateMode = .wait;
 
     var imev: imgui.ImEvent = .{};
 
     while (true) blk: {
-        var event = if (updateMode)
-            try window.pollEvent()
-        else
-            try window.waitEvent();
+        var event = switch (updateMode) {
+            .poll => try window.pollEvent(),
+            .wait => try window.waitEvent(),
+        };
         switch (event) {
             .Quit => return,
             else => {},
@@ -970,19 +971,13 @@ pub fn main() !void {
             };
             try app.render(&window, event, size);
 
-            var clicked = try imbtn.render(
-                .{
-                    .text = if (updateMode) "Poll for Events" else "Wait for Events",
-                    .font = &style.fonts.standard,
-                },
+            try imedtr.render(
+                &updateMode, // should this update in the return value instead of updating the item directly?
+                &style.fonts.standard,
                 &window,
                 &imev,
                 .{ .w = windowSize.w - 80, .h = 30, .x = 40, .y = 5 },
             );
-            if (clicked) {
-                updateMode = !updateMode;
-                imev.rerender();
-            }
 
             event = .{ .Empty = {} };
         }

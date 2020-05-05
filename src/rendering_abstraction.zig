@@ -273,9 +273,14 @@ pub const Window = struct {
 
     /// defer popClipRect
     pub fn pushClipRect(window: *Window, rect: Rect) !void {
-        try window.clippingRectangles.append(rect);
+        const resRect = if (window.clippingRectangles.items.len >= 1)
+            rect.overlap(window.clippingRectangles.items[window.clippingRectangles.items.len - 1])
+        else
+            rect;
+
+        try window.clippingRectangles.append(resRect);
         errdefer _ = window.clippingRectangles.pop();
-        if (c.SDL_RenderSetClipRect(window.sdlRenderer, &rect.toSDL()) != 0)
+        if (c.SDL_RenderSetClipRect(window.sdlRenderer, &resRect.toSDL()) != 0)
             return sdlError();
     }
     pub fn popClipRect(window: *Window) void {
@@ -405,6 +410,22 @@ pub const Rect = struct {
         return .{
             .x = rect.x + @divFloor(rect.w, 2),
             .y = rect.y + @divFloor(rect.h, 2),
+        };
+    }
+    fn overlap(one: Rect, two: Rect) Rect {
+        var fx = if (one.x > two.x) one.x else two.x;
+        var fy = if (one.y > two.y) one.y else two.y;
+        var onex2 = one.x + one.w;
+        var twox2 = two.x + two.w;
+        var oney2 = one.y + one.h;
+        var twoy2 = two.y + two.h;
+        var fx2 = if (onex2 > twox2) twox2 else onex2;
+        var fy2 = if (oney2 > twoy2) twoy2 else oney2;
+        return .{
+            .x = fx,
+            .y = fy,
+            .w = fx2 - fx,
+            .h = fy2 - fy,
         };
     }
 };

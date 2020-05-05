@@ -142,31 +142,69 @@ pub const Button = struct {
 
 pub fn EnumEditor(comptime Enum: type) type {
     const typeInfo = @typeInfo(Enum).Enum;
-    const choices = comptime blk: {
-        var choices: [][]const u8 = [_]u8{};
-        for (typeInfo.fields) |field| {
-            choices = choices ++ [_]u8{field.name};
-            // would be nice to have a comptime map or something
-        }
-        break :blk choices;
-    };
+    if (typeInfo.fields.len == 0) unreachable;
     return struct {
-        buttonData: [choices.len]ToggleButton,
+        const Editor = @This();
+        buttonData: [typeInfo.fields.len]Button,
+        pub fn init() Editor {
+            return .{
+                .buttonData = blk: {
+                    var res: [typeInfo.fields.len]Button = undefined;
+                    inline for (typeInfo.fields) |field, i| {
+                        res[i] = Button.init();
+                    }
+                    break :blk res;
+                },
+            };
+        }
+        pub fn deinit(editor: *Editor) void {
+            inline for (typeInfo.fields) |field, i| {
+                editor.buttonData[i].deinit();
+            }
+        }
         pub fn render(
+            editor: *Editor,
+            value: *Enum,
+            font: *win.Font,
             window: *win.Window,
-            event: win.Event,
+            ev: *ImEvent,
             pos: win.Rect,
-            out: *Enum,
         ) !void {
             try window.pushClipRect(pos);
             defer window.popClipRect();
             // draw each button
 
-            const choiceWidth = pos.w / choices.len;
-            inline for (choices) |choice, i| {
-                const choiceHOffset = choiceWidth * i;
+            const lenInt = @intCast(i64, typeInfo.fields.len);
+            const choiceWidth = @divFloor(
+                (pos.w - 5 * (lenInt - 1)),
+                lenInt,
+            );
+            inline for (typeInfo.fields) |field, i| {
+                const choiceHOffset = (choiceWidth + 5) * @intCast(i64, i);
                 var btn = &editor.buttonData[i];
-                ToggleButton.render(btn.dat, false, choice);
+                var clicked = try btn.render(
+                    .{
+                        .text = if (@hasDecl(Enum, "title_" ++ field.name))
+                            @field(Enum, "title_" + field.name)
+                        else
+                            field.name,
+                        .active = value.* == @field(Enum, field.name),
+
+                        .font = font,
+                    },
+                    window,
+                    ev,
+                    .{
+                        .x = choiceHOffset + pos.x,
+                        .y = pos.y,
+                        .w = choiceWidth,
+                        .h = pos.h,
+                    },
+                );
+                if (clicked) {
+                    value.* = @field(Enum, field.name);
+                    ev.rerender();
+                }
             }
         }
     };
