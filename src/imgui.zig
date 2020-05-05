@@ -61,13 +61,19 @@ pub const Button = struct {
 
     pub fn render(
         btn: *Button,
-        settings: struct { text: []const u8, font: *win.Font },
+        settings: struct {
+            text: []const u8,
+            font: *win.Font,
+            active: bool = false,
+        },
         window: *win.Window,
         ev: *ImEvent,
         pos: win.Rect,
-    ) !void {
+    ) !bool {
         try window.pushClipRect(pos);
         defer window.popClipRect();
+
+        var result: bool = false;
 
         if (ev.mouseDown and win.Rect.containsPoint(pos, ev.cursor)) {
             ev.takeMouseDown();
@@ -77,11 +83,7 @@ pub const Button = struct {
         if (btn.clickStarted and ev.mouseUp) {
             btn.clickStarted = false;
             if (hover) {
-                // button clicked!
-                std.debug.warn("button clicked\n", .{});
-            } else {
-                // nvm
-                std.debug.warn("button click cancelled\n", .{});
+                result = true;
             }
         }
 
@@ -91,13 +93,18 @@ pub const Button = struct {
         {
             try win.renderRect(
                 window,
-                if (btn.clickStarted)
+                if (btn.clickStarted or result)
                     if (hover)
-                        win.Color.hex(0x4d756d)
+                        win.Color.hex(0x70798c)
                     else
                         win.Color.hex(0x565f73)
                 else if (hover)
-                    win.Color.hex(0x565f73)
+                    if (settings.active)
+                        win.Color.hex(0x648c84)
+                    else
+                        win.Color.hex(0x565f73)
+                else if (settings.active)
+                    win.Color.hex(0x4d756d)
                 else
                     win.Color.hex(0x3f4757),
                 pos,
@@ -123,6 +130,8 @@ pub const Button = struct {
                 },
             );
         }
+
+        return result;
     }
 };
 

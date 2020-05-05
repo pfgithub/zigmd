@@ -944,6 +944,7 @@ pub fn main() !void {
 
     var imbtn = imgui.Button.init();
     defer imbtn.deinit();
+    var buttonActive = false;
 
     var imevent: imgui.ImEvent = .{};
 
@@ -965,12 +966,17 @@ pub fn main() !void {
         };
         try app.render(&window, event, size);
 
-        try imbtn.render(
-            .{ .text = "Click", .font = &style.fonts.standard },
+        var clicked = try imbtn.render(
+            .{
+                .text = "Click",
+                .font = &style.fonts.standard,
+                .active = buttonActive,
+            },
             &window,
             &imevent,
             .{ .w = 100, .h = 30, .x = 40, .y = 5 },
         );
+        if (clicked) buttonActive = !buttonActive;
 
         window.present();
     }
