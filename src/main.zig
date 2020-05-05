@@ -940,12 +940,15 @@ pub fn main() !void {
 
     var imbtn = imgui.Button.init();
     defer imbtn.deinit();
-    var buttonActive = false;
+    var updateMode = false; // eventually this will be an enum with the imgui enumeditor to show a segmented button or dropdown menu, but not yet. not sure how to implement a dropdown menu right now though because imev is completely broken.
 
     var imev: imgui.ImEvent = .{};
 
     while (true) blk: {
-        var event = try window.waitEvent();
+        var event = if (updateMode)
+            try window.pollEvent()
+        else
+            try window.waitEvent();
         switch (event) {
             .Quit => return,
             else => {},
@@ -967,16 +970,15 @@ pub fn main() !void {
 
             var clicked = try imbtn.render(
                 .{
-                    .text = "Click",
+                    .text = if (updateMode) "Poll for Events" else "Wait for Events",
                     .font = &style.fonts.standard,
-                    .active = buttonActive,
                 },
                 &window,
                 &imev,
-                .{ .w = 100, .h = 30, .x = 40, .y = 5 },
+                .{ .w = windowSize.w - 80, .h = 30, .x = 40, .y = 5 },
             );
             if (clicked) {
-                buttonActive = !buttonActive;
+                updateMode = !updateMode;
                 imev.rerender();
             }
 
