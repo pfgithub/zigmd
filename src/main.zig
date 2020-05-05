@@ -851,13 +851,27 @@ pub const App = struct {
                 app.cursorLocation - 1,
                 &cursor2,
             );
-            std.debug.warn("Style: {}, Classes: ", .{styleBeforeCursor.createClassesStruct().renderStyle()});
-            styleBeforeCursor.printClasses();
 
-            std.debug.warn(
-                "Character Position: {}\n",
-                .{app.findCharacterPosition(app.cursorLocation - 1)},
+            var classesText = std.ArrayList(u8).init(alloc);
+            try styleBeforeCursor.printClasses(&classesText);
+
+            var resText = try std.fmt.allocPrint0(alloc, "Style: {}, Classes: {s}, CharPos: {}", .{
+                styleBeforeCursor.createClassesStruct().renderStyle(),
+                classesText.items,
+                app.findCharacterPosition(app.cursorLocation - 1),
+            });
+
+            var text = try win.Text.init(
+                &style.fonts.standard,
+                style.colors.text,
+                resText,
+                null,
+                window,
             );
+            try text.render(window, .{
+                .x = pos.x + pos.w - text.size.w,
+                .y = pos.y + pos.h - text.size.h,
+            });
         } else {
             // render cursor at position 0
         }

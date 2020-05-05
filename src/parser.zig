@@ -134,19 +134,18 @@ pub const Node = struct {
         n.createClassesStructInternal(&classes);
         return classes;
     }
-    pub fn class(n: Node) [*c]const u8 {
-        return c.ts_node_type(n.node);
+    pub fn class(n: Node) []const u8 {
+        return std.mem.span(c.ts_node_type(n.node));
     }
-    fn printClassesInternal(n: Node) void {
+    pub fn printClasses(
+        n: Node,
+        res: *std.ArrayList(u8),
+    ) std.mem.Allocator.Error!void {
         if (n.parent()) |up| {
-            up.printClassesInternal();
-            std.debug.warn(".", .{});
+            try up.printClasses(res);
+            try res.appendSlice(".");
         }
-        std.debug.warn("{s}", .{n.class()});
-    }
-    pub fn printClasses(n: Node) void {
-        n.printClassesInternal();
-        std.debug.warn("\n", .{});
+        try res.appendSlice(n.class());
     }
     pub fn firstChild(n: Node) ?Node {
         const result = c.ts_node_parent(n.node);
