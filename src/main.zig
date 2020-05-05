@@ -503,7 +503,6 @@ pub const App = struct {
     fn init(alloc: *std.mem.Allocator, style: *const Style, filename: []const u8) !App {
         var readOnly = false;
         var file: []u8 = std.fs.cwd().readFileAlloc(alloc, filename, 10000000) catch |e| blk: {
-            std.debug.warn("File load error: {}", .{e});
             readOnly = true;
             break :blk try std.fmt.allocPrint(alloc, "File load error: {}.", .{e});
         };
@@ -597,8 +596,6 @@ pub const App = struct {
         {} else return;
         app.prevPos = pos;
 
-        std.debug.warn("Remeasuring\n", .{});
-
         var cursor = parser.TreeCursor.init(app.tree.root());
         defer cursor.deinit();
 
@@ -673,8 +670,6 @@ pub const App = struct {
 
     fn render(app: *App, window: *win.Window, event: win.Event, pos: win.Rect) !void {
         try app.textRenderCache.clean();
-
-        var timer = try std.time.Timer.start();
 
         const style = app.style;
 
@@ -751,8 +746,6 @@ pub const App = struct {
             },
             else => {},
         }
-        std.debug.warn("Handling took {}.\n", .{timer.read()});
-        timer.reset();
 
         app.tree.reparse(app.text.items);
         app.tree.lock();
@@ -760,9 +753,6 @@ pub const App = struct {
 
         try app.remeasureText(pos);
         const textInfo = app.textInfo.?;
-
-        std.debug.warn("Measuring took {}.\n", .{timer.read()});
-        timer.reset();
 
         switch (event) {
             .MouseDown => |mouse| blk: {
@@ -778,9 +768,6 @@ pub const App = struct {
             },
             else => {},
         }
-
-        std.debug.warn("Click handling took {}.\n", .{timer.read()});
-        timer.reset();
 
         // ==== rendering ====
 
@@ -874,9 +861,6 @@ pub const App = struct {
         } else {
             // render cursor at position 0
         }
-
-        std.debug.warn("Rendering took {}.\n", .{timer.read()});
-        timer.reset();
     }
 };
 
@@ -929,8 +913,6 @@ pub fn main() !void {
             .monospace = monospaceFont,
         },
     };
-
-    std.debug.warn("Style: {}\n", .{style});
 
     var appV = try App.init(alloc, &style, "tests/b.md");
     var app = &appV;

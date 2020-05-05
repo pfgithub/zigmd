@@ -1,6 +1,6 @@
 # heading 1
 
-	tab indented code
+    tab indented code
 
     space indented code
     line two
