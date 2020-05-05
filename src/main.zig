@@ -881,7 +881,7 @@ pub const App = struct {
 };
 
 pub fn main() !void {
-    const alloc = std.heap.page_allocator;
+    const alloc = std.heap.c_allocator;
 
     const loader = win.FontLoader.init();
 
