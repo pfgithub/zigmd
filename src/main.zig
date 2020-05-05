@@ -949,7 +949,7 @@ pub fn main() !void {
     var imevent: imgui.ImEvent = .{};
 
     while (true) blk: {
-        var event = try window.waitEvent();
+        var event = try window.pollEvent();
         switch (event) {
             .Quit => return,
             else => {},

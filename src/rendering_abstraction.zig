@@ -161,6 +161,9 @@ pub const Event = union(enum) {
         length: u32,
     };
     TextInput: TextInputEvent,
+    pub const EmptyEvent = void;
+    Empty: EmptyEvent,
+    pub const empty = Event{ .Empty = {} };
     fn fromSDL(event: c.SDL_Event) Event {
         return switch (event.type) {
             c.SDL_QUIT => Event{ .Quit = {} },
@@ -289,6 +292,11 @@ pub const Window = struct {
     pub fn waitEvent(window: *Window) !Event {
         var event: c.SDL_Event = undefined;
         if (c.SDL_WaitEvent(&event) != 1) return sdlError();
+        return Event.fromSDL(event);
+    }
+    pub fn pollEvent(window: *Window) !Event {
+        var event: c.SDL_Event = undefined;
+        if (c.SDL_PollEvent(&event) == 0) return Event.empty;
         return Event.fromSDL(event);
     }
 
