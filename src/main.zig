@@ -212,6 +212,7 @@ const TextInfo = struct {
         var arena = try rawAlloc.create(std.heap.ArenaAllocator);
         errdefer rawAlloc.destroy(arena);
         arena.* = std.heap.ArenaAllocator.init(rawAlloc);
+        errdefer arena.deinit();
 
         var alloc = &arena.allocator;
         var lines = std.ArrayList(LineInfo).init(alloc);
