@@ -105,11 +105,11 @@ pub const Button = struct {
                         win.Color.hex(0x70798c)
                 else if (hover and !ev.click)
                     if (settings.active)
-                        win.Color.hex(0x648c84)
+                        win.Color.hex(0x385c55)
                     else
                         win.Color.hex(0x565f73)
                 else if (settings.active)
-                    win.Color.hex(0x4d756d)
+                    win.Color.hex(0x2c4a44)
                 else
                     win.Color.hex(0x3f4757),
                 pos,
