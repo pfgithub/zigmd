@@ -93,13 +93,13 @@ pub const Button = struct {
                 window,
                 if (btn.clickStarted)
                     if (hover)
-                        win.Color.hex(0x550000)
+                        win.Color.hex(0x4d756d)
                     else
-                        win.Color.hex(0x555500)
+                        win.Color.hex(0x565f73)
                 else if (hover)
-                    win.Color.hex(0x000055)
+                    win.Color.hex(0x565f73)
                 else
-                    win.Color.hex(0x005500),
+                    win.Color.hex(0x3f4757),
                 pos,
             );
 

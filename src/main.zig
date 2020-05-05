@@ -909,7 +909,7 @@ pub fn main() !void {
     var style = Style{
         .colors = .{
             .text = win.Color.rgb(255, 255, 255),
-            .control = win.Color.rgb(128, 128, 128),
+            .control = win.Color.hex(0x727885),
             .special = win.Color.rgb(128, 255, 128),
             .errorc = win.Color.rgb(255, 128, 128),
             .inlineCode = win.Color.hex(0x8fbcbb),
