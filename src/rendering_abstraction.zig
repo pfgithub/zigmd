@@ -27,7 +27,7 @@ pub const FontLoader = struct {
     }
     pub fn loadFromName(
         loader: *const FontLoader,
-        name: [*c]const u8,
+        name: []const u8,
         fontSize: u16,
     ) !Font {
         return Font.loadFromName(loader, name, fontSize);
@@ -40,8 +40,8 @@ pub const FontLoader = struct {
 
 pub const Font = struct {
     sdlFont: *c.TTF_Font,
-    pub fn init(ttfPath: [*c]const u8, size: u16) !Font {
-        var font = c.TTF_OpenFont(ttfPath, size);
+    pub fn init(ttfPath: []const u8, size: u16) !Font {
+        var font = c.TTF_OpenFont(ttfPath.ptr, size);
         if (font == null) return ttfError();
         errdefer c.TTF_CloseFont(font);
 
@@ -54,11 +54,11 @@ pub const Font = struct {
     }
     pub fn loadFromName(
         loader: *const FontLoader,
-        name: [*c]const u8,
+        name: []const u8,
         fontSize: u16,
     ) !Font {
         var config = loader.config;
-        var pattern = c.FcNameParse(name).?;
+        var pattern = c.FcNameParse(name.ptr).?;
 
         // font size
         var v: c.FcValue = .{
@@ -83,7 +83,7 @@ pub const Font = struct {
             if (c.FcPatternGetString(font, c.FC_FILE, 0, &file) ==
                 @intToEnum(c.FcResult, c.FcResultMatch))
             {
-                var resFont = Font.init(file, fontSize);
+                var resFont = Font.init(std.mem.span(file), fontSize);
                 return resFont;
             }
         }
@@ -320,23 +320,23 @@ pub const Text = struct {
     size: TextSize,
     pub fn measure(
         font: *const Font,
-        text: [*c]const u8,
+        text: []const u8,
     ) !TextSize {
         var w: c_int = undefined;
         var h: c_int = undefined;
-        if (c.TTF_SizeUTF8(font.sdlFont, text, &w, &h) < 0) return ttfError();
+        if (c.TTF_SizeUTF8(font.sdlFont, text.ptr, &w, &h) < 0) return ttfError();
         return TextSize{ .w = @intCast(i64, w), .h = @intCast(i64, h) };
     }
     pub fn init(
         font: *const Font,
         color: Color,
-        text: [*c]const u8, // 0-terminated
+        text: []const u8, // 0-terminated
         size: ?TextSize,
         window: *const Window,
     ) !Text {
         var surface = c.TTF_RenderUTF8_Blended(
             font.sdlFont,
-            text,
+            text.ptr,
             color.toSDL(),
         );
         if (surface == null) return sdlError();
@@ -389,9 +389,15 @@ pub const Rect = struct {
             .h = @intCast(c_int, rect.h),
         };
     }
-    fn containsPoint(rect: Rect, point: Point) bool {
+    pub fn containsPoint(rect: Rect, point: Point) bool {
         return point.x >= rect.x and point.x <= rect.x + rect.w and
             point.y >= rect.y and point.y <= rect.y + rect.h;
+    }
+    pub fn center(rect: Rect) Point {
+        return .{
+            .x = rect.x + @divFloor(rect.w, 2),
+            .y = rect.y + @divFloor(rect.h, 2),
+        };
     }
 };
 pub fn renderRect(window: *const Window, color: Color, rect: Rect) !void {

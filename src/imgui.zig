@@ -2,16 +2,17 @@ const std = @import("std");
 const win = @import("./rendering_abstraction.zig");
 
 pub const ImEvent = struct {
-    internal: struct {
-        mouseDown: bool,
-        click: bool,
-    },
-    click: bool,
-    mouseDown: bool,
-    mouseUp: bool,
-    mousePos: win.Point,
+    const Internal = struct {
+        mouseDown: bool = false,
+        click: bool = false,
+    };
+    internal: Internal = Internal{},
+    click: bool = false,
+    mouseDown: bool = false,
+    mouseUp: bool = false,
+    cursor: win.Point = win.Point{ .x = 0, .y = 0 },
 
-    fn loadEvent(imev: *ImEvent, ev: win.Event) void {
+    fn apply(imev: *ImEvent, ev: win.Event) void {
         // clear instantanious flags (mouseDown, mouseUp)
         if (imev.internal.mouseDown) {
             imev.internal.mouseDown = false;
@@ -21,18 +22,19 @@ pub const ImEvent = struct {
         // apply event
         switch (ev) {
             .MouseMotion => |mmv| {
-                imev.mousePos = mmv.pos;
+                imev.cursor = mmv.pos;
             },
             .MouseDown => |clk| {
                 imev.internal.mouseDown = true;
-                imev.mousePos = clk.pos;
+                imev.cursor = clk.pos;
                 imev.internal.click = true;
             },
             .MouseUp => |clk| {
                 imev.mouseUp = true;
-                imev.mousePos = clk.pos;
+                imev.cursor = clk.pos;
                 imev.internal.click = false;
             },
+            else => {},
         }
 
         // transfer internal to ev itself
@@ -49,12 +51,17 @@ pub const ImEvent = struct {
     }
 };
 
-pub const ToggleButton = struct {
+pub const Button = struct {
     clickStarted: bool,
 
+    pub fn init() Button {
+        return .{ .clickStarted = false };
+    }
+    pub fn deinit(btn: *Button) void {}
+
     pub fn render(
-        btn: *ToggleButton,
-        settings: struct { text: []const u8 },
+        btn: *Button,
+        settings: struct { text: []const u8, font: *win.Font },
         window: *win.Window,
         ev: *ImEvent,
         pos: win.Rect,
@@ -62,7 +69,7 @@ pub const ToggleButton = struct {
         try window.pushClipRect(pos);
         defer window.popClipRect();
 
-        if (ev.mouseDown and win.Rect.pointWithin(pos, ev.cursor)) {
+        if (ev.mouseDown and win.Rect.containsPoint(pos, ev.cursor)) {
             ev.takeMouseDown();
             btn.clickStarted = true;
         }
@@ -82,7 +89,7 @@ pub const ToggleButton = struct {
 
         // render
         {
-            win.renderRect(
+            try win.renderRect(
                 window,
                 if (btn.clickStarted)
                     if (hover)
@@ -97,8 +104,9 @@ pub const ToggleButton = struct {
             );
 
             // in the future, the text and text size could be cached
+            // (that would require a deinit method to clear allocated text data)
             var measure = try win.Text.measure(settings.font, settings.text);
-            var text = win.Text.init(
+            var text = try win.Text.init(
                 settings.font,
                 win.Color.hex(0xFFFFFF),
                 settings.text,
@@ -109,12 +117,12 @@ pub const ToggleButton = struct {
 
             try text.render(
                 window,
-                center.x - measure.w / 2,
-                center.y - measure.h / 2,
+                .{
+                    .x = center.x - @divFloor(measure.w, 2),
+                    .y = center.y - @divFloor(measure.h, 2),
+                },
             );
         }
-
-        renderText(settings.text);
     }
 };
 

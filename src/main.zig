@@ -942,15 +942,18 @@ pub fn main() !void {
     // if in foreground, loop pollevent
     // if in background, waitevent
 
+    var imbtn = imgui.Button.init();
+    defer imbtn.deinit();
+
+    var imevent: imgui.ImEvent = .{};
+
     while (true) blk: {
         var event = try window.waitEvent();
-        // try std.debug.warn("Event: {}\n", .{event});
         switch (event) {
-            .Quit => {
-                return;
-            },
+            .Quit => return,
             else => {},
         }
+        imevent.apply(event);
 
         try window.clear();
         var windowSize = try window.getSize();
@@ -961,6 +964,14 @@ pub fn main() !void {
             .y = 40,
         };
         try app.render(&window, event, size);
+
+        try imbtn.render(
+            .{ .text = "Click", .font = &style.fonts.standard },
+            &window,
+            &imevent,
+            .{ .w = 100, .h = 30, .x = 40, .y = 5 },
+        );
+
         window.present();
     }
 }
