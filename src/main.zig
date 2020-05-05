@@ -946,37 +946,46 @@ pub fn main() !void {
     defer imbtn.deinit();
     var buttonActive = false;
 
-    var imevent: imgui.ImEvent = .{};
+    var imev: imgui.ImEvent = .{};
 
     while (true) blk: {
-        var event = try window.pollEvent();
+        var event = try window.waitEvent();
         switch (event) {
             .Quit => return,
             else => {},
         }
-        imevent.apply(event);
 
-        try window.clear();
-        var windowSize = try window.getSize();
-        var size: win.Rect = .{
-            .w = windowSize.w - 80,
-            .h = windowSize.h - 80,
-            .x = 40,
-            .y = 40,
-        };
-        try app.render(&window, event, size);
+        imev.rerender();
+        while (imev.internal.rerender) {
+            imev.apply(event);
 
-        var clicked = try imbtn.render(
-            .{
-                .text = "Click",
-                .font = &style.fonts.standard,
-                .active = buttonActive,
-            },
-            &window,
-            &imevent,
-            .{ .w = 100, .h = 30, .x = 40, .y = 5 },
-        );
-        if (clicked) buttonActive = !buttonActive;
+            try window.clear();
+            var windowSize = try window.getSize();
+            var size: win.Rect = .{
+                .w = windowSize.w - 80,
+                .h = windowSize.h - 80,
+                .x = 40,
+                .y = 40,
+            };
+            try app.render(&window, event, size);
+
+            var clicked = try imbtn.render(
+                .{
+                    .text = "Click",
+                    .font = &style.fonts.standard,
+                    .active = buttonActive,
+                },
+                &window,
+                &imev,
+                .{ .w = 100, .h = 30, .x = 40, .y = 5 },
+            );
+            if (clicked) {
+                buttonActive = !buttonActive;
+                imev.rerender();
+            }
+
+            event = .{ .Empty = {} };
+        }
 
         window.present();
     }

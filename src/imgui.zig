@@ -5,6 +5,7 @@ pub const ImEvent = struct {
     const Internal = struct {
         mouseDown: bool = false,
         click: bool = false,
+        rerender: bool = false,
     };
     internal: Internal = Internal{},
     click: bool = false,
@@ -18,6 +19,7 @@ pub const ImEvent = struct {
             imev.internal.mouseDown = false;
         }
         imev.mouseUp = false;
+        imev.internal.rerender = false;
 
         // apply event
         switch (ev) {
@@ -40,6 +42,9 @@ pub const ImEvent = struct {
         // transfer internal to ev itself
         imev.mouseDown = imev.internal.mouseDown;
         imev.click = imev.internal.click;
+    }
+    fn rerender(imev: *ImEvent) void {
+        imev.internal.rerender = true;
     }
     fn takeMouseDown(imev: *ImEvent) void {
         if (!imev.mouseDown) unreachable;
@@ -97,8 +102,8 @@ pub const Button = struct {
                     if (hover)
                         win.Color.hex(0x70798c)
                     else
-                        win.Color.hex(0x565f73)
-                else if (hover)
+                        win.Color.hex(0x70798c)
+                else if (hover and !ev.click)
                     if (settings.active)
                         win.Color.hex(0x648c84)
                     else
