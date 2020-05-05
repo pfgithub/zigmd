@@ -1,14 +1,30 @@
 {
-    "Ctrl <S>": {
-        "save": {}
-    },
-    "<Left>": {
+    "Left": {
         "moveCursorLR": {
             "direction": "left",
             "stop": "byte"
         }
     },
-    "Ctrl <A> Ctrl <E>": {
-        "exit": {}
+    "Right": {
+        "moveCursorLR": {
+            "direction": "right",
+            "stop": "byte"
+        }
+    },
+    "Backspace": {
+        "delete": {
+            "direction": "left",
+            "stop": "byte"
+        }
+    },
+    "Return": {
+        "insert": {
+            "direction": "left",
+            "mode": "raw",
+            "text": "\n"
+        }
+    },
+    "Ctrl": {
+        "extend": {}
     }
 }
