@@ -943,10 +943,18 @@ pub fn main() !void {
     // if in background, waitevent
 
     const UpdateMode = struct {
+        pub const title_update = "Update Mode:";
+        pub const title_another = "Another Option:";
+        pub const title_three = "Three:";
         update: Update,
         another: Another,
         three: Three,
-        const Update = enum { wait, poll };
+        const Update = enum {
+            wait,
+            poll,
+            pub const title_wait = "Wait for Events";
+            pub const title_poll = "Update Constantly";
+        };
         const Another = enum { choice1, choice2, choice3 };
         const Three = enum { yes };
         pub const ModeData = struct {

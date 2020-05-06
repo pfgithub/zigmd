@@ -183,7 +183,10 @@ fn StructEditor(comptime Struct: type) type {
                 var text = try win.Text.init(
                     font,
                     win.Color.hex(0xFFFFFF),
-                    field.name,
+                    if (@hasDecl(Struct, "title_" ++ field.name))
+                        @field(Struct, "title_" ++ field.name)
+                    else
+                        field.name,
                     null,
                     window,
                 );
@@ -255,7 +258,7 @@ fn EnumEditor(comptime Enum: type) type {
                 var clicked = try btn.render(
                     .{
                         .text = if (@hasDecl(Enum, "title_" ++ field.name))
-                            @field(Enum, "title_" + field.name)
+                            @field(Enum, "title_" ++ field.name)
                         else
                             field.name,
                         .active = value.* == @field(Enum, field.name),
