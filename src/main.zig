@@ -942,15 +942,19 @@ pub fn main() !void {
     // if in foreground, loop pollevent
     // if in background, waitevent
 
-    const UpdateMode = enum { wait, poll };
-    var imedtr = imgui.EnumEditor(UpdateMode).init();
+    const UpdateMode = struct {
+        update: Update,
+        const Update = enum { wait, poll };
+        pub const ModeData = struct { update: imgui.DataEditor(Update) };
+    };
+    var imedtr = imgui.DataEditor(UpdateMode).init();
     defer imedtr.deinit();
-    var updateMode: UpdateMode = .wait;
+    var updateMode: UpdateMode = .{ .update = .wait };
 
     var imev: imgui.ImEvent = .{};
 
     while (true) blk: {
-        var event = switch (updateMode) {
+        var event = switch (updateMode.update) {
             .poll => try window.pollEvent(),
             .wait => try window.waitEvent(),
         };
@@ -965,13 +969,13 @@ pub fn main() !void {
 
             try window.clear();
             var windowSize = try window.getSize();
-            var size: win.Rect = .{
-                .w = windowSize.w - 80,
-                .h = windowSize.h - 80,
-                .x = 40,
-                .y = 40,
-            };
-            try app.render(&window, event, size);
+            // var size: win.Rect = .{
+            //     .w = windowSize.w - 80,
+            //     .h = windowSize.h - 80,
+            //     .x = 40,
+            //     .y = 40,
+            // };
+            // try app.render(&window, event, size);
 
             try imedtr.render(
                 &updateMode, // should this update in the return value instead of updating the item directly?

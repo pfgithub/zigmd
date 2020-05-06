@@ -140,7 +140,48 @@ pub const Button = struct {
     }
 };
 
-pub fn EnumEditor(comptime Enum: type) type {
+fn StructEditor(comptime Struct: type) type {
+    const typeInfo = @typeInfo(Struct).Struct;
+    const DataStruct = Struct.ModeData;
+    return struct {
+        const Editor = @This();
+        data: DataStruct,
+        pub fn init() Editor {
+            var data: DataStruct = undefined;
+            inline for (@typeInfo(DataStruct).Struct.fields) |field| {
+                @field(data, field.name) = field.field_type.init();
+            }
+            return .{
+                .data = data,
+            };
+        }
+        pub fn deinit(editor: *Editor) void {
+            inline for (@typeInfo(DataStruct).Struct.fields) |*field| {
+                @field(editor.data, field.name).deinit();
+            }
+        }
+        pub fn render(
+            editor: *Editor,
+            value: *Struct,
+            font: *win.Font,
+            window: *win.Window,
+            ev: *ImEvent,
+            pos: win.Rect,
+        ) !void {
+            try window.pushClipRect(pos);
+            defer window.popClipRect();
+
+            const lenInt = @intCast(i64, typeInfo.fields.len);
+            const itemHeight = @divFloor(pos.h - 5 * (lenInt - 1), lenInt);
+
+            inline for (typeInfo.fields) |field| {
+                try @field(editor.data, field.name).render(&@field(value, field.name), font, window, ev, pos);
+            }
+        }
+    };
+}
+
+fn EnumEditor(comptime Enum: type) type {
     const typeInfo = @typeInfo(Enum).Enum;
     if (typeInfo.fields.len == 0) unreachable;
     return struct {
