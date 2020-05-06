@@ -174,8 +174,36 @@ fn StructEditor(comptime Struct: type) type {
             const lenInt = @intCast(i64, typeInfo.fields.len);
             const itemHeight = @divFloor(pos.h - 5 * (lenInt - 1), lenInt);
 
-            inline for (typeInfo.fields) |field| {
-                try @field(editor.data, field.name).render(&@field(value, field.name), font, window, ev, pos);
+            inline for (typeInfo.fields) |field, i| {
+                var lpos: win.Rect = .{
+                    .x = pos.x,
+                    .y = (itemHeight + 5) * @intCast(i64, i) + pos.y,
+                    .w = pos.w,
+                    .h = itemHeight,
+                };
+                var text = try win.Text.init(
+                    font,
+                    win.Color.hex(0xFFFFFF),
+                    field.name,
+                    null,
+                    window,
+                );
+                defer text.deinit();
+
+                try text.render(
+                    window,
+                    .{
+                        .x = lpos.x,
+                        .y = lpos.y + @divFloor(lpos.h, 2) - @divFloor(text.size.h, 2),
+                    },
+                );
+
+                try @field(editor.data, field.name).render(&@field(value, field.name), font, window, ev, .{
+                    .x = lpos.x + text.size.w + 5,
+                    .y = lpos.y,
+                    .w = lpos.w - (text.size.w + 5),
+                    .h = lpos.h,
+                });
             }
         }
     };

@@ -944,12 +944,17 @@ pub fn main() !void {
 
     const UpdateMode = struct {
         update: Update,
+        another: Another,
         const Update = enum { wait, poll };
-        pub const ModeData = struct { update: imgui.DataEditor(Update) };
+        const Another = enum { choice1, choice2, choice3 };
+        pub const ModeData = struct {
+            update: imgui.DataEditor(Update),
+            another: imgui.DataEditor(Another),
+        };
     };
     var imedtr = imgui.DataEditor(UpdateMode).init();
     defer imedtr.deinit();
-    var updateMode: UpdateMode = .{ .update = .wait };
+    var updateMode: UpdateMode = .{ .update = .wait, .another = .choice1 };
 
     var imev: imgui.ImEvent = .{};
 
@@ -982,7 +987,7 @@ pub fn main() !void {
                 &style.fonts.standard,
                 &window,
                 &imev,
-                .{ .w = windowSize.w - 80, .h = 30, .x = 40, .y = 5 },
+                .{ .w = windowSize.w - 80, .h = windowSize.h - 80, .x = 40, .y = 40 },
             );
 
             event = .{ .Empty = {} };
