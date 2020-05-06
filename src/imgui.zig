@@ -171,13 +171,15 @@ fn StructEditor(comptime Struct: type) type {
             try window.pushClipRect(pos);
             defer window.popClipRect();
 
+            const gap = 10;
+
             const lenInt = @intCast(i64, typeInfo.fields.len);
-            const itemHeight = @divFloor(pos.h - 5 * (lenInt - 1), lenInt);
+            const itemHeight = @divFloor(pos.h - gap * (lenInt - 1), lenInt);
 
             inline for (typeInfo.fields) |field, i| {
                 var lpos: win.Rect = .{
                     .x = pos.x,
-                    .y = (itemHeight + 5) * @intCast(i64, i) + pos.y,
+                    .y = (itemHeight + gap) * @intCast(i64, i) + pos.y,
                     .w = pos.w,
                     .h = itemHeight,
                 };
@@ -243,13 +245,15 @@ fn EnumEditor(comptime Enum: type) type {
             defer window.popClipRect();
             // draw each button
 
+            const gap = 5;
+
             const lenInt = @intCast(i64, typeInfo.fields.len);
             const choiceWidth = @divFloor(
-                (pos.w - 5 * (lenInt - 1)),
+                (pos.w - gap * (lenInt - 1)),
                 lenInt,
             );
             inline for (typeInfo.fields) |field, i| {
-                const choiceHOffset = (choiceWidth + 5) * @intCast(i64, i);
+                const choiceHOffset = (choiceWidth + gap) * @intCast(i64, i);
                 var btn = &editor.buttonData[i];
                 var clicked = try btn.render(
                     .{
