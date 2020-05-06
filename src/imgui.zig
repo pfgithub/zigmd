@@ -98,12 +98,7 @@ pub const Button = struct {
         {
             try win.renderRect(
                 window,
-                if (btn.clickStarted or result)
-                    if (hover)
-                        win.Color.hex(0x70798c)
-                    else
-                        win.Color.hex(0x70798c)
-                else if (hover and !ev.click)
+                if (hover and (btn.clickStarted or result or !ev.click))
                     if (settings.active)
                         win.Color.hex(0x385c55)
                     else
@@ -245,7 +240,7 @@ fn EnumEditor(comptime Enum: type) type {
             defer window.popClipRect();
             // draw each button
 
-            const gap = 5;
+            const gap = 2;
 
             const lenInt = @intCast(i64, typeInfo.fields.len);
             const choiceWidth = @divFloor(
