@@ -307,10 +307,10 @@ const TextInfo = struct {
         }
         try ti.appendCharacterPositionMeasure(0); // uh oh, this means clicking doesn't work properly. it should take the start x position and subtract from the x end position but default to 0 if it goes backwards
     }
-    fn addCharacter(ti: *TextInfo, char: u8, app: *App) !void {
+    fn addCharacter(ti: *TextInfo, char: u8, charIndex: u64, app: *App) !void {
         var index = ti.characterPositions.items.len;
         var renderNode = parser.getNodeAtPosition(index, ti.cursor);
-        var renderStyle = renderNode.createClassesStruct().renderStyle();
+        var renderStyle = renderNode.createClassesStruct(charIndex).renderStyle();
 
         var style = app.getStyle(renderStyle);
 
@@ -604,9 +604,10 @@ pub const App = struct {
         app.textInfo = try TextInfo.init(app.alloc, pos.w, &cursor);
         // typescript would be better here, it would know that textInfo is not null
         // not sure if that could even work in this language
-        for (app.text.items) |char| {
+        for (app.text.items) |char, index| {
             try app.textInfo.?.addCharacter(
                 char,
+                index,
                 app,
             );
         }
@@ -834,7 +835,8 @@ pub const App = struct {
         }
 
         if (app.cursorLocation > 0) {
-            const cursorPosition = textInfo.characterPositions.items[app.cursorLocation - 1];
+            const charIndex = app.cursorLocation - 1;
+            const cursorPosition = textInfo.characterPositions.items[charIndex];
             try win.renderRect(
                 window,
                 app.style.colors.cursor,
@@ -849,7 +851,7 @@ pub const App = struct {
             var cursor2 = parser.TreeCursor.init(app.tree.root());
             defer cursor2.deinit();
             var styleBeforeCursor = parser.getNodeAtPosition(
-                app.cursorLocation - 1,
+                charIndex,
                 &cursor2,
             );
 
@@ -857,9 +859,9 @@ pub const App = struct {
             try styleBeforeCursor.printClasses(&classesText);
 
             var resText = try std.fmt.allocPrint0(alloc, "Style: {}, Classes: {s}, CharPos: {}", .{
-                styleBeforeCursor.createClassesStruct().renderStyle(),
+                styleBeforeCursor.createClassesStruct(charIndex).renderStyle(),
                 classesText.items,
-                app.findCharacterPosition(app.cursorLocation - 1),
+                app.findCharacterPosition(charIndex),
             });
 
             var text = try win.Text.init(

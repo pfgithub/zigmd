@@ -67,12 +67,14 @@ const Class = struct {
     html_attribute_value: bool = false,
     html_block: bool = false,
     ERROR: bool = false,
+    IS_CHAR_0: bool,
 
     pub fn renderStyle(cs: Class) RenderStyle {
         if (cs.ERROR) return .errort;
 
         if (cs.soft_line_break) return .{ .showInvisibles = .all };
         if (cs.hard_line_break) return .{ .showInvisibles = .inlin_ };
+        if (cs.backslash_escape and !cs.IS_CHAR_0) return .{ .text = .normal };
         if (cs.text) {
             if (cs.indented_code_block) return .code;
             if (cs.fenced_code_block and cs.code_fence_content) return .code;
@@ -129,8 +131,10 @@ pub const Node = struct {
         }
         if (n.parent()) |p| p.createClassesStructInternal(classesStruct);
     }
-    pub fn createClassesStruct(n: Node) Class {
-        var classes: Class = .{};
+    pub fn createClassesStruct(n: Node, cidx: u64) Class {
+        var classes: Class = .{
+            .IS_CHAR_0 = @intCast(u32, cidx) == c.ts_node_start_byte(n.node),
+        };
         n.createClassesStructInternal(&classes);
         return classes;
     }
@@ -323,8 +327,8 @@ fn testParser() !void {
     var cursor = TreeCursor.init(rootNode);
 
     var i: u64 = 0;
-    for (sourceCode) |charStr| {
-        var classs = getNodeAtPosition(i, rootNode).createClassesStruct();
+    for (sourceCode) |charStr, i| {
+        var classs = getNodeAtPosition(i, rootNode).createClassesStruct(i);
         std.debug.warn(
             "Char: [{}]`{c}`, Class: {}, Style: {}\n",
             .{

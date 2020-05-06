@@ -7,7 +7,9 @@
     line three
     nice
 
-\escape \\escape \* \" <-- have to fix that
+\escape \\escape \* \"
+
+**bold text \[wi\*these should be bold\)th escape\*\"**
 
 > blockquote
 
