@@ -178,6 +178,8 @@ fn StructEditor(comptime Struct: type) type {
                     .w = pos.w,
                     .h = itemHeight,
                 };
+                try window.pushClipRect(lpos);
+                defer window.popClipRect();
                 var text = try win.Text.init(
                     font,
                     win.Color.hex(0xFFFFFF),
