@@ -945,16 +945,23 @@ pub fn main() !void {
     const UpdateMode = struct {
         update: Update,
         another: Another,
+        three: Three,
         const Update = enum { wait, poll };
         const Another = enum { choice1, choice2, choice3 };
+        const Three = enum { yes };
         pub const ModeData = struct {
             update: imgui.DataEditor(Update),
             another: imgui.DataEditor(Another),
+            three: imgui.DataEditor(Three),
         };
     };
     var imedtr = imgui.DataEditor(UpdateMode).init();
     defer imedtr.deinit();
-    var updateMode: UpdateMode = .{ .update = .wait, .another = .choice1 };
+    var updateMode: UpdateMode = .{
+        .update = .wait,
+        .another = .choice1,
+        .three = .yes,
+    };
 
     var imev: imgui.ImEvent = .{};
 
