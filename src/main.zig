@@ -997,6 +997,9 @@ pub fn main() !void {
             };
             try app.render(&window, event, size);
 
+            window.cursor = .default;
+            if (size.containsPoint(imev.cursor)) window.cursor = .ibeam;
+
             // try imedtr.render(
             //     &updateMode, // should this update in the return value instead of updating the item directly?
             //     &style.fonts.standard,

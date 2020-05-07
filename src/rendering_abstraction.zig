@@ -235,10 +235,21 @@ pub const Event = union(enum) {
     pub const Type = @TagType(@This());
 };
 
+pub const Cursor = enum {
+    default,
+    pointer,
+    ibeam,
+};
+
 pub const Window = struct {
+    // public
+    cursor: Cursor,
+
     sdlWindow: *c.SDL_Window,
     sdlRenderer: *c.SDL_Renderer,
     clippingRectangles: std.ArrayList(Rect),
+    previousCursor: Cursor,
+    allCursors: [@typeInfo(Cursor).Enum.fields.len]*c.SDL_Cursor,
 
     pub fn init(alloc: *std.mem.Allocator) !Window {
         var window = c.SDL_CreateWindow(
@@ -263,9 +274,21 @@ pub const Window = struct {
             .sdlWindow = window.?,
             .sdlRenderer = renderer.?,
             .clippingRectangles = clippingRectangles,
+            .cursor = .default,
+            .previousCursor = .ibeam,
+            .allCursors = [_]*c.SDL_Cursor{
+                c.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_ARROW).?,
+                c.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_HAND).?,
+                c.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_IBEAM).?,
+            },
         };
     }
     pub fn deinit(window: *Window) void {
+        for (window.allCursors) |cursor| {
+            c.SDL_FreeCursor(cursor);
+            // why does this even exsit
+        }
+
         c.SDL_DestroyRenderer(window.sdlRenderer);
         c.SDL_DestroyWindow(window.sdlWindow);
         window.clippingRectangles.deinit();
@@ -311,6 +334,11 @@ pub const Window = struct {
     }
     pub fn present(window: *Window) void {
         c.SDL_RenderPresent(window.sdlRenderer);
+        if (window.cursor != window.previousCursor) {
+            window.previousCursor = window.cursor;
+            var cursor = window.allCursors[@enumToInt(window.cursor)];
+            c.SDL_SetCursor(cursor);
+        }
     }
     pub fn getSize(window: *Window) !WindowSize {
         var screenWidth: c_int = undefined;
