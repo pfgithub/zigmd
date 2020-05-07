@@ -94,13 +94,11 @@ const Class = struct {
         classesStruct: Class,
         comptime fmt: []const u8,
         options: std.fmt.FormatOptions,
-        context: var,
-        comptime Errors: type,
-        comptime output: fn (@TypeOf(context), []const u8) Errors!void,
-    ) Errors!void {
+        out_stream: var,
+    ) !void {
         inline for (@typeInfo(Class).Struct.fields) |field| {
             if (@field(classesStruct, field.name)) {
-                try std.fmt.format(context, Errors, output, ".{}", .{field.name});
+                try std.fmt.format(out_stream, ".{}", .{field.name});
             }
         }
     }
