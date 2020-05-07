@@ -91,6 +91,8 @@ pub const Button = struct {
                 result = true;
             }
         }
+        const hoveringAny = hover and (btn.clickStarted or result or !ev.click);
+        if (hoveringAny) window.cursor = .pointer;
 
         const center = pos.center();
 
@@ -98,7 +100,7 @@ pub const Button = struct {
         {
             try win.renderRect(
                 window,
-                if (hover and (btn.clickStarted or result or !ev.click))
+                if (hoveringAny)
                     if (settings.active)
                         win.Color.hex(0x385c55)
                     else
