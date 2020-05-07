@@ -126,7 +126,7 @@ pub const Node = struct {
                 @field(classesStruct, field.name) = true;
                 break;
             }
-        } else {
+        } else if (n.named()) {
             std.debug.warn("Unsupported class name: {s}\n", .{className});
         }
         if (n.parent()) |p| p.createClassesStructInternal(classesStruct);
@@ -141,6 +141,9 @@ pub const Node = struct {
     pub fn class(n: Node) []const u8 {
         return std.mem.span(c.ts_node_type(n.node));
     }
+    pub fn named(n: Node) bool {
+        return c.ts_node_is_named(n.node);
+    }
     pub fn printClasses(
         n: Node,
         res: *std.ArrayList(u8),
@@ -149,7 +152,12 @@ pub const Node = struct {
             try up.printClasses(res);
             try res.appendSlice(".");
         }
+        var isNamed = n.named();
+        if (!isNamed)
+            try res.appendSlice("<");
         try res.appendSlice(n.class());
+        if (!isNamed)
+            try res.appendSlice(">");
     }
     pub fn firstChild(n: Node) ?Node {
         const result = c.ts_node_parent(n.node);
@@ -165,18 +173,6 @@ pub const Node = struct {
         const result = c.ts_node_parent(n.node);
         if (c.ts_node_is_null(result)) return null;
         return Node.wrap(result);
-    }
-    pub fn format(
-        n: Node,
-        comptime fmt: []const u8,
-        options: std.fmt.FormatOptions,
-        context: var,
-        comptime Errors: type,
-        comptime output: fn (@TypeOf(context), []const u8) Errors!void,
-    ) Errors!void {
-        var str = c.ts_node_string(n.node);
-        defer c.free(str);
-        return std.fmt.format(context, Errors, output, "[{}] {s}", .{ n.position(), str });
     }
 };
 

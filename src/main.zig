@@ -989,21 +989,21 @@ pub fn main() !void {
 
             try window.clear();
             var windowSize = try window.getSize();
-            // var size: win.Rect = .{
-            //     .w = windowSize.w - 80,
-            //     .h = windowSize.h - 80,
-            //     .x = 40,
-            //     .y = 40,
-            // };
-            // try app.render(&window, event, size);
+            var size: win.Rect = .{
+                .w = windowSize.w - 80,
+                .h = windowSize.h - 80,
+                .x = 40,
+                .y = 40,
+            };
+            try app.render(&window, event, size);
 
-            try imedtr.render(
-                &updateMode, // should this update in the return value instead of updating the item directly?
-                &style.fonts.standard,
-                &window,
-                &imev,
-                .{ .w = windowSize.w - 80, .h = windowSize.h - 80, .x = 40, .y = 40 },
-            );
+            // try imedtr.render(
+            //     &updateMode, // should this update in the return value instead of updating the item directly?
+            //     &style.fonts.standard,
+            //     &window,
+            //     &imev,
+            //     .{ .w = windowSize.w - 80, .h = windowSize.h - 80, .x = 40, .y = 40 },
+            // );
 
             event = .{ .Empty = {} };
         }
