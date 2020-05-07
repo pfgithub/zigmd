@@ -1,5 +1,6 @@
 const std = @import("std");
 const win = @import("./rendering_abstraction.zig");
+const help = @import("./helpers.zig");
 
 pub const ImEvent = struct {
     const Internal = struct {
@@ -12,6 +13,11 @@ pub const ImEvent = struct {
     mouseDown: bool = false,
     mouseUp: bool = false,
     cursor: win.Point = win.Point{ .x = 0, .y = 0 },
+    keyDown: ?win.Key = null,
+    key: KeyArr = KeyArr.initDefault(false),
+    keyUp: ?win.Key = null,
+    textInput: ?*const win.Event.TextInputEvent = null,
+    const KeyArr = help.EnumArray(win.Key, bool);
 
     fn apply(imev: *ImEvent, ev: win.Event) void {
         // clear instantanious flags (mouseDown, mouseUp)
@@ -20,6 +26,9 @@ pub const ImEvent = struct {
         }
         imev.mouseUp = false;
         imev.internal.rerender = false;
+        imev.keyDown = null;
+        imev.keyUp = null;
+        imev.textInput = null;
 
         // apply event
         switch (ev) {
@@ -35,6 +44,17 @@ pub const ImEvent = struct {
                 imev.mouseUp = true;
                 imev.cursor = clk.pos;
                 imev.internal.click = false;
+            },
+            .KeyDown => |keyev| {
+                imev.keyDown = keyev.key;
+                _ = imev.key.set(keyev.key, true);
+            },
+            .KeyUp => |keyev| {
+                _ = imev.key.set(keyev.key, false);
+                imev.keyUp = keyev.key;
+            },
+            .TextInput => |*textin| {
+                imev.textInput = textin;
             },
             else => {},
         }

@@ -670,7 +670,7 @@ pub const App = struct {
         };
     }
 
-    fn render(app: *App, window: *win.Window, event: win.Event, pos: win.Rect) !void {
+    fn render(app: *App, window: *win.Window, imev: imgui.ImEvent, pos: win.Rect) !void {
         try app.textRenderCache.clean();
 
         const style = app.style;
@@ -680,73 +680,52 @@ pub const App = struct {
 
         var alloc = &arena.allocator;
 
-        switch (event) {
-            .KeyDown => |keyev| switch (keyev.key) {
-                .Left => {
-                    const action: Action = .{
-                        .moveCursorLR = .{
-                            .direction = .left,
-                            .stop = .byte,
-                        },
-                    };
-                    action.moveCursorLR.apply(app);
-                },
-                .Right => {
-                    const action: Action = .{
-                        .moveCursorLR = .{
-                            .direction = .right,
-                            .stop = .byte,
-                        },
-                    };
-                    action.moveCursorLR.apply(app);
-                },
-                .Backspace => {
-                    const action: Action = .{
-                        .delete = .{
-                            .direction = .left,
-                            .stop = .byte,
-                        },
-                    };
-                    action.delete.apply(app);
-                },
-                .Return => {
-                    const action: Action = .{
-                        .insert = .{
-                            .direction = .left,
-                            .mode = .raw,
-                            .text = "\n",
-                        },
-                    };
-                    action.insert.apply(app);
-                },
-                .Delete => {
-                    const action: Action = .{
-                        .delete = .{
-                            .direction = .right,
-                            .stop = .byte,
-                        },
-                    };
-                    action.delete.apply(app);
-                },
-                .Escape => {
-                    const action: Action = .{
-                        .save = .{},
-                    };
-                    action.save.apply(app);
-                },
-                else => {},
-            },
-            .TextInput => |textin| {
+        if (imev.keyDown) |kd| switch (kd) {
+            .Left => {
                 const action: Action = .{
-                    .insert = .{
-                        .direction = .left,
-                        .mode = .raw,
-                        .text = textin.text[0..textin.length],
-                    },
+                    .moveCursorLR = .{ .direction = .left, .stop = .byte },
+                };
+                action.moveCursorLR.apply(app);
+            },
+            .Right => {
+                const action: Action = .{
+                    .moveCursorLR = .{ .direction = .right, .stop = .byte },
+                };
+                action.moveCursorLR.apply(app);
+            },
+            .Backspace => {
+                const action: Action = .{
+                    .delete = .{ .direction = .left, .stop = .byte },
+                };
+                action.delete.apply(app);
+            },
+            .Return => {
+                const action: Action = .{
+                    .insert = .{ .direction = .left, .mode = .raw, .text = "\n" },
                 };
                 action.insert.apply(app);
             },
+            .Delete => {
+                const action: Action = .{
+                    .delete = .{ .direction = .right, .stop = .byte },
+                };
+                action.delete.apply(app);
+            },
+            .Escape => {
+                const action: Action = .{ .save = .{} };
+                action.save.apply(app);
+            },
             else => {},
+        };
+        if (imev.textInput) |textin| {
+            const action: Action = .{
+                .insert = .{
+                    .direction = .left,
+                    .mode = .raw,
+                    .text = textin.text[0..textin.length],
+                },
+            };
+            action.insert.apply(app);
         }
 
         app.tree.reparse(app.text.items);
@@ -756,19 +735,17 @@ pub const App = struct {
         try app.remeasureText(pos);
         const textInfo = app.textInfo.?;
 
-        switch (event) {
-            .MouseDown => |mouse| blk: {
-                if (!pos.containsPoint(mouse.pos))
-                    break :blk; // ignored,  out of area
-                for (textInfo.characterPositions.items) |cp| {
-                    if (mouse.pos.x - @intCast(i64, pos.x) > (cp.x + @divFloor((cp.w), 2)) and
-                        mouse.pos.y > cp.line.yTop + pos.y)
-                    {
-                        app.cursorLocation = cp.index + 1;
-                    } else {}
-                }
-            },
-            else => {},
+        if (imev.mouseDown) blk: {
+            const mpos = imev.cursor;
+            if (!pos.containsPoint(mpos))
+                break :blk; // ignored,  out of area
+            for (textInfo.characterPositions.items) |cp| {
+                if (mpos.x - @intCast(i64, pos.x) > (cp.x + @divFloor((cp.w), 2)) and
+                    mpos.y > cp.line.yTop + pos.y)
+                {
+                    app.cursorLocation = cp.index + 1;
+                } else {}
+            }
         }
 
         // ==== rendering ====
@@ -1007,7 +984,7 @@ pub fn main() !void {
 
             switch (displayMode) {
                 .editor => {
-                    try app.render(&window, event, size);
+                    try app.render(&window, imev, size);
                     if (size.containsPoint(imev.cursor)) window.cursor = .ibeam;
                 },
                 .imgui => {

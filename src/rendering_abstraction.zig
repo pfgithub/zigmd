@@ -1,5 +1,6 @@
 const c = @import("./c.zig");
 const std = @import("std");
+const help = @import("./helpers.zig");
 
 // usingnamespace c ?
 
@@ -135,6 +136,18 @@ pub const Key = enum(u64) {
     Unknown,
     S,
     Escape,
+    pub fn fromSDL(sdlKey: var) Key {
+        return switch (sdlKey) {
+            .SDL_SCANCODE_LEFT => .Left,
+            .SDL_SCANCODE_RIGHT => .Right,
+            .SDL_SCANCODE_BACKSPACE => .Backspace,
+            .SDL_SCANCODE_RETURN => .Return,
+            .SDL_SCANCODE_DELETE => .Delete,
+            .SDL_SCANCODE_S => .S,
+            .SDL_SCANCODE_ESCAPE => .Escape,
+            else => .Unknown,
+        };
+    }
 };
 
 pub const Event = union(enum) {
@@ -147,6 +160,7 @@ pub const Event = union(enum) {
         key: Key,
     };
     KeyDown: KeyEvent,
+    KeyUp: KeyEvent,
     pub const MouseEvent = struct {
         pos: Point,
     };
@@ -169,16 +183,12 @@ pub const Event = union(enum) {
             c.SDL_QUIT => Event{ .Quit = {} },
             c.SDL_KEYDOWN => Event{
                 .KeyDown = .{
-                    .key = switch (event.key.keysym.scancode) {
-                        .SDL_SCANCODE_LEFT => .Left,
-                        .SDL_SCANCODE_RIGHT => .Right,
-                        .SDL_SCANCODE_BACKSPACE => .Backspace,
-                        .SDL_SCANCODE_RETURN => .Return,
-                        .SDL_SCANCODE_DELETE => .Delete,
-                        .SDL_SCANCODE_S => .S,
-                        .SDL_SCANCODE_ESCAPE => .Escape,
-                        else => Key.Unknown,
-                    },
+                    .key = Key.fromSDL(event.key.keysym.scancode),
+                },
+            },
+            c.SDL_KEYUP => Event{
+                .KeyUp = .{
+                    .key = Key.fromSDL(event.key.keysym.scancode),
                 },
             },
             c.SDL_MOUSEBUTTONDOWN => Event{
@@ -249,7 +259,8 @@ pub const Window = struct {
     sdlRenderer: *c.SDL_Renderer,
     clippingRectangles: std.ArrayList(Rect),
     previousCursor: Cursor,
-    allCursors: [@typeInfo(Cursor).Enum.fields.len]*c.SDL_Cursor,
+    allCursors: AllCursors,
+    const AllCursors = help.EnumArray(Cursor, *c.SDL_Cursor);
 
     pub fn init(alloc: *std.mem.Allocator) !Window {
         var window = c.SDL_CreateWindow(
@@ -276,15 +287,15 @@ pub const Window = struct {
             .clippingRectangles = clippingRectangles,
             .cursor = .default,
             .previousCursor = .ibeam,
-            .allCursors = [_]*c.SDL_Cursor{
-                c.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_ARROW).?,
-                c.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_HAND).?,
-                c.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_IBEAM).?,
-            },
+            .allCursors = AllCursors.init(.{
+                .default = c.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_ARROW).?,
+                .pointer = c.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_HAND).?,
+                .ibeam = c.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_IBEAM).?,
+            }),
         };
     }
     pub fn deinit(window: *Window) void {
-        for (window.allCursors) |cursor| {
+        for (window.allCursors.data) |cursor| {
             c.SDL_FreeCursor(cursor);
             // why does this even exsit
         }
@@ -336,7 +347,7 @@ pub const Window = struct {
         c.SDL_RenderPresent(window.sdlRenderer);
         if (window.cursor != window.previousCursor) {
             window.previousCursor = window.cursor;
-            var cursor = window.allCursors[@enumToInt(window.cursor)];
+            var cursor = window.allCursors.get(window.cursor);
             c.SDL_SetCursor(cursor);
         }
     }
