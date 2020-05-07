@@ -971,6 +971,11 @@ pub fn main() !void {
         .three = .yes,
     };
 
+    const DisplayMode = enum { editor, imgui };
+    var displayMode: DisplayMode = .editor;
+    var displayedtr = imgui.DataEditor(DisplayMode).init();
+    defer displayedtr.deinit();
+
     var imev: imgui.ImEvent = .{};
 
     while (true) blk: {
@@ -986,8 +991,10 @@ pub fn main() !void {
         imev.rerender();
         while (imev.internal.rerender) {
             imev.apply(event);
+            window.cursor = .default;
 
             try window.clear();
+
             var windowSize = try window.getSize();
             var size: win.Rect = .{
                 .w = windowSize.w - 80,
@@ -995,18 +1002,24 @@ pub fn main() !void {
                 .x = 40,
                 .y = 40,
             };
-            try app.render(&window, event, size);
 
-            window.cursor = .default;
-            if (size.containsPoint(imev.cursor)) window.cursor = .ibeam;
+            try displayedtr.render(&displayMode, &style.fonts.standard, &window, &imev, .{ .w = windowSize.w - 80, .h = 30, .x = 40, .y = 5 });
 
-            // try imedtr.render(
-            //     &updateMode, // should this update in the return value instead of updating the item directly?
-            //     &style.fonts.standard,
-            //     &window,
-            //     &imev,
-            //     .{ .w = windowSize.w - 80, .h = windowSize.h - 80, .x = 40, .y = 40 },
-            // );
+            switch (displayMode) {
+                .editor => {
+                    try app.render(&window, event, size);
+                    if (size.containsPoint(imev.cursor)) window.cursor = .ibeam;
+                },
+                .imgui => {
+                    try imedtr.render(
+                        &updateMode, // should this update in the return value instead of updating the item directly?
+                        &style.fonts.standard,
+                        &window,
+                        &imev,
+                        .{ .w = windowSize.w - 80, .h = windowSize.h - 80, .x = 40, .y = 40 },
+                    );
+                },
+            }
 
             event = .{ .Empty = {} };
         }
