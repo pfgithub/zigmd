@@ -1,4 +1,5 @@
-const Builder = @import("std").build.Builder;
+const std = @import("std");
+const Builder = std.build.Builder;
 
 pub fn build(b: *Builder) void {
     const fmt = b.addFmt(&[_][]const u8{ "src", "build.zig" });
@@ -7,11 +8,28 @@ pub fn build(b: *Builder) void {
     const exe = b.addExecutable("zigmd", "src/main.zig");
     exe.setBuildMode(mode);
 
-    // sdl
     exe.linkLibC();
-    exe.linkSystemLibrary("SDL2");
-    exe.linkSystemLibrary("SDL2_ttf");
-    exe.linkSystemLibrary("fontconfig");
+
+    const choice = b.option([]const u8, "render", "renderer <sdl|raylib>") orelse {
+        std.debug.warn("Expected -Drender=<sdl|raylib>\n", .{});
+        return;
+    };
+    const renderer = std.meta.stringToEnum(enum { sdl, raylib }, choice) orelse {
+        std.debug.warn("Must be <sdl|raylib>, got <{}>.", .{choice});
+        return;
+    };
+
+    switch (renderer) {
+        .sdl => {
+            // sdl
+            exe.linkSystemLibrary("SDL2");
+            exe.linkSystemLibrary("SDL2_ttf");
+            exe.linkSystemLibrary("fontconfig");
+        },
+        .raylib => {
+            exe.linkSystemLibrary("raylib");
+        },
+    }
 
     // tree-sitter
     if (mode == .ReleaseFast) {
