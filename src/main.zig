@@ -919,13 +919,32 @@ pub fn main() !void {
     // if in foreground, loop pollevent
     // if in background, waitevent
 
+    const Substructure = struct {
+        four: Four,
+        eight: Eight,
+        pub const ModeData = struct {
+            four: imgui.DataEditor(Four),
+            eight: imgui.DataEditor(Eight),
+        };
+        const Four = enum { five, six, seven };
+        const Eight = enum { nine, ten, eleven };
+    };
     const UpdateMode = struct {
         pub const title_update = "Update Mode:";
         pub const title_another = "Another Option:";
         pub const title_three = "Three:";
+
         update: Update,
         another: Another,
         three: Three,
+        substructure: Substructure,
+        pub const ModeData = struct {
+            update: imgui.DataEditor(Update),
+            another: imgui.DataEditor(Another),
+            three: imgui.DataEditor(Three),
+            substructure: imgui.DataEditor(Substructure),
+        };
+
         const Update = enum {
             wait,
             poll,
@@ -934,11 +953,6 @@ pub fn main() !void {
         };
         const Another = enum { choice1, choice2, choice3 };
         const Three = enum { yes };
-        pub const ModeData = struct {
-            update: imgui.DataEditor(Update),
-            another: imgui.DataEditor(Another),
-            three: imgui.DataEditor(Three),
-        };
     };
     var imedtr = imgui.DataEditor(UpdateMode).init();
     defer imedtr.deinit();
@@ -946,6 +960,7 @@ pub fn main() !void {
         .update = .wait,
         .another = .choice1,
         .three = .yes,
+        .substructure = .{ .four = .five, .eight = .nine },
     };
 
     const DisplayMode = enum { editor, imgui };
