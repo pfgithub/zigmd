@@ -76,13 +76,89 @@ pub const ImEvent = struct {
     }
 };
 
+// caching text
+pub const Text = struct {
+    text: ?struct {
+        hash: u32, // std.hash.autoHash("text")
+        text: win.Text,
+        color: win.Color,
+        font: *win.Font,
+    } = null,
+    pub fn init() Text {
+        return .{};
+    }
+    pub fn deinit(txt: *Text) void {
+        if (txt.text) |*text| text.text.deinit();
+    }
+
+    pub fn render(
+        txt: *Text,
+        settings: struct {
+            text: []const u8,
+            font: *win.Font,
+            color: win.Color,
+        },
+        window: *win.Window,
+        ev: *ImEvent,
+        pos: win.Rect,
+    ) !void {
+        try window.pushClipRect(pos);
+        defer window.popClipRect();
+
+        var set = false;
+        if (txt.text != null and
+            std.meta.eql(txt.text.?.color, settings.color) and
+            txt.text.?.font == settings.font)
+        {
+            var text = &txt.text.?;
+            var hashed = std.hash_map.hashString(settings.text);
+            if (text.hash != hashed) {
+                text.text.deinit();
+                txt.text = .{
+                    .hash = hashed,
+                    .color = settings.color,
+                    .font = settings.font,
+                    .text = undefined,
+                };
+                set = true;
+            }
+        } else {
+            txt.text = .{
+                .hash = std.hash_map.hashString(settings.text),
+                .color = settings.color,
+                .font = settings.font,
+                .text = undefined,
+            };
+            set = true;
+        }
+        var text = &txt.text.?;
+        if (set) {
+            text.text = try win.Text.init(
+                settings.font,
+                settings.color,
+                settings.text,
+                null,
+                window,
+            );
+        }
+        const center = pos.center();
+        try text.text.render(window, .{
+            .x = center.x - @divFloor(text.text.size.w, 2),
+            .y = center.y - @divFloor(text.text.size.h, 2),
+        });
+    }
+};
+
 pub const Button = struct {
-    clickStarted: bool,
+    clickStarted: bool = false,
+    text: Text,
 
     pub fn init() Button {
-        return .{ .clickStarted = false };
+        return .{ .text = Text.init() };
     }
-    pub fn deinit(btn: *Button) void {}
+    pub fn deinit(btn: *Button) void {
+        btn.text.deinit();
+    }
 
     pub fn render(
         btn: *Button,
@@ -95,9 +171,6 @@ pub const Button = struct {
         ev: *ImEvent,
         pos: win.Rect,
     ) !bool {
-        try window.pushClipRect(pos);
-        defer window.popClipRect();
-
         var result: bool = false;
 
         if (ev.mouseDown and win.Rect.containsPoint(pos, ev.cursor)) {
@@ -130,7 +203,6 @@ pub const Button = struct {
             .w = buttonPos.w,
             .h = (pos.y + pos.h) - (buttonPos.y + buttonPos.h),
         };
-        const center = buttonPos.center();
 
         // render
         {
@@ -157,24 +229,15 @@ pub const Button = struct {
                 buttonPos,
             );
 
-            // in the future, the text and text size could be cached
-            // (that would require a deinit method to clear allocated text data)
-            var measure = try win.Text.measure(settings.font, settings.text);
-            var text = try win.Text.init(
-                settings.font,
-                win.Color.hex(0xFFFFFF),
-                settings.text,
-                measure,
-                window,
-            );
-            defer text.deinit();
-
-            try text.render(
-                window,
+            try btn.text.render(
                 .{
-                    .x = center.x - @divFloor(measure.w, 2),
-                    .y = center.y - @divFloor(measure.h, 2),
+                    .text = settings.text,
+                    .font = settings.font,
+                    .color = win.Color.hex(0xFFFFFF),
                 },
+                window,
+                ev,
+                buttonPos,
             );
         }
 
