@@ -161,6 +161,9 @@ pub const TopRect = struct {
     x: i64,
     y: i64,
     w: i64,
+    fn extendDown(rect: TopRect, h: i64) win.Rect {
+        return .{ .x = rect.x, .y = rect.y, .w = rect.w, .h = h };
+    }
 };
 pub const Height = struct {
     h: i64
@@ -170,6 +173,16 @@ const lineHeight = 25;
 const seperatorGap = 10;
 const connectedGap = 2;
 const indentWidth = 20;
+const textGap = 5;
+
+pub fn Part(comptime Type: type) type {
+    return struct {
+        pub const EditorType = DataEditor(Type);
+        editor: EditorType,
+        visible: bool,
+        toggleButton: Button,
+    };
+}
 
 fn StructEditor(comptime Struct: type) type {
     const typeInfo = @typeInfo(Struct).Struct;
@@ -182,7 +195,11 @@ fn StructEditor(comptime Struct: type) type {
         pub fn init() Editor {
             var data: DataStruct = undefined;
             inline for (@typeInfo(DataStruct).Struct.fields) |field| {
-                @field(data, field.name) = field.field_type.init();
+                @field(data, field.name) = .{
+                    .editor = field.field_type.EditorType.init(),
+                    .visible = true,
+                    .toggleButton = Button.init(),
+                };
             }
             return .{
                 .data = data,
@@ -190,7 +207,7 @@ fn StructEditor(comptime Struct: type) type {
         }
         pub fn deinit(editor: *Editor) void {
             inline for (@typeInfo(DataStruct).Struct.fields) |*field| {
-                @field(editor.data, field.name).deinit();
+                @field(editor.data, field.name).editor.deinit();
             }
         }
         pub fn render(
@@ -219,11 +236,18 @@ fn StructEditor(comptime Struct: type) type {
                 );
                 defer text.deinit();
 
-                const ItemType = @TypeOf(@field(editor.data, field.name));
-                var item = &@field(editor.data, field.name);
+                const ItemType = @TypeOf(@field(editor.data, field.name).editor);
+                var iteminfo = &@field(editor.data, field.name);
+                var item = &iteminfo.editor;
                 var fieldv = &@field(value, field.name);
 
                 if (ItemType.isInline) {
+                    const area: win.Rect = .{
+                        .x = pos.x,
+                        .y = currentHeight + pos.y,
+                        .w = pos.w,
+                        .h = lineHeight + gap,
+                    };
                     try text.render(
                         window,
                         .{
@@ -231,18 +255,38 @@ fn StructEditor(comptime Struct: type) type {
                             .y = currentHeight + pos.y + @divFloor(lineHeight, 2) - @divFloor(text.size.h, 2),
                         },
                     );
-                    currentHeight += lineHeight + gap;
-                    const rh = try item.render(fieldv, font, window, ev, .{
-                        .x = pos.x + indentWidth,
-                        .y = currentHeight + pos.y,
-                        .w = pos.w - indentWidth,
-                    });
-                    currentHeight += rh.h + gap;
+                    if (try iteminfo.toggleButton.render(
+                        .{
+                            .text = if (iteminfo.visible) "v" else ">",
+                            .font = font,
+                            .active = iteminfo.visible,
+                        },
+                        window,
+                        ev,
+                        .{
+                            .x = pos.x + text.size.w + textGap,
+                            .y = currentHeight + pos.y + @divFloor(lineHeight, 2) - @divFloor(20, 2),
+                            .w = 20,
+                            .h = 20,
+                        },
+                    )) {
+                        iteminfo.visible = !iteminfo.visible;
+                        ev.rerender();
+                    }
+                    currentHeight += area.h;
+                    if (iteminfo.visible) {
+                        const rh = try item.render(fieldv, font, window, ev, .{
+                            .x = pos.x + indentWidth,
+                            .y = currentHeight + pos.y,
+                            .w = pos.w - indentWidth,
+                        });
+                        currentHeight += rh.h + gap;
+                    }
                 } else {
                     const rh = try item.render(fieldv, font, window, ev, .{
-                        .x = pos.x + text.size.w + 5,
+                        .x = pos.x + text.size.w + textGap,
                         .y = currentHeight + pos.y,
-                        .w = pos.w - (text.size.w + 5),
+                        .w = pos.w - (text.size.w + textGap),
                     });
 
                     try text.render(

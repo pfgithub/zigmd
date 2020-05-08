@@ -923,8 +923,8 @@ pub fn main() !void {
         four: Four,
         eight: Eight,
         pub const ModeData = struct {
-            four: imgui.DataEditor(Four),
-            eight: imgui.DataEditor(Eight),
+            four: imgui.Part(Four),
+            eight: imgui.Part(Eight),
         };
         const Four = enum { five, six, seven };
         const Eight = enum { nine, ten, eleven };
@@ -939,10 +939,10 @@ pub fn main() !void {
         three: Three,
         substructure: Substructure,
         pub const ModeData = struct {
-            update: imgui.DataEditor(Update),
-            another: imgui.DataEditor(Another),
-            three: imgui.DataEditor(Three),
-            substructure: imgui.DataEditor(Substructure),
+            update: imgui.Part(Update),
+            another: imgui.Part(Another),
+            three: imgui.Part(Three),
+            substructure: imgui.Part(Substructure),
         };
 
         const Update = enum {
