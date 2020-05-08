@@ -972,11 +972,13 @@ pub fn main() !void {
         pub const title_three = "Three:";
 
         update: Update,
+        reportFPS: ReportFPS,
         another: Another,
         three: Three,
         substructure: Substructure,
         pub const ModeData = struct {
             update: imgui.Part(Update),
+            reportFPS: imgui.Part(ReportFPS),
             another: imgui.Part(Another),
             three: imgui.Part(Three),
             substructure: imgui.Part(Substructure),
@@ -988,6 +990,7 @@ pub fn main() !void {
             pub const title_wait = "Wait for Events";
             pub const title_poll = "Update Constantly";
         };
+        const ReportFPS = enum { no, yes };
         const Another = enum { choice1, choice2, choice3 };
         const Three = enum { yes };
     };
@@ -995,6 +998,7 @@ pub fn main() !void {
     defer imedtr.deinit();
     var updateMode: UpdateMode = .{
         .update = .wait,
+        .reportFPS = .no,
         .another = .choice1,
         .three = .yes,
         .substructure = .{ .four = .five, .eight = .nine },
@@ -1012,6 +1016,9 @@ pub fn main() !void {
 
     var imev: imgui.ImEvent = .{};
 
+    var timer = try std.time.Timer.start();
+    var frames: u64 = 0;
+
     while (true) blk: {
         var event = switch (updateMode.update) {
             .poll => try window.pollEvent(),
@@ -1028,6 +1035,18 @@ pub fn main() !void {
             window.cursor = .default;
 
             try window.clear(style.colors.window);
+
+            if (updateMode.reportFPS == .yes) {
+                frames += 1;
+                const time = timer.read();
+                if (time >= 1000000000) {
+                    std.debug.warn("FPS: {d}\n", .{@intToFloat(f32, frames) / (@intToFloat(f32, time) / 1000000000.0)});
+                    timer.reset();
+                    frames = 0;
+                }
+            } else {
+                frames = 0;
+            }
 
             var windowSize = try window.getSize();
 
