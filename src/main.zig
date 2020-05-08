@@ -844,14 +844,15 @@ pub const App = struct {
                 &cursor2,
             );
 
-            var classesText = std.ArrayList(u8).init(alloc);
-            try styleBeforeCursor.printClasses(&classesText);
+            // var classesText = std.ArrayList(u8).init(alloc);
+            // try styleBeforeCursor.printClasses(&classesText);
 
-            var resText = try std.fmt.allocPrint0(alloc, "Style: {}, Classes: {s}, CharPos: {}", .{
+            var resText = try std.fmt.allocPrint0(alloc, "Style: {}, Classes: {}, CharPos: {}", .{
                 styleBeforeCursor.createClassesStruct(charIndex).renderStyle(),
-                classesText.items,
+                styleBeforeCursor.createClassesStruct(charIndex),
                 app.findCharacterPosition(charIndex),
             });
+            defer alloc.free(resText);
 
             var text = try win.Text.init(
                 &style.fonts.standard,
@@ -860,6 +861,7 @@ pub const App = struct {
                 null,
                 window,
             );
+            defer text.deinit();
             try text.render(window, .{
                 .x = pos.x + pos.w - text.size.w,
                 .y = pos.y + pos.h - text.size.h,
