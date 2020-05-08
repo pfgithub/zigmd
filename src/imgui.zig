@@ -113,11 +113,13 @@ pub const Button = struct {
         }
         const hoveringAny = hover and (btn.clickStarted or result or !ev.click);
         if (hoveringAny) window.cursor = .pointer;
+        const bumpy = !btn.clickStarted;
 
         const center = pos.center();
 
         // render
         {
+            const bo: i64 = if (bumpy) 0 else 4;
             try win.renderRect(
                 window,
                 if (hoveringAny)
@@ -129,8 +131,27 @@ pub const Button = struct {
                     win.Color.hex(0x2c4a44)
                 else
                     win.Color.hex(0x3f4757),
-                pos,
+                .{
+                    .x = pos.x,
+                    .y = pos.y + bo,
+                    .w = pos.w,
+                    .h = pos.h - 4,
+                },
             );
+            if (bumpy)
+                try win.renderRect(
+                    window,
+                    if (settings.active)
+                        win.Color.hex(0x192e2a)
+                    else
+                        win.Color.hex(0x1c2029),
+                    .{
+                        .x = pos.x,
+                        .y = pos.y + pos.h - 4,
+                        .w = pos.w,
+                        .h = 4,
+                    },
+                );
 
             // in the future, the text and text size could be cached
             // (that would require a deinit method to clear allocated text data)
@@ -144,11 +165,12 @@ pub const Button = struct {
             );
             defer text.deinit();
 
+            const q: i64 = if (bumpy) 2 else -2;
             try text.render(
                 window,
                 .{
                     .x = center.x - @divFloor(measure.w, 2),
-                    .y = center.y - @divFloor(measure.h, 2),
+                    .y = center.y - @divFloor(measure.h, 2) - q,
                 },
             );
         }
