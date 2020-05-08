@@ -431,6 +431,7 @@ pub fn Cache(comptime Key: type, comptime Value: type) type {
 
         pub fn clean(cache: *ThisCache) !void {
             var toRemove = std.ArrayList(Key).init(cache.alloc);
+            defer toRemove.deinit();
 
             var it = cache.hashmap.iterator();
             while (it.next()) |next| {
@@ -511,6 +512,7 @@ pub const App = struct {
 
         var textList = try std.ArrayList(u8).initCapacity(alloc, file.len);
         textList.appendSlice(file) catch unreachable;
+        errdefer textList.deinit();
 
         var textRenderCache = TextRenderCache.init(alloc);
         errdefer textRenderCache.deinit();
@@ -536,8 +538,10 @@ pub const App = struct {
         };
     }
     fn deinit(app: *App) void {
+        if (app.textInfo) |*ti| ti.deinit();
         app.text.deinit();
         app.textRenderCache.deinit();
+        app.tree.deinit();
     }
     fn saveFile(app: *App) void {
         std.debug.warn("Save {}...", .{app.filename});
@@ -918,6 +922,7 @@ pub fn main() !void {
     };
 
     var appV = try App.init(alloc, &style, "tests/b.md");
+    defer appV.deinit();
     var app = &appV;
 
     defer stdout.print("Quitting!\n", .{}) catch unreachable;
