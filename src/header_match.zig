@@ -15,7 +15,7 @@ pub fn implements(
 
     const namedContext: []const u8 = context ++ ": " ++ @tagName(headerTag);
     switch (header) {
-        .Struct => structImplements(Implementation, Header, namedContext),
+        .Struct => structImplements(Header, Implementation, namedContext),
         .Int, .Float => {
             if (Header != Implementation) {
                 @compileError(namedContext ++ " >: Types differ. Expected: " ++ @typeName(Header) ++ ", Got: " ++ @typeName(Implementation) ++ ".");
@@ -55,6 +55,13 @@ pub fn structImplements(
     }
     for (header.fields) |field| {
         // ensure implementation has field
+        if (!@hasField(Implementation, field.name))
+            @compileError(context ++ " >: Implementation is missing field `" ++ field.name ++ "`");
+        for (implementation.fields) |implfld| {
+            if (!std.meta.eql(field.name, implfld.name)) continue;
+
+            implements(field.field_type, implfld.field_type, context ++ " > " ++ field.name);
+        }
     }
 }
 
@@ -88,5 +95,45 @@ test "pass" {
         pub const A = u64;
     }, struct {
         pub const A = u64;
+    }, "base");
+}
+
+test "fail" {
+    comptime implements(struct {
+        pub const A = u64;
+        a: A,
+        b: u32,
+        c: u32,
+    }, struct {
+        pub const A = u64;
+        a: A,
+        b: u32,
+        private_member: f64,
+    }, "base");
+}
+
+test "fail" {
+    comptime implements(struct {
+        pub const A = u64;
+        a: A,
+        b: u64,
+    }, struct {
+        pub const A = u64;
+        a: A,
+        b: u32,
+        private_member: f64,
+    }, "base");
+}
+
+test "pass" {
+    comptime implements(struct {
+        pub const A = u64;
+        a: A,
+        b: u32,
+    }, struct {
+        pub const A = u64;
+        a: A,
+        b: u32,
+        private_member: f64,
     }, "base");
 }
