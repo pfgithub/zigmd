@@ -670,8 +670,15 @@ pub const App = struct {
         };
     }
 
-    fn render(app: *App, window: *win.Window, imev: imgui.ImEvent, pos: win.Rect) !void {
+    fn render(app: *App, window: *win.Window, imev: imgui.ImEvent, fullArea: win.Rect) !void {
         try app.textRenderCache.clean();
+
+        const pos: win.Rect = .{
+            .x = fullArea.x + 20,
+            .y = fullArea.y + 10,
+            .w = fullArea.w - 40,
+            .h = fullArea.h - 20,
+        };
 
         const style = app.style;
 
@@ -737,23 +744,24 @@ pub const App = struct {
 
         if (imev.mouseDown) blk: {
             const mpos = imev.cursor;
-            if (!pos.containsPoint(mpos))
+            if (!fullArea.containsPoint(mpos))
                 break :blk; // ignored,  out of area
             for (textInfo.characterPositions.items) |cp| {
-                if (mpos.x - @intCast(i64, pos.x) > (cp.x + @divFloor((cp.w), 2)) and
-                    mpos.y > cp.line.yTop + pos.y)
-                {
+                if ((mpos.x - @intCast(i64, pos.x) > (cp.x + @divFloor((cp.w), 2)) and
+                    mpos.y > cp.line.yTop + pos.y) or
+                    mpos.y > (cp.line.yTop + cp.line.height) + pos.y)
                     app.cursorLocation = cp.index + 1;
-                } else {}
             }
         }
 
         // ==== rendering ====
 
-        try window.pushClipRect(pos);
+        if (fullArea.containsPoint(imev.cursor)) window.cursor = .ibeam;
+
+        try window.pushClipRect(fullArea);
         defer window.popClipRect();
 
-        try win.renderRect(window, style.colors.background, pos);
+        try win.renderRect(window, style.colors.background, fullArea);
 
         for (textInfo.lines.items) |line| blk: {
             for (line.drawCalls.items) |drawCall| {
@@ -779,9 +787,9 @@ pub const App = struct {
                 window,
                 app.style.colors.linebg,
                 .{
-                    .x = pos.x,
+                    .x = fullArea.x,
                     .y = cursorPosition.line.yTop + pos.y,
-                    .w = pos.w,
+                    .w = fullArea.w,
                     .h = cursorPosition.line.height,
                 },
             );
@@ -1001,7 +1009,6 @@ pub fn main() !void {
             switch (displayMode) {
                 .editor => {
                     try app.render(&window, imev, size);
-                    if (size.containsPoint(imev.cursor)) window.cursor = .ibeam;
                 },
                 .imgui => {
                     _ = try imedtr.render(
