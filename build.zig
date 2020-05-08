@@ -28,6 +28,8 @@ pub fn build(b: *Builder) void {
         },
         .raylib => {
             exe.linkSystemLibrary("raylib");
+            exe.addIncludeDir("src/renderers/raylib");
+            exe.addCSourceFile("src/renderers/raylib/abi_workaround.c", &[_][]const u8{});
         },
     }
 
