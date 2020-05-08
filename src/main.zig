@@ -1003,10 +1003,10 @@ pub fn main() !void {
 
             var windowSize = try window.getSize();
 
-            var yTop: i64 = 10;
+            var yTop: i64 = 0;
 
-            var displayModeOffset = try displayedtr.render(&displayMode, &style.fonts.standard, &window, &imev, .{ .w = windowSize.w - 20, .x = 10, .y = yTop });
-            yTop += displayModeOffset.h + imgui.seperatorGap;
+            var displayModeOffset = try displayedtr.render(&displayMode, &style.fonts.standard, &window, &imev, .{ .w = windowSize.w, .x = 0, .y = yTop });
+            yTop += displayModeOffset.h;
 
             var size: win.Rect = .{
                 .x = 0,
@@ -1027,7 +1027,7 @@ pub fn main() !void {
                         &imev,
                         .{
                             .x = 40,
-                            .y = yTop,
+                            .y = yTop + imgui.seperatorGap,
                             .w = windowSize.w - 80,
                         },
                     );
