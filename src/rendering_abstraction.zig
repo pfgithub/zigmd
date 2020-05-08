@@ -318,7 +318,8 @@ pub const Window = struct {
             return sdlError();
     }
     pub fn popClipRect(window: *Window) void {
-        // hopefully this can't fail
+        _ = window.clippingRectangles.pop();
+
         _ = if (window.clippingRectangles.items.len >= 1)
             c.SDL_RenderSetClipRect(
                 window.sdlRenderer,

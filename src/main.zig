@@ -973,14 +973,15 @@ pub fn main() !void {
             try window.clear();
 
             var windowSize = try window.getSize();
+
+            var displayModeOffset = try displayedtr.render(&displayMode, &style.fonts.standard, &window, &imev, .{ .w = windowSize.w - 80, .x = 40, .y = 10 });
+
             var size: win.Rect = .{
                 .w = windowSize.w - 80,
                 .h = windowSize.h - 80,
                 .x = 40,
-                .y = 40,
+                .y = 10 + displayModeOffset.h + 10,
             };
-
-            try displayedtr.render(&displayMode, &style.fonts.standard, &window, &imev, .{ .w = windowSize.w - 80, .h = 30, .x = 40, .y = 5 });
 
             switch (displayMode) {
                 .editor => {
@@ -988,12 +989,17 @@ pub fn main() !void {
                     if (size.containsPoint(imev.cursor)) window.cursor = .ibeam;
                 },
                 .imgui => {
-                    try imedtr.render(
+                    _ = try imedtr.render(
                         &updateMode, // should this update in the return value instead of updating the item directly?
                         &style.fonts.standard,
                         &window,
                         &imev,
-                        .{ .w = windowSize.w - 80, .h = windowSize.h - 80, .x = 40, .y = 40 },
+                        .{
+                            .w = windowSize.w - 80,
+                            // .h = windowSize.h - 80, this is for the scroll container not the imedtr
+                            .x = 40,
+                            .y = 10 + displayModeOffset.h + 10,
+                        },
                     );
                 },
             }

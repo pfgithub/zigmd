@@ -157,9 +157,19 @@ pub const Button = struct {
     }
 };
 
+pub const TopRect = struct {
+    x: i64,
+    y: i64,
+    w: i64,
+};
+pub const Height = struct {
+    h: i64
+};
+
 fn StructEditor(comptime Struct: type) type {
     const typeInfo = @typeInfo(Struct).Struct;
     const DataStruct = Struct.ModeData;
+
     return struct {
         const Editor = @This();
         data: DataStruct,
@@ -183,25 +193,19 @@ fn StructEditor(comptime Struct: type) type {
             font: *win.Font,
             window: *win.Window,
             ev: *ImEvent,
-            pos: win.Rect,
-        ) !void {
-            try window.pushClipRect(pos);
-            defer window.popClipRect();
-
+            pos: TopRect,
+        ) !Height {
             const gap = 10;
 
             const lenInt = @intCast(i64, typeInfo.fields.len);
-            const itemHeight = @divFloor(pos.h - gap * (lenInt - 1), lenInt);
+            var currentHeight: i64 = 0;
 
             inline for (typeInfo.fields) |field, i| {
-                var lpos: win.Rect = .{
+                var lpos: TopRect = .{
                     .x = pos.x,
-                    .y = (itemHeight + gap) * @intCast(i64, i) + pos.y,
+                    .y = currentHeight + pos.y,
                     .w = pos.w,
-                    .h = itemHeight,
                 };
-                try window.pushClipRect(lpos);
-                defer window.popClipRect();
                 var text = try win.Text.init(
                     font,
                     win.Color.hex(0xFFFFFF),
@@ -214,21 +218,24 @@ fn StructEditor(comptime Struct: type) type {
                 );
                 defer text.deinit();
 
+                const rh = try @field(editor.data, field.name).render(&@field(value, field.name), font, window, ev, .{
+                    .x = lpos.x + text.size.w + 5,
+                    .y = lpos.y,
+                    .w = lpos.w - (text.size.w + 5),
+                });
+
                 try text.render(
                     window,
                     .{
                         .x = lpos.x,
-                        .y = lpos.y + @divFloor(lpos.h, 2) - @divFloor(text.size.h, 2),
+                        .y = lpos.y + @divFloor(rh.h, 2) - @divFloor(text.size.h, 2),
                     },
                 );
 
-                try @field(editor.data, field.name).render(&@field(value, field.name), font, window, ev, .{
-                    .x = lpos.x + text.size.w + 5,
-                    .y = lpos.y,
-                    .w = lpos.w - (text.size.w + 5),
-                    .h = lpos.h,
-                });
+                currentHeight += rh.h + gap;
             }
+
+            return Height{ .h = currentHeight - gap };
         }
     };
 }
@@ -261,13 +268,10 @@ fn EnumEditor(comptime Enum: type) type {
             font: *win.Font,
             window: *win.Window,
             ev: *ImEvent,
-            pos: win.Rect,
-        ) !void {
-            try window.pushClipRect(pos);
-            defer window.popClipRect();
-            // draw each button
-
+            pos: TopRect,
+        ) !Height {
             const gap = 2;
+            const height = 25;
 
             const lenInt = @intCast(i64, typeInfo.fields.len);
             const choiceWidth = @divFloor(
@@ -293,7 +297,7 @@ fn EnumEditor(comptime Enum: type) type {
                         .x = choiceHOffset + pos.x,
                         .y = pos.y,
                         .w = choiceWidth,
-                        .h = pos.h,
+                        .h = height,
                     },
                 );
                 if (clicked) {
@@ -301,6 +305,8 @@ fn EnumEditor(comptime Enum: type) type {
                     ev.rerender();
                 }
             }
+
+            return Height{ .h = height };
         }
     };
 }
