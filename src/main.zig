@@ -569,6 +569,7 @@ pub const App = struct {
         return finalPos;
     }
 
+    // this should probably accept the starting location as an argument
     fn findStop(app: *App, stop: CharacterStop, direction: Direction) usize {
         return switch (stop) {
             .byte => switch (direction) {
@@ -585,6 +586,28 @@ pub const App = struct {
                     } else {
                         break :blk app.text.items.len;
                     }
+                },
+            },
+            .codepoint => switch (direction) {
+                .left => blk: {
+                    var i = app.cursorLocation;
+                    while (i > 0) {
+                        i -= 1;
+                        var char = app.text.items[i];
+                        if (char <= 0b01111111) break;
+                        if (char & 0b01000000 != 0) break;
+                    }
+                    break :blk i;
+                },
+                .right => blk: {
+                    var i = app.cursorLocation;
+                    while (i < app.text.items.len - 1) {
+                        i += 1;
+                        var char = app.text.items[i];
+                        if (char <= 0b01111111) break;
+                        if (char & 0b01000000 != 0) break;
+                    }
+                    break :blk i;
                 },
             },
             else => {
@@ -695,19 +718,19 @@ pub const App = struct {
         if (imev.keyDown) |kd| switch (kd) {
             .Left => {
                 const action: Action = .{
-                    .moveCursorLR = .{ .direction = .left, .stop = .byte },
+                    .moveCursorLR = .{ .direction = .left, .stop = .codepoint },
                 };
                 action.moveCursorLR.apply(app);
             },
             .Right => {
                 const action: Action = .{
-                    .moveCursorLR = .{ .direction = .right, .stop = .byte },
+                    .moveCursorLR = .{ .direction = .right, .stop = .codepoint },
                 };
                 action.moveCursorLR.apply(app);
             },
             .Backspace => {
                 const action: Action = .{
-                    .delete = .{ .direction = .left, .stop = .byte },
+                    .delete = .{ .direction = .left, .stop = .codepoint },
                 };
                 action.delete.apply(app);
             },
@@ -719,7 +742,7 @@ pub const App = struct {
             },
             .Delete => {
                 const action: Action = .{
-                    .delete = .{ .direction = .right, .stop = .byte },
+                    .delete = .{ .direction = .right, .stop = .codepoint },
                 };
                 action.delete.apply(app);
             },

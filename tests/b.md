@@ -7,7 +7,7 @@
     line three
     nice
 
-\escape \\escape \* \"
+\escape \\escape \* \" some full codepoints: (æ)(™) >æ<
 
 **bold text \[wi\*these should be bold\)th escape\*\"**
 
