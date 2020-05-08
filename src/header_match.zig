@@ -5,54 +5,54 @@ pub fn implements(
     comptime Header: type,
     comptime context: []const u8,
 ) void {
-    comptime {
-        if (Header == Implementation) return;
+    const header = @typeInfo(Header);
+    const implementation = @typeInfo(Implementation);
 
-        const header = @typeInfo(Header);
-        const implementation = @typeInfo(Implementation);
+    const headerTag = @as(@TagType(@TypeOf(header)), header);
+    const implementationTag = @as(@TagType(@TypeOf(implementation)), implementation);
+    if (headerTag != implementationTag)
+        @compileError(context ++ " >: Implementation has incorrect type (expected " ++ @tagName(headerTag) ++ ", got " ++ @tagName(implementationTag) ++ ")");
 
-        if (std.meta.activeTag(header) != std.meta.activeTag(implementation))
-            @compileError(context ++ ": Implementation has incorrect type (expected" ++ @tagName(std.meta.activeTag(header)) ++ ", got " ++ @tagName(std.meta.activeTag(implementation)) ++ ")");
-
-        switch (header) {
-            .Struct => structImplements(header.Struct, implementation.Struct, context ++ " = struct"),
-            else => @compileError(context ++ "Not supported yet: " ++ @tagName(std.meta.activeTag(header))),
-        }
+    const namedContext = context ++ ": " ++ @tagName(headerTag);
+    switch (header) {
+        .Struct => structImplements(Implementation, Header, namedContext),
+        else => @compileError(context ++ " >: Not supported yet: " ++ @tagName(headerTag)),
     }
 }
 
 pub fn structImplements(
-    comptime implementation: std.builtin.TypeInfo.Struct,
-    comptime header: std.builtin.TypeInfo.Struct,
+    comptime Implementation: type,
+    comptime Header: type,
     comptime context: []const u8,
 ) void {
-    comptime {
-        for (header.decls) |decl| {
-            if (!decl.is_pub) continue;
+    const header = @typeInfo(Header).Struct;
+    const implementation = @typeInfo(Implementation).Struct;
 
-            // ensure implementation has decl
-            if (!@hasDecl(Implementation, decl.name))
-                @compileError(context ++ ": Implementation is missing declaration `" + decl.name + "`");
+    for (header.decls) |decl| {
+        if (!decl.is_pub) continue;
 
-            switch (header.Data) {
-                .Type => implements(
-                    @field(Implementation, decl.name),
-                    header.Data.Type,
-                    context ++ " > decl " ++ decl.name,
-                ),
-                else => @compileError(context ++ "Not supported yet: " ++ @tagName(std.meta.activeTag(header.Data))),
-            }
+        // ensure implementation has decl
+        if (!@hasDecl(Implementation, decl.name))
+            @compileError(context ++ " >: Implementation is missing declaration `" + decl.name + "`");
+
+        switch (decl.data) {
+            .Type => |typ| implements(
+                @field(Implementation, decl.name),
+                typ,
+                context ++ " > decl " ++ decl.name,
+            ),
+            else => |v| @compileError(context ++ " >: Not supported yet: " ++ @tagName(@TagType(@as(@TypeOf(v), v)))),
         }
-        for (header.fields) |field| {
-            // ensure implementation has field
-        }
+    }
+    for (header.fields) |field| {
+        // ensure implementation has field
     }
 }
 
 test "" {
-    implements(struct {
+    comptime implements(struct {
         pub const A = u64;
     }, struct {
         pub const A = u32;
-    }, "Test > ");
+    }, "base");
 }
