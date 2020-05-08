@@ -13,9 +13,14 @@ pub fn implements(
     if (headerTag != implementationTag)
         @compileError(context ++ " >: Implementation has incorrect type (expected " ++ @tagName(headerTag) ++ ", got " ++ @tagName(implementationTag) ++ ")");
 
-    const namedContext = context ++ ": " ++ @tagName(headerTag);
+    const namedContext: []const u8 = context ++ ": " ++ @tagName(headerTag);
     switch (header) {
         .Struct => structImplements(Implementation, Header, namedContext),
+        .Int, .Float => {
+            if (Header != Implementation) {
+                @compileError(namedContext ++ " >: Types differ. Expected: " ++ @typeName(Header) ++ ", Got: " ++ @typeName(Implementation) ++ ".");
+            }
+        },
         else => @compileError(context ++ " >: Not supported yet: " ++ @tagName(headerTag)),
     }
 }
@@ -49,10 +54,18 @@ pub fn structImplements(
     }
 }
 
-test "" {
+test "fail" {
     comptime implements(struct {
         pub const A = u64;
     }, struct {
         pub const A = u32;
+    }, "base");
+}
+
+test "pass" {
+    comptime implements(struct {
+        pub const A = u64;
+    }, struct {
+        pub const A = u64;
     }, "base");
 }
