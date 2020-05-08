@@ -196,7 +196,7 @@ pub const Height = struct {
 
 const lineHeight = 25;
 const seperatorGap = 10;
-const connectedGap = 2;
+const connectedGap = 1;
 const indentWidth = 20;
 const textGap = 5;
 
