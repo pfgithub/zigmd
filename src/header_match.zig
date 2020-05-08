@@ -36,17 +36,37 @@ pub fn structImplements(
     for (header.decls) |decl| {
         if (!decl.is_pub) continue;
 
+        const namedContext = context ++ " > decl " ++ decl.name;
+
         // ensure implementation has decl
         if (!@hasDecl(Implementation, decl.name))
-            @compileError(context ++ " >: Implementation is missing declaration `pub " ++ decl.name ++ "`");
+            @compileError(namedContext ++ " >: Implementation is missing declaration.");
+
+        // using for as a find with break and else doesn't seem to be working at comptime, so this works as an alternative
+        const impldecl = blk: {
+            for (implementation.decls) |idecl, i| {
+                if (std.mem.eql(u8, decl.name, idecl.name))
+                    break :blk idecl;
+            }
+            @compileError(namedContext ++ " >: Implementation is missing declaration.");
+        };
+
+        if (!impldecl.is_pub) @compileError(namedContext ++ " >: Implementation declaration is private.");
+
+        const headerDataType = @as(@TagType(@TypeOf(decl.data)), decl.data);
+        const implDataType = @as(@TagType(@TypeOf(impldecl.data)), impldecl.data);
+
+        if (headerDataType != implDataType)
+            @compileError(namedContext ++ " >: DataTypes differ. Expected: " ++ @tagName(headerDataType) ++ ", got " ++ @tagName(implDataType));
 
         switch (decl.data) {
             .Type => |typ| implements(
                 typ,
                 @field(Implementation, decl.name),
-                context ++ " > decl " ++ decl.name,
+                namedContext,
             ),
-            else => |v| @compileError(context ++ " >: Not supported yet: " ++ @tagName(@as(@TagType(@TypeOf(v)), v))),
+            // .Fn => |fndecl| {},
+            else => |v| @compileError(namedContext ++ " >: Not supported yet: " ++ @tagName(headerDataType)),
         }
     }
     for (implementation.decls) |decl| {
