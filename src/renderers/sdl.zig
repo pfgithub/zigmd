@@ -3,6 +3,14 @@ const std = @import("std");
 const help = @import("../helpers.zig");
 pub usingnamespace @import("./common.zig");
 
+test "implements header" {
+    comptime {
+        const match = @import("../header_match.zig");
+        const header = @import("../header.zig");
+        match.implements(header, win, "sdl");
+    }
+}
+
 const RenderingError = error{
     SDLError,
     TTFError,
