@@ -42,8 +42,8 @@ pub fn structImplements(
 
         switch (decl.data) {
             .Type => |typ| implements(
-                @field(Implementation, decl.name),
                 typ,
+                @field(Implementation, decl.name),
                 context ++ " > decl " ++ decl.name,
             ),
             else => |v| @compileError(context ++ " >: Not supported yet: " ++ @tagName(@TagType(@as(@TypeOf(v), v)))),
@@ -135,5 +135,19 @@ test "pass" {
         a: A,
         b: u32,
         private_member: f64,
+    }, "base");
+}
+
+test "pass" {
+    comptime implements(struct {
+        pub const Struct = struct { typ: u64 };
+        pub fn a(arg: Struct) Struct {
+            return undefined;
+        }
+    }, struct {
+        pub const Struct = struct { typ: u64, extra_private: u64 };
+        pub fn a(arg: Struct) Struct {
+            return undefined;
+        }
     }, "base");
 }
