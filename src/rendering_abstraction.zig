@@ -340,8 +340,8 @@ pub const Window = struct {
         return Event.fromSDL(event);
     }
 
-    pub fn clear(window: *Window) !void {
-        if (c.SDL_SetRenderDrawColor(window.sdlRenderer, 0, 0, 0, 0) != 0) return sdlError();
+    pub fn clear(window: *Window, color: Color) !void {
+        if (c.SDL_SetRenderDrawColor(window.sdlRenderer, color.r, color.g, color.b, color.a) != 0) return sdlError();
         if (c.SDL_RenderClear(window.sdlRenderer) < 0) return sdlError();
     }
     pub fn present(window: *Window) void {

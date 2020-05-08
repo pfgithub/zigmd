@@ -16,6 +16,7 @@ pub const Style = struct {
 
         // backgrounds
         background: win.Color,
+        window: win.Color,
         codeBackground: win.Color,
         linebg: win.Color,
 
@@ -905,6 +906,7 @@ pub fn main() !void {
             .inlineCode = win.Color.hex(0x8fbcbb),
 
             .background = win.Color.hex(0x2e3440),
+            .window = win.Color.hex(0x11141a),
             .codeBackground = win.Color.hex(0x21252f),
             .linebg = win.Color.hex(0x3f4757),
 
@@ -997,17 +999,20 @@ pub fn main() !void {
             imev.apply(event);
             window.cursor = .default;
 
-            try window.clear();
+            try window.clear(style.colors.window);
 
             var windowSize = try window.getSize();
 
-            var displayModeOffset = try displayedtr.render(&displayMode, &style.fonts.standard, &window, &imev, .{ .w = windowSize.w - 20, .x = 10, .y = 10 });
+            var yTop: i64 = 10;
+
+            var displayModeOffset = try displayedtr.render(&displayMode, &style.fonts.standard, &window, &imev, .{ .w = windowSize.w - 20, .x = 10, .y = yTop });
+            yTop += displayModeOffset.h + imgui.seperatorGap;
 
             var size: win.Rect = .{
-                .w = windowSize.w - 20,
-                .h = windowSize.h - displayModeOffset.h - 30,
-                .x = 10,
-                .y = 10 + displayModeOffset.h + 10,
+                .x = 0,
+                .y = yTop,
+                .w = windowSize.w,
+                .h = windowSize.h - yTop,
             };
 
             switch (displayMode) {
@@ -1021,10 +1026,9 @@ pub fn main() !void {
                         &window,
                         &imev,
                         .{
-                            .w = windowSize.w - 80,
-                            // .h = windowSize.h - 80, this is for the scroll container not the imedtr
                             .x = 40,
-                            .y = 10 + displayModeOffset.h + 10,
+                            .y = yTop,
+                            .w = windowSize.w - 80,
                         },
                     );
                 },

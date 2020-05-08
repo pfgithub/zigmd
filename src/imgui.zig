@@ -194,11 +194,11 @@ pub const Height = struct {
     h: i64
 };
 
-const lineHeight = 25;
-const seperatorGap = 10;
-const connectedGap = 1;
-const indentWidth = 20;
-const textGap = 5;
+pub const lineHeight = 25;
+pub const seperatorGap = 10;
+pub const connectedGap = 1;
+pub const indentWidth = 20;
+pub const textGap = 5;
 
 pub fn Part(comptime Type: type) type {
     return struct {
