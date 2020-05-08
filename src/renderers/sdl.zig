@@ -327,7 +327,7 @@ pub const Text = struct {
     }
 };
 
-pub fn rectToSDL(rect: Rect) c.SDL_Rect {
+fn rectToSDL(rect: Rect) c.SDL_Rect {
     return c.SDL_Rect{
         .x = @intCast(c_int, rect.x),
         .y = @intCast(c_int, rect.y),
