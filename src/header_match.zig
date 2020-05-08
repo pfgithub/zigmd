@@ -21,8 +21,20 @@ pub fn implements(
                 @compileError(namedContext ++ " >: Types differ. Expected: " ++ @typeName(Header) ++ ", Got: " ++ @typeName(Implementation) ++ ".");
             }
         },
+        .Fn => fnImplements(Header, Implementation, namedContext),
         else => @compileError(context ++ " >: Not supported yet: " ++ @tagName(headerTag)),
     }
+}
+
+pub fn fnImplements(
+    comptime Header: type,
+    comptime Implementation: type,
+    comptime context: []const u8,
+) void {
+    const header = @typeInfo(Header).Fn;
+    const impl = @typeInfo(Implementation).Fn;
+
+    implements(header.return_type.?, impl.return_type.?, context ++ " > return");
 }
 
 pub fn structImplements(
@@ -65,7 +77,10 @@ pub fn structImplements(
                 @field(Implementation, decl.name),
                 namedContext,
             ),
-            // .Fn => |fndecl| {},
+            .Fn => |fndecl| {
+                const fnimpl = impldecl.data.Fn;
+                implements(fndecl.fn_type, fnimpl.fn_type, namedContext);
+            },
             else => |v| @compileError(namedContext ++ " >: Not supported yet: " ++ @tagName(headerDataType)),
         }
     }
@@ -158,6 +173,20 @@ test "pass" {
     }, "base");
 }
 
+test "fail" {
+    comptime implements(struct {
+        pub const Struct = struct { typ: u64 };
+        pub fn a(arg: Struct) Struct {
+            return undefined;
+        }
+    }, struct {
+        pub const Struct = struct { typ: u64, extra_private: u64 };
+        pub fn a(arg: Struct) struct { a: u64 } {
+            return undefined;
+        }
+    }, "base");
+}
+
 test "pass" {
     comptime implements(struct {
         pub const Struct = struct { typ: u64 };
@@ -171,3 +200,5 @@ test "pass" {
         }
     }, "base");
 }
+
+// TODO test recursive struct (pub const Struct = struct {pub const S = Struct}}])
