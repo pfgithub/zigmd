@@ -235,6 +235,14 @@ pub const RowCol = struct {
     fn point(cp: RowCol) c.TSPoint {
         return .{ .row = @intCast(u32, cp.row), .column = @intCast(u32, cp.col) };
     }
+    pub fn format(
+        cp: RowCol,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        out_stream: var,
+    ) !void {
+        try std.fmt.format(out_stream, "{}:{}", .{ cp.row + 1, cp.col + 1 });
+    }
 };
 
 pub const Tree = struct {

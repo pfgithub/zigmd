@@ -847,8 +847,7 @@ pub const App = struct {
             // var classesText = std.ArrayList(u8).init(alloc);
             // try styleBeforeCursor.printClasses(&classesText);
 
-            var resText = try std.fmt.allocPrint0(alloc, "Style: {}, Classes: {}, CharPos: {}", .{
-                styleBeforeCursor.createClassesStruct(charIndex).renderStyle(),
+            var resText = try std.fmt.allocPrint0(alloc, "Classes: {} ({})", .{
                 styleBeforeCursor.createClassesStruct(charIndex),
                 app.findCharacterPosition(charIndex),
             });
