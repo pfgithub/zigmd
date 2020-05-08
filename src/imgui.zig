@@ -166,6 +166,11 @@ pub const Height = struct {
     h: i64
 };
 
+const lineHeight = 25;
+const seperatorGap = 10;
+const connectedGap = 2;
+const indentWidth = 20;
+
 fn StructEditor(comptime Struct: type) type {
     const typeInfo = @typeInfo(Struct).Struct;
     const DataStruct = Struct.ModeData;
@@ -173,6 +178,7 @@ fn StructEditor(comptime Struct: type) type {
     return struct {
         const Editor = @This();
         data: DataStruct,
+        pub const isInline = true;
         pub fn init() Editor {
             var data: DataStruct = undefined;
             inline for (@typeInfo(DataStruct).Struct.fields) |field| {
@@ -195,17 +201,12 @@ fn StructEditor(comptime Struct: type) type {
             ev: *ImEvent,
             pos: TopRect,
         ) !Height {
-            const gap = 10;
+            const gap = seperatorGap;
 
             const lenInt = @intCast(i64, typeInfo.fields.len);
             var currentHeight: i64 = 0;
 
             inline for (typeInfo.fields) |field, i| {
-                var lpos: TopRect = .{
-                    .x = pos.x,
-                    .y = currentHeight + pos.y,
-                    .w = pos.w,
-                };
                 var text = try win.Text.init(
                     font,
                     win.Color.hex(0xFFFFFF),
@@ -218,21 +219,41 @@ fn StructEditor(comptime Struct: type) type {
                 );
                 defer text.deinit();
 
-                const rh = try @field(editor.data, field.name).render(&@field(value, field.name), font, window, ev, .{
-                    .x = lpos.x + text.size.w + 5,
-                    .y = lpos.y,
-                    .w = lpos.w - (text.size.w + 5),
-                });
+                const ItemType = @TypeOf(@field(editor.data, field.name));
+                var item = &@field(editor.data, field.name);
+                var fieldv = &@field(value, field.name);
 
-                try text.render(
-                    window,
-                    .{
-                        .x = lpos.x,
-                        .y = lpos.y + @divFloor(rh.h, 2) - @divFloor(text.size.h, 2),
-                    },
-                );
+                if (ItemType.isInline) {
+                    try text.render(
+                        window,
+                        .{
+                            .x = pos.x,
+                            .y = currentHeight + pos.y + @divFloor(lineHeight, 2) - @divFloor(text.size.h, 2),
+                        },
+                    );
+                    currentHeight += lineHeight + gap;
+                    const rh = try item.render(fieldv, font, window, ev, .{
+                        .x = pos.x + indentWidth,
+                        .y = currentHeight + pos.y,
+                        .w = pos.w - indentWidth,
+                    });
+                    currentHeight += rh.h + gap;
+                } else {
+                    const rh = try item.render(fieldv, font, window, ev, .{
+                        .x = pos.x + text.size.w + 5,
+                        .y = currentHeight + pos.y,
+                        .w = pos.w - (text.size.w + 5),
+                    });
 
-                currentHeight += rh.h + gap;
+                    try text.render(
+                        window,
+                        .{
+                            .x = pos.x,
+                            .y = currentHeight + pos.y + @divFloor(rh.h, 2) - @divFloor(text.size.h, 2),
+                        },
+                    );
+                    currentHeight += rh.h + gap;
+                }
             }
 
             return Height{ .h = currentHeight - gap };
@@ -246,6 +267,7 @@ fn EnumEditor(comptime Enum: type) type {
     return struct {
         const Editor = @This();
         buttonData: [typeInfo.fields.len]Button,
+        pub const isInline = false;
         pub fn init() Editor {
             return .{
                 .buttonData = blk: {
@@ -270,8 +292,8 @@ fn EnumEditor(comptime Enum: type) type {
             ev: *ImEvent,
             pos: TopRect,
         ) !Height {
-            const gap = 2;
-            const height = 25;
+            const gap = connectedGap;
+            const height = lineHeight;
 
             const lenInt = @intCast(i64, typeInfo.fields.len);
             const choiceWidth = @divFloor(
