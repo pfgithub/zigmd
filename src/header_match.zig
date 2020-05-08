@@ -46,7 +46,7 @@ pub fn structImplements(
                 @field(Implementation, decl.name),
                 context ++ " > decl " ++ decl.name,
             ),
-            else => |v| @compileError(context ++ " >: Not supported yet: " ++ @tagName(@TagType(@as(@TypeOf(v), v)))),
+            else => |v| @compileError(context ++ " >: Not supported yet: " ++ @tagName(@as(@TagType(@TypeOf(v)), v))),
         }
     }
     for (implementation.decls) |decl| {
