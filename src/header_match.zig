@@ -1,8 +1,8 @@
 const std = @import("std");
 
 pub fn implements(
-    comptime Implementation: type,
     comptime Header: type,
+    comptime Implementation: type,
     comptime context: []const u8,
 ) void {
     const header = @typeInfo(Header);
@@ -26,8 +26,8 @@ pub fn implements(
 }
 
 pub fn structImplements(
-    comptime Implementation: type,
     comptime Header: type,
+    comptime Implementation: type,
     comptime context: []const u8,
 ) void {
     const header = @typeInfo(Header).Struct;
@@ -38,7 +38,7 @@ pub fn structImplements(
 
         // ensure implementation has decl
         if (!@hasDecl(Implementation, decl.name))
-            @compileError(context ++ " >: Implementation is missing declaration `" + decl.name + "`");
+            @compileError(context ++ " >: Implementation is missing declaration `pub " ++ decl.name ++ "`");
 
         switch (decl.data) {
             .Type => |typ| implements(
@@ -49,9 +49,30 @@ pub fn structImplements(
             else => |v| @compileError(context ++ " >: Not supported yet: " ++ @tagName(@TagType(@as(@TypeOf(v), v)))),
         }
     }
+    for (implementation.decls) |decl| {
+        if (!@hasDecl(Header, decl.name))
+            @compileError(context ++ " >: Header has extra disallowed declaration `pub " ++ decl.name ++ "`");
+    }
     for (header.fields) |field| {
         // ensure implementation has field
     }
+}
+
+test "fail" {
+    comptime implements(struct {
+        pub const A = u64;
+    }, struct {
+        pub const A = u64;
+        pub const B = u32;
+    }, "base");
+}
+
+test "fail" {
+    comptime implements(struct {
+        pub const A = u64;
+    }, struct {
+        pub const B = u32;
+    }, "base");
 }
 
 test "fail" {
