@@ -799,7 +799,7 @@ pub const App = struct {
 
         for (textInfo.lines.items) |line| blk: {
             for (line.drawCalls.items) |drawCall| {
-                if (line.yTop > pos.h) break :blk;
+                if (line.yTop > fullArea.h) break :blk;
                 const text = try app.textRenderCache.getOrCreate(.{
                     .font = drawCall.font,
                     .color = drawCall.color,
