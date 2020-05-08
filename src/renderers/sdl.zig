@@ -1,6 +1,6 @@
-const c = @import("./c.zig");
+const c = @import("../c.zig");
 const std = @import("std");
-const help = @import("./helpers.zig");
+const help = @import("../helpers.zig");
 
 // usingnamespace c ?
 

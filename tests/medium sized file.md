@@ -1,7 +1,7 @@
 not actual markdown, just a reasonably sized file to test with
 
 const std = @import("std");
-pub const win = @import("./rendering_abstraction.zig");
+pub const win = @import("./render.zig");
 const List = std.SinglyLinkedList;
 const ArrayList = std.ArrayList;
 
