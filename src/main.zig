@@ -977,7 +977,12 @@ pub fn main() !void {
         .substructure = .{ .four = .five, .eight = .nine },
     };
 
-    const DisplayMode = enum { editor, imgui };
+    const DisplayMode = enum {
+        editor,
+        imgui,
+        pub const title_editor = "Editor";
+        pub const title_imgui = "Imgui Demo";
+    };
     var displayMode: DisplayMode = .editor;
     var displayedtr = imgui.DataEditor(DisplayMode).init();
     defer displayedtr.deinit();
@@ -1003,7 +1008,7 @@ pub fn main() !void {
 
             var windowSize = try window.getSize();
 
-            var yTop: i64 = 0;
+            var yTop: i64 = 10;
 
             var displayModeOffset = try displayedtr.render(&displayMode, &style.fonts.standard, &window, &imev, .{ .w = windowSize.w, .x = 0, .y = yTop });
             yTop += displayModeOffset.h;
