@@ -1,47 +1,64 @@
 const std = @import("std");
 
+// the std.testing one doesn't work at comptime
+pub fn expectEqual(comptime b: ?[]const u8, comptime a: ?[]const u8) void {
+    if (a == null) {
+        if (b == null)
+            return;
+        @compileError("Expected null, got `" ++ b.? ++ "`");
+    } else if (b == null)
+        @compileError("Expected `" ++ a.? ++ "`, got null");
+    if (!std.mem.eql(u8, a.?, b.?))
+        @compileError("Expected `" ++ a.? ++ "`, got `" ++ b.? ++ "`");
+}
+
 pub fn implements(
     comptime Header: type,
     comptime Implementation: type,
     comptime context: []const u8,
-) void {
+) ?[]const u8 {
     const header = @typeInfo(Header);
     const implementation = @typeInfo(Implementation);
 
     const headerTag = @as(@TagType(@TypeOf(header)), header);
     const implementationTag = @as(@TagType(@TypeOf(implementation)), implementation);
     if (headerTag != implementationTag)
-        @compileError(context ++ " >: Implementation has incorrect type (expected " ++ @tagName(headerTag) ++ ", got " ++ @tagName(implementationTag) ++ ")");
+        return (context ++ " >: Implementation has incorrect type (expected " ++ @tagName(headerTag) ++ ", got " ++ @tagName(implementationTag) ++ ")");
 
     const namedContext: []const u8 = context ++ ": " ++ @tagName(headerTag);
     switch (header) {
-        .Struct => structImplements(Header, Implementation, namedContext),
+        .Struct => if (structImplements(Header, Implementation, namedContext)) |err|
+            return err,
         .Int, .Float => {
             if (Header != Implementation) {
-                @compileError(namedContext ++ " >: Types differ. Expected: " ++ @typeName(Header) ++ ", Got: " ++ @typeName(Implementation) ++ ".");
+                return (namedContext ++ " >: Types differ. Expected: " ++ @typeName(Header) ++ ", Got: " ++ @typeName(Implementation) ++ ".");
             }
         },
-        .Fn => fnImplements(Header, Implementation, namedContext),
-        else => @compileError(context ++ " >: Not supported yet: " ++ @tagName(headerTag)),
+        .Fn => if (fnImplements(Header, Implementation, namedContext)) |err|
+            return err,
+        else => return (context ++ " >: Not supported yet: " ++ @tagName(headerTag)),
     }
+    return null;
 }
 
 pub fn fnImplements(
     comptime Header: type,
     comptime Implementation: type,
     comptime context: []const u8,
-) void {
+) ?[]const u8 {
     const header = @typeInfo(Header).Fn;
     const impl = @typeInfo(Implementation).Fn;
 
-    implements(header.return_type.?, impl.return_type.?, context ++ " > return");
+    if (implements(header.return_type.?, impl.return_type.?, context ++ " > return")) |err|
+        return err;
+    return null;
 }
 
 pub fn structImplements(
     comptime Header: type,
     comptime Implementation: type,
     comptime context: []const u8,
-) void {
+) ?[]const u8 {
     const header = @typeInfo(Header).Struct;
     const implementation = @typeInfo(Implementation).Struct;
 
@@ -52,7 +69,7 @@ pub fn structImplements(
 
         // ensure implementation has decl
         if (!@hasDecl(Implementation, decl.name))
-            @compileError(namedContext ++ " >: Implementation is missing declaration.");
+            return (namedContext ++ " >: Implementation is missing declaration.");
 
         // using for as a find with break and else doesn't seem to be working at comptime, so this works as an alternative
         const impldecl = blk: {
@@ -60,81 +77,83 @@ pub fn structImplements(
                 if (std.mem.eql(u8, decl.name, idecl.name))
                     break :blk idecl;
             }
-            @compileError(namedContext ++ " >: Implementation is missing declaration.");
+            return (namedContext ++ " >: Implementation is missing declaration.");
         };
 
-        if (!impldecl.is_pub) @compileError(namedContext ++ " >: Implementation declaration is private.");
+        if (!impldecl.is_pub) return (namedContext ++ " >: Implementation declaration is private.");
 
         const headerDataType = @as(@TagType(@TypeOf(decl.data)), decl.data);
         const implDataType = @as(@TagType(@TypeOf(impldecl.data)), impldecl.data);
 
         if (headerDataType != implDataType)
-            @compileError(namedContext ++ " >: DataTypes differ. Expected: " ++ @tagName(headerDataType) ++ ", got " ++ @tagName(implDataType));
+            return (namedContext ++ " >: DataTypes differ. Expected: " ++ @tagName(headerDataType) ++ ", got " ++ @tagName(implDataType));
 
         switch (decl.data) {
-            .Type => |typ| implements(
+            .Type => |typ| if (implements(
                 typ,
                 @field(Implementation, decl.name),
                 namedContext,
-            ),
+            )) |err| return err,
             .Fn => |fndecl| {
                 const fnimpl = impldecl.data.Fn;
-                implements(fndecl.fn_type, fnimpl.fn_type, namedContext);
+                if (implements(fndecl.fn_type, fnimpl.fn_type, namedContext)) |err|
+                    return err;
             },
-            else => |v| @compileError(namedContext ++ " >: Not supported yet: " ++ @tagName(headerDataType)),
+            else => |v| return (namedContext ++ " >: Not supported yet: " ++ @tagName(headerDataType)),
         }
     }
     for (implementation.decls) |decl| {
         if (!@hasDecl(Header, decl.name))
-            @compileError(context ++ " >: Header has extra disallowed declaration `pub " ++ decl.name ++ "`");
+            return (context ++ " >: Header has extra disallowed declaration `pub " ++ decl.name ++ "`");
     }
     for (header.fields) |field| {
         // ensure implementation has field
         if (!@hasField(Implementation, field.name))
-            @compileError(context ++ " >: Implementation is missing field `" ++ field.name ++ "`");
+            return (context ++ " >: Implementation is missing field `" ++ field.name ++ "`");
         for (implementation.fields) |implfld| {
             if (!std.meta.eql(field.name, implfld.name)) continue;
 
-            implements(field.field_type, implfld.field_type, context ++ " > " ++ field.name);
+            if (implements(field.field_type, implfld.field_type, context ++ " > " ++ field.name)) |err| return err;
         }
     }
+    return null;
 }
 
 test "fail" {
-    comptime implements(struct {
+    comptime expectEqual(implements(struct {
         pub const A = u64;
     }, struct {
         pub const A = u64;
         pub const B = u32;
-    }, "base");
+    }, "base"), "base: Struct >: Header has extra disallowed declaration `pub B`");
 }
 
 test "fail" {
-    comptime implements(struct {
+    comptime expectEqual(implements(struct {
         pub const A = u64;
     }, struct {
         pub const B = u32;
-    }, "base");
+    }, "base"), "base: Struct > decl A >: Implementation is missing declaration.");
 }
 
 test "fail" {
-    comptime implements(struct {
+    comptime expectEqual(implements(struct {
         pub const A = u64;
     }, struct {
         pub const A = u32;
-    }, "base");
+    }, "base"), "base: Struct > decl A: Int >: Types differ. Expected: u64, Got: u32.");
 }
 
 test "pass" {
-    comptime implements(struct {
+    comptime expectEqual(implements(struct {
         pub const A = u64;
     }, struct {
         pub const A = u64;
-    }, "base");
+    }, "base"), null);
 }
 
 test "fail" {
-    comptime implements(struct {
+    comptime expectEqual(implements(struct {
         pub const A = u64;
         a: A,
         b: u32,
@@ -144,11 +163,11 @@ test "fail" {
         a: A,
         b: u32,
         private_member: f64,
-    }, "base");
+    }, "base"), "base: Struct >: Implementation is missing field `c`");
 }
 
 test "fail" {
-    comptime implements(struct {
+    comptime expectEqual(implements(struct {
         pub const A = u64;
         a: A,
         b: u64,
@@ -157,11 +176,11 @@ test "fail" {
         a: A,
         b: u32,
         private_member: f64,
-    }, "base");
+    }, "base"), "base: Struct > b: Int >: Types differ. Expected: u64, Got: u32.");
 }
 
 test "pass" {
-    comptime implements(struct {
+    comptime expectEqual(implements(struct {
         pub const A = u64;
         a: A,
         b: u32,
@@ -170,11 +189,11 @@ test "pass" {
         a: A,
         b: u32,
         private_member: f64,
-    }, "base");
+    }, "base"), null);
 }
 
 test "fail" {
-    comptime implements(struct {
+    comptime expectEqual(implements(struct {
         pub const Struct = struct { typ: u64 };
         pub fn a(arg: Struct) Struct {
             return undefined;
@@ -184,11 +203,11 @@ test "fail" {
         pub fn a(arg: Struct) struct { a: u64 } {
             return undefined;
         }
-    }, "base");
+    }, "base"), "base: Struct > decl a: Fn > return: Struct >: Implementation is missing field `typ`");
 }
 
 test "pass" {
-    comptime implements(struct {
+    comptime expectEqual(implements(struct {
         pub const Struct = struct { typ: u64 };
         pub fn a(arg: Struct) Struct {
             return undefined;
@@ -198,7 +217,7 @@ test "pass" {
         pub fn a(arg: Struct) Struct {
             return undefined;
         }
-    }, "base");
+    }, "base"), null);
 }
 
 // uh oh! recursion will require special workarounds!
