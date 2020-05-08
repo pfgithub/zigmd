@@ -201,4 +201,15 @@ test "pass" {
     }, "base");
 }
 
-// TODO test recursive struct (pub const Struct = struct {pub const S = Struct}}])
+// uh oh! recursion will require special workarounds!
+// test "pass" {
+//     comptime implements(struct {
+//         pub const Recursion = struct {
+//             pub const This = Recursion;
+//         };
+//     }, struct {
+//         pub const Recursion = struct {
+//             pub const This = Recursion;
+//         };
+//     }, "base");
+// }
