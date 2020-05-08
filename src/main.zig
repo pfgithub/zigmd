@@ -873,16 +873,11 @@ pub const App = struct {
 pub fn main() !void {
     const alloc = std.heap.c_allocator;
 
-    const loader = win.FontLoader.init();
-
-    const stdout = std.io.getStdOut().outStream();
-    try stdout.print("Hello, {}!\n", .{"world"});
-
     try win.init();
     defer win.deinit();
 
-    var window = try win.Window.init(alloc);
-    defer window.deinit();
+    var loader = win.FontLoader.init();
+    defer loader.deinit();
 
     var standardFont = try loader.loadFromName("Arial", 16);
     defer standardFont.deinit();
@@ -896,6 +891,9 @@ pub fn main() !void {
     defer headingFont.deinit();
     var monospaceFont = try loader.loadFromName("Consolas", 16);
     defer monospaceFont.deinit();
+
+    var window = try win.Window.init(alloc);
+    defer window.deinit();
 
     var style = Style{
         .colors = .{
@@ -925,7 +923,7 @@ pub fn main() !void {
     defer appV.deinit();
     var app = &appV;
 
-    defer stdout.print("Quitting!\n", .{}) catch unreachable;
+    defer std.debug.warn("Quitting!\n", .{});
 
     // only if mode has raw text input flag sethttps://thetravelers.online/leaderboard
 

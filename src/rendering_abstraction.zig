@@ -26,16 +26,15 @@ pub const FontLoader = struct {
             .config = c.FcInitLoadConfigAndFonts().?,
         };
     }
+    pub fn deinit(loader: *FontLoader) void {
+        c.FcConfigDestroy(loader.config);
+    }
     pub fn loadFromName(
         loader: *const FontLoader,
         name: []const u8,
         fontSize: u16,
     ) !Font {
         return Font.loadFromName(loader, name, fontSize);
-    }
-    pub fn deinit(fontLoader: *FontLoader) void {
-        // do something
-        // !!! ?? potential memory leak?
     }
 };
 
@@ -60,6 +59,7 @@ pub const Font = struct {
     ) !Font {
         var config = loader.config;
         var pattern = c.FcNameParse(name.ptr).?;
+        defer c.FcPatternDestroy(pattern);
 
         // font size
         var v: c.FcValue = .{
@@ -69,7 +69,6 @@ pub const Font = struct {
         if (c.FcPatternAdd(pattern, c.FC_SIZE, v, c.FcTrue) == c.FcFalse)
             return error.FontConfigError;
 
-        defer c.FcPatternDestroy(pattern);
         if (c.FcConfigSubstitute(
             config,
             pattern,
@@ -80,6 +79,7 @@ pub const Font = struct {
 
         var result: c.FcResult = undefined;
         if (c.FcFontMatch(config, pattern, &result)) |font| {
+            defer c.FcPatternDestroy(font);
             var file: [*c]c.FcChar8 = null;
             if (c.FcPatternGetString(font, c.FC_FILE, 0, &file) ==
                 @intToEnum(c.FcResult, c.FcResultMatch))
