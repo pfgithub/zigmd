@@ -997,12 +997,12 @@ pub fn main() !void {
 
             var windowSize = try window.getSize();
 
-            var displayModeOffset = try displayedtr.render(&displayMode, &style.fonts.standard, &window, &imev, .{ .w = windowSize.w - 80, .x = 40, .y = 10 });
+            var displayModeOffset = try displayedtr.render(&displayMode, &style.fonts.standard, &window, &imev, .{ .w = windowSize.w - 20, .x = 10, .y = 10 });
 
             var size: win.Rect = .{
-                .w = windowSize.w - 80,
-                .h = windowSize.h - 80,
-                .x = 40,
+                .w = windowSize.w - 20,
+                .h = windowSize.h - displayModeOffset.h - 30,
+                .x = 10,
                 .y = 10 + displayModeOffset.h + 10,
             };
 
