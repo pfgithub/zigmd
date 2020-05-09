@@ -105,6 +105,26 @@ pub fn UnionArray(comptime Union: type) type {
     };
 }
 
+pub fn unionCall(comptime Union: type, comptime method: []const u8) fn (@TagType(Union), var) @typeInfo(@TypeOf(@field(@typeInfo(Union).Union.fields[0].field_type, method))).Fn.return_type.? {
+    const typeInfo = @typeInfo(Union).Union;
+    const TagType = std.meta.TagType(Union);
+    const returnFn = @field(typeInfo.fields[0].field_type, method);
+    const fnInfo = @typeInfo(@TypeOf(returnFn)).Fn;
+    const ReturnType = fnInfo.return_type.?;
+
+    return struct {
+        fn call(enumValue: TagType, args: var) ReturnType {
+            const callOpts: std.builtin.CallOptions = .{};
+            inline for (typeInfo.fields) |field| {
+                if (@enumToInt(enumValue) == field.enum_field.?.value) {
+                    return @call(callOpts, @field(field.field_type, method), args);
+                }
+            }
+            @panic("Did not match any enum value");
+        }
+    }.call;
+}
+
 test "enum array" {
     const Enum = enum { One, Two, Three };
     const EnumArr = EnumArray(Enum, bool);
@@ -152,4 +172,20 @@ test "union array" {
     std.testing.expect(val.get(.One).One);
     std.testing.expect(std.mem.eql(u8, val.get(.Two).Two, "bye!"));
     std.testing.expect(val.get(.Three).Three == 54);
+}
+
+test "unionCall" {
+    const Union = union(enum) {
+        TwentyFive: struct {
+            fn init() i64 {
+                return 25;
+            }
+        }, FiftySix: struct {
+            fn init() i64 {
+                return 56;
+            }
+        }
+    };
+    std.testing.expectEqual(unionCall(Union, "init")(.TwentyFive, .{}), 25);
+    std.testing.expectEqual(unionCall(Union, "init")(.FiftySix, .{}), 56);
 }
