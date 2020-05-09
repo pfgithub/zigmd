@@ -1,7 +1,7 @@
 const std = @import("std");
 pub const win = @import("./render.zig");
 pub const parser = @import("./parser.zig");
-pub const imgui = @import("./imgui.zig");
+pub const gui = @import("./gui.zig");
 const List = std.SinglyLinkedList;
 const ArrayList = std.ArrayList;
 
@@ -698,7 +698,7 @@ pub const App = struct {
         };
     }
 
-    fn render(app: *App, window: *win.Window, imev: imgui.ImEvent, fullArea: win.Rect) !void {
+    fn render(app: *App, window: *win.Window, imev: gui.ImEvent, fullArea: win.Rect) !void {
         try app.textRenderCache.clean();
 
         const pos: win.Rect = .{
@@ -960,8 +960,8 @@ pub fn main() !void {
         four: Four,
         eight: Eight,
         pub const ModeData = struct {
-            four: imgui.Part(Four),
-            eight: imgui.Part(Eight),
+            four: gui.Part(Four),
+            eight: gui.Part(Eight),
         };
         const Four = enum { five, six, seven };
         const Eight = enum { nine, ten, eleven };
@@ -977,11 +977,11 @@ pub fn main() !void {
         three: Three,
         substructure: Substructure,
         pub const ModeData = struct {
-            update: imgui.Part(Update),
-            reportFPS: imgui.Part(ReportFPS),
-            another: imgui.Part(Another),
-            three: imgui.Part(Three),
-            substructure: imgui.Part(Substructure),
+            update: gui.Part(Update),
+            reportFPS: gui.Part(ReportFPS),
+            another: gui.Part(Another),
+            three: gui.Part(Three),
+            substructure: gui.Part(Substructure),
         };
 
         const Update = enum {
@@ -994,7 +994,7 @@ pub fn main() !void {
         const Another = enum { choice1, choice2, choice3 };
         const Three = enum { yes };
     };
-    var imedtr = imgui.DataEditor(UpdateMode).init();
+    var imedtr = gui.DataEditor(UpdateMode).init();
     defer imedtr.deinit();
     var updateMode: UpdateMode = .{
         .update = .wait,
@@ -1006,15 +1006,15 @@ pub fn main() !void {
 
     const DisplayMode = enum {
         editor,
-        imgui,
+        gui,
         pub const title_editor = "Editor";
-        pub const title_imgui = "Imgui Demo";
+        pub const title_gui = "GUI Demo";
     };
     var displayMode: DisplayMode = .editor;
-    var displayedtr = imgui.DataEditor(DisplayMode).init();
+    var displayedtr = gui.DataEditor(DisplayMode).init();
     defer displayedtr.deinit();
 
-    var imev: imgui.ImEvent = .{};
+    var imev: gui.ImEvent = .{};
 
     var timer = try std.time.Timer.start();
     var frames: u64 = 0;
@@ -1066,7 +1066,7 @@ pub fn main() !void {
                 .editor => {
                     try app.render(&window, imev, size);
                 },
-                .imgui => {
+                .gui => {
                     _ = try imedtr.render(
                         &updateMode, // should this update in the return value instead of updating the item directly?
                         &style.fonts.standard,
@@ -1074,7 +1074,7 @@ pub fn main() !void {
                         &imev,
                         .{
                             .x = 40,
-                            .y = yTop + imgui.seperatorGap,
+                            .y = yTop + gui.seperatorGap,
                             .w = windowSize.w - 80,
                         },
                     );
