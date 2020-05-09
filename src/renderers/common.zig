@@ -118,4 +118,42 @@ pub const Rect = struct {
             .h = fy2 - fy,
         };
     }
+    pub fn right(rect: Rect, distance: i64) Rect {
+        return .{ .x = rect.x + distance, .y = rect.y, .w = rect.w, .h = rect.h };
+    }
+    pub fn rightCut(rect: Rect, distance: i64) Rect {
+        return .{ .x = rect.x + distance, .y = rect.y, .w = rect.w - distance, .h = rect.h };
+    }
+    pub fn down(rect: Rect, distance: i64) Rect {
+        return .{ .x = rect.x, .y = rect.y + distance, .w = rect.w, .h = rect.h };
+    }
+    pub fn downCut(rect: Rect, distance: i64) Rect {
+        return .{ .x = rect.x, .y = rect.y + distance, .w = rect.w, .h = rect.h - distance };
+    }
+    pub fn width(rect: Rect, newWidth: i64) Rect {
+        return .{ .x = rect.x, .y = rect.y, .w = newWidth, .h = rect.h };
+    }
+    pub fn height(rect: Rect, newHeight: i64) Rect {
+        return .{ .x = rect.x, .y = rect.y, .w = rect.w, .h = newHeight };
+    }
+};
+pub const TopRect = struct {
+    x: i64,
+    y: i64,
+    w: i64,
+    pub fn right(rect: TopRect, distance: i64) TopRect {
+        return .{ .x = rect.x + distance, .y = rect.y, .w = rect.w };
+    }
+    pub fn rightCut(rect: TopRect, distance: i64) TopRect {
+        return .{ .x = rect.x + distance, .y = rect.y, .w = rect.w - distance };
+    }
+    pub fn down(rect: TopRect, distance: i64) TopRect {
+        return .{ .x = rect.x, .y = rect.y + distance, .w = rect.w };
+    }
+    pub fn width(rect: TopRect, newWidth: i64) TopRect {
+        return .{ .x = rect.x, .y = rect.y, .w = newWidth };
+    }
+    pub fn height(rect: TopRect, h: i64) Rect {
+        return .{ .x = rect.x, .y = rect.y, .w = rect.w, .h = h };
+    }
 };

@@ -263,14 +263,6 @@ pub const Button = struct {
     }
 };
 
-pub const TopRect = struct {
-    x: i64,
-    y: i64,
-    w: i64,
-    fn extendDown(rect: TopRect, h: i64) win.Rect {
-        return .{ .x = rect.x, .y = rect.y, .w = rect.w, .h = h };
-    }
-};
 pub const Height = struct {
     h: i64
 };
@@ -335,7 +327,7 @@ fn StructEditor(comptime Struct: type) type {
             font: *win.Font,
             window: *win.Window,
             ev: *ImEvent,
-            pos: TopRect,
+            pos: win.TopRect,
         ) !Height {
             const gap = seperatorGap;
 
@@ -348,14 +340,10 @@ fn StructEditor(comptime Struct: type) type {
                 var item = &iteminfo.editor;
                 var fieldv = &@field(value, field.name);
                 const labelText = getName(Struct, field.name);
+                const linePos: win.TopRect = pos.down(currentHeight);
 
                 if (ItemType.isInline) {
-                    const area: win.Rect = .{
-                        .x = pos.x,
-                        .y = currentHeight + pos.y,
-                        .w = pos.w,
-                        .h = lineHeight,
-                    };
+                    const area: win.Rect = linePos.height(lineHeight);
 
                     const textSizeRect = try iteminfo.label.render(
                         .{
@@ -397,11 +385,13 @@ fn StructEditor(comptime Struct: type) type {
                         currentHeight += rh.h + gap;
                     }
                 } else {
-                    const rh = try item.render(fieldv, font, window, ev, .{
-                        .x = pos.x + textGap + textWidth + textGap,
-                        .y = currentHeight + pos.y,
-                        .w = pos.w - (textWidth + textGap),
-                    });
+                    const rh = try item.render(
+                        fieldv,
+                        font,
+                        window,
+                        ev,
+                        linePos.rightCut(textWidth + textGap),
+                    );
 
                     _ = try iteminfo.label.render(
                         .{
@@ -412,12 +402,7 @@ fn StructEditor(comptime Struct: type) type {
                         },
                         window,
                         ev,
-                        .{
-                            .x = pos.x + textGap,
-                            .y = currentHeight + pos.y,
-                            .w = textWidth,
-                            .h = rh.h,
-                        },
+                        linePos.width(textWidth).height(rh.h),
                     );
 
                     currentHeight += rh.h + gap;
@@ -458,7 +443,7 @@ fn EnumEditor(comptime Enum: type) type {
             font: *win.Font,
             window: *win.Window,
             ev: *ImEvent,
-            pos: TopRect,
+            pos: win.TopRect,
         ) !Height {
             const gap = connectedGap;
             const height = lineHeight;
