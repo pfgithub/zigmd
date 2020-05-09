@@ -200,6 +200,26 @@ pub const Text = struct {
     }
 };
 
+const TimingFunction = fn (f64) f64;
+
+pub const timing = struct {
+    pub const Linear: TimingFunction = _Linear;
+    fn _Linear(time: f64) f64 {
+        return time;
+    }
+    pub const EaseIn: TimingFunction = _EaseIn;
+    pub fn _EaseIn(t: f64) f64 {
+        return t * t * t;
+    }
+    pub const EaseOut: TimingFunction = _EaseOut;
+    pub fn _EaseOut(t: f64) f64 {
+        return 1 - EaseIn(t);
+    }
+    pub const EaseInOut: TimingFunction = _EaseInOut;
+    pub fn _EaseInOut(t: f64) f64 {
+        return if (t < 0.5) 4 * t * t * t else (t - 1) * (2 * t - 2) * (2 * t - 2) + 1;
+    }
+};
 pub fn Interpolation(comptime Kind: type) type {
     return struct {
         const Interp = @This();
@@ -209,6 +229,10 @@ pub fn Interpolation(comptime Kind: type) type {
                 base: Kind,
                 target: Kind,
                 startTime: u64,
+                timingFunction: TimingFunction,
+                // timingFunctionBack: TimingFunction,
+                // timingFunctionForwards: TimingFunction,
+                // eg EaseIn going down, EaseOut going up
             },
             unset: void,
         },
@@ -217,13 +241,14 @@ pub fn Interpolation(comptime Kind: type) type {
         pub fn init(transitionDuration: u64) Interp {
             return .{ .transitionDuration = transitionDuration, .value = .unset };
         }
-        pub fn set(cinterp: *Interp, imev: *ImEvent, nv: Kind) void {
+        pub fn set(cinterp: *Interp, imev: *ImEvent, nv: Kind, timingFunction: TimingFunction) void {
             switch (cinterp.value) {
                 .started => |*dat| {
                     if (std.meta.eql(dat.target, nv)) return; // otherwise the interpolation will lose precision. it's ok to lose precision if the value changes though
                     dat.base = cinterp.get(imev);
                     dat.startTime = imev.time;
                     dat.target = nv;
+                    dat.timingFunction = timingFunction;
                 },
                 .unset => {
                     cinterp.value = .{
@@ -231,6 +256,7 @@ pub fn Interpolation(comptime Kind: type) type {
                             .base = nv,
                             .startTime = imev.time,
                             .target = nv,
+                            .timingFunction = timingFunction,
                         },
                     };
                 },
@@ -240,7 +266,7 @@ pub fn Interpolation(comptime Kind: type) type {
             const dat = cinterp.value.started; // only call get after value has been set at least once
             if (!imev.animationEnabled) return dat.target;
             const timeOffset = @intToFloat(f64, imev.time - dat.startTime) / @intToFloat(f64, cinterp.transitionDuration);
-            return help.interpolate(dat.base, dat.target, timeOffset);
+            return help.interpolate(dat.base, dat.target, dat.timingFunction(timeOffset));
         }
     };
 }
@@ -298,7 +324,7 @@ pub const Button = struct {
         const bumpy = !btn.clickStarted;
 
         const bumpHeight = 4;
-        btn.bumpOffset.set(ev, if (bumpy) if (settings.active) @as(i64, 2) else @as(i64, 4) else 0);
+        btn.bumpOffset.set(ev, if (bumpy) if (settings.active) @as(i64, 2) else @as(i64, 4) else 0, timing.EaseInOut);
         const bumpOffset = btn.bumpOffset.get(ev);
 
         const buttonPos: win.Rect = pos.addHeight(-bumpHeight).down(bumpHeight - bumpOffset);
@@ -307,7 +333,7 @@ pub const Button = struct {
         btn.bumpColor.set(ev, if (settings.active)
             style.gui.button.shadow.active
         else
-            style.gui.button.shadow.inactive);
+            style.gui.button.shadow.inactive, timing.Linear);
         btn.topColor.set(ev, if (hoveringAny)
             if (settings.active)
                 style.gui.button.hover.active
@@ -316,7 +342,7 @@ pub const Button = struct {
         else if (settings.active)
             style.gui.button.base.active
         else
-            style.gui.button.base.inactive);
+            style.gui.button.base.inactive, timing.Linear);
 
         // render
         {
