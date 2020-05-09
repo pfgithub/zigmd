@@ -507,11 +507,15 @@ fn UnionEditor(comptime Union: type) type {
             inline for (typeInfo.fields) |field| {
                 // COMPILER BUG: even when this ifs on false, it still calls the function and gives the wrong return value.
                 if (@enumToInt(activeTag) == field.enum_field.?.value) {
-                    cpos.y += (try @call(
+                    var addY = (try @call(
                         callOptions,
                         help.FieldType(Union.ModeData, field.name).render,
                         .{ &@field(sue.editor, field.name), &@field(value, field.name), style, window, ev, cpos },
                     )).h;
+                    if (addY == 0)
+                        cpos.y -= seperatorGap
+                    else
+                        cpos.y += addY;
                     break;
                 }
             }
@@ -606,7 +610,7 @@ const VoidEditor = struct {
         ev: *ImEvent,
         pos: win.TopRect,
     ) WorkaroundError!Height {
-        return Height{ .h = 1 };
+        return Height{ .h = 0 };
     }
 };
 // unioneditor is more difficult
