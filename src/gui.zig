@@ -321,7 +321,7 @@ fn StructEditor(comptime Struct: type) type {
     return struct {
         const Editor = @This();
         data: DataStruct,
-        pub const isInline = true;
+        pub const isInline = false;
         pub fn init() Editor {
             var data: DataStruct = undefined;
             inline for (@typeInfo(DataStruct).Struct.fields) |field| {
@@ -363,7 +363,7 @@ fn StructEditor(comptime Struct: type) type {
                 var fieldv = &@field(value, field.name);
                 const labelText = getName(Struct, field.name);
 
-                if (ItemType.isInline) {
+                if (!ItemType.isInline) {
                     const area: win.Rect = currentPos.height(lineHeight);
 
                     const textSizeRect = try iteminfo.label.render(
@@ -435,7 +435,7 @@ fn EnumEditor(comptime Enum: type) type {
     return struct {
         const Editor = @This();
         buttonData: [typeInfo.fields.len]Button,
-        pub const isInline = false;
+        pub const isInline = true;
         pub fn init() Editor {
             return .{
                 .buttonData = blk: {
