@@ -193,6 +193,8 @@ pub const Window = struct {
         if (renderer == null) return sdlError();
         errdefer c.SDL_DestroyRenderer(renderer);
 
+        if (c.SDL_GL_SetSwapInterval(-1) != 0) return sdlError();
+
         var clippingRectangles = std.ArrayList(Rect).init(alloc);
         errdefer clippingRectanges.deinit();
 

@@ -1028,20 +1028,30 @@ pub fn main() !void {
     var timer = try std.time.Timer.start();
     var frames: u64 = 0;
 
-    while (true) blk: {
-        var event = switch (updateMode.update) {
-            .wait => try window.waitEvent(),
-            .poll => try window.pollEvent(),
-        };
-        imev.animationEnabled = updateMode.update == .poll;
+    var event = switch (updateMode.update) {
+        .wait => try window.waitEvent(),
+        .poll => try window.pollEvent(),
+    };
+    while (true) {
+        if (event == .Empty) {
+            event = switch (updateMode.update) {
+                .wait => try window.waitEvent(),
+                .poll => try window.pollEvent(),
+            };
+        }
         switch (event) {
             .Quit => return,
             else => {},
         }
 
+        // === RENDER
+        imev.animationEnabled = updateMode.update == .poll;
+
         imev.rerender();
         while (imev.internal.rerender) {
             imev.apply(event);
+            event = .{ .Empty = {} };
+
             window.cursor = .default;
 
             try window.clear(style.colors.window);
@@ -1090,11 +1100,13 @@ pub fn main() !void {
                     );
                 },
             }
-
-            event = .{ .Empty = {} };
         }
+        // ===
 
+        event = try window.pollEvent();
+        if (event != .Empty) continue;
         window.present();
+        event = try window.pollEvent();
     }
 }
 
