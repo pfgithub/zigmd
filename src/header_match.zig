@@ -119,7 +119,7 @@ pub fn structImplements(
     return null;
 }
 
-test "fail" {
+test "extra declaration" {
     comptime expectEqual(implements(struct {
         pub const A = u64;
     }, struct {
@@ -128,7 +128,16 @@ test "fail" {
     }, "base"), "base: Struct >: Header has extra disallowed declaration `pub B`");
 }
 
-test "fail" {
+test "extra private declaration ok" {
+    comptime expectEqual(implements(struct {
+        pub const A = u64;
+    }, struct {
+        pub const A = u64;
+        const B = u32;
+    }, "base"), "base: Struct >: Header has extra disallowed declaration `pub B`");
+}
+
+test "missing declaration" {
     comptime expectEqual(implements(struct {
         pub const A = u64;
     }, struct {
@@ -136,7 +145,7 @@ test "fail" {
     }, "base"), "base: Struct > decl A >: Implementation is missing declaration.");
 }
 
-test "fail" {
+test "integer different" {
     comptime expectEqual(implements(struct {
         pub const A = u64;
     }, struct {
@@ -144,7 +153,7 @@ test "fail" {
     }, "base"), "base: Struct > decl A: Int >: Types differ. Expected: u64, Got: u32.");
 }
 
-test "pass" {
+test "integer equivalent" {
     comptime expectEqual(implements(struct {
         pub const A = u64;
     }, struct {
@@ -152,7 +161,7 @@ test "pass" {
     }, "base"), null);
 }
 
-test "fail" {
+test "fields missing" {
     comptime expectEqual(implements(struct {
         pub const A = u64;
         a: A,
@@ -166,7 +175,7 @@ test "fail" {
     }, "base"), "base: Struct >: Implementation is missing field `c`");
 }
 
-test "fail" {
+test "fields wrong type" {
     comptime expectEqual(implements(struct {
         pub const A = u64;
         a: A,
@@ -179,7 +188,7 @@ test "fail" {
     }, "base"), "base: Struct > b: Int >: Types differ. Expected: u64, Got: u32.");
 }
 
-test "pass" {
+test "fields equivalent + extra private" {
     comptime expectEqual(implements(struct {
         pub const A = u64;
         a: A,
@@ -192,7 +201,7 @@ test "pass" {
     }, "base"), null);
 }
 
-test "fail" {
+test "fn different return values" {
     comptime expectEqual(implements(struct {
         pub const Struct = struct { typ: u64 };
         pub fn a(arg: Struct) Struct {
@@ -206,19 +215,33 @@ test "fail" {
     }, "base"), "base: Struct > decl a: Fn > return: Struct >: Implementation is missing field `typ`");
 }
 
-test "pass" {
+test "fn equivalent" {
     comptime expectEqual(implements(struct {
         pub const Struct = struct { typ: u64 };
-        pub fn a(arg: Struct) Struct {
+        pub fn a(arg: Struct, arg2: u64, arg3: var) Struct {
             return undefined;
         }
     }, struct {
         pub const Struct = struct { typ: u64, extra_private: u64 };
-        pub fn a(arg: Struct) Struct {
+        pub fn a(arg: Struct, arg2: u64, arg3: var) Struct {
             return undefined;
         }
     }, "base"), null);
 }
+
+// test "fn different args" {
+//     comptime expectEqual(implements(struct {
+//         pub const Struct = struct { typ: u64 };
+//         pub fn a(arg: Struct, arg2: u64, arg3: var) Struct {
+//             return undefined;
+//         }
+//     }, struct {
+//         pub const Struct = struct { typ: u64, extra_private: u64 };
+//         pub fn a(arg: struct { typ: u64 }, arg2: u64, arg3: var) Struct {
+//             return undefined;
+//         }
+//     }, "base"), "err");
+// }
 
 // uh oh! recursion will require special workarounds!
 // test "pass" {
