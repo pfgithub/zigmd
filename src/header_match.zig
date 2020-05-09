@@ -1,20 +1,22 @@
 const std = @import("std");
 
-fn seen(comptime a: type, comptime list: *[]const type) bool {
-    for (list.*) |itm| {
-        if (a == itm) return true;
+const Memo = struct {
+    list: []const type = &[_]type{},
+    pub fn seen(comptime memo: *Memo, comptime Type: type) bool {
+        for (memo.list) |KnownType| {
+            if (Type == KnownType) return true;
+        }
+        memo.list = memo.list ++ [_]type{Type};
+        return false;
     }
-    list.* = list.* ++ [_]type{a};
-    return false;
-}
+};
 
 test "seen" {
     comptime {
-        var array: [0]type = [_]type{};
-        var slice: []const type = &array;
-        if (seen(u8, &slice)) unreachable;
-        if (seen(u16, &slice)) unreachable;
-        if (!seen(u8, &slice)) unreachable;
+        var memo: Memo = .{};
+        if (memo.seen(u8)) unreachable;
+        if (memo.seen(u16)) unreachable;
+        if (!memo.seen(u8)) unreachable;
     }
 }
 
