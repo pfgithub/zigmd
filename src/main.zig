@@ -5,33 +5,6 @@ pub const gui = @import("./gui.zig");
 const List = std.SinglyLinkedList;
 const ArrayList = std.ArrayList;
 
-pub const Style = struct {
-    colors: struct {
-        // syntax highlighting
-        text: win.Color,
-        control: win.Color,
-        special: win.Color,
-        errorc: win.Color,
-        inlineCode: win.Color,
-
-        // backgrounds
-        background: win.Color,
-        window: win.Color,
-        codeBackground: win.Color,
-        linebg: win.Color,
-
-        // special
-        cursor: win.Color,
-    },
-    fonts: struct {
-        standard: win.Font,
-        bold: win.Font,
-        italic: win.Font,
-        bolditalic: win.Font,
-        heading: win.Font,
-        monospace: win.Font,
-    },
-};
 pub const TextHLStyleReal = struct {
     font: *const win.Font,
     color: win.Color,
@@ -490,7 +463,7 @@ pub const TextRenderCache = Cache(TextRenderInfo, TextRenderData);
 pub const App = struct {
     scrollY: i32, // scrollX is only for individual parts of the UI, such as tables.
     alloc: *std.mem.Allocator,
-    style: *const Style,
+    style: *const gui.Style,
     cursorLocation: usize,
     cursorRowCol: parser.RowCol,
     text: std.ArrayList(u8),
@@ -503,7 +476,7 @@ pub const App = struct {
 
     textRenderCache: TextRenderCache,
 
-    fn init(alloc: *std.mem.Allocator, style: *const Style, filename: []const u8) !App {
+    fn init(alloc: *std.mem.Allocator, style: *const gui.Style, filename: []const u8) !App {
         var readOnly = false;
         var file: []u8 = std.fs.cwd().readFileAlloc(alloc, filename, 10000000) catch |e| blk: {
             readOnly = true;
@@ -649,50 +622,50 @@ pub const App = struct {
         const fonts = &style.fonts;
         return switch (renderStyle) {
             .control => .{
-                .font = &fonts.monospace,
+                .font = fonts.monospace,
                 .color = colors.control,
             },
             .text => |txt| switch (txt) {
                 .bolditalic => TextHLStyleReal{
-                    .font = &fonts.bolditalic,
+                    .font = fonts.bolditalic,
                     .color = colors.text,
                 },
                 .bold => TextHLStyleReal{
-                    .font = &fonts.bold,
+                    .font = fonts.bold,
                     .color = colors.text,
                 },
                 .italic => TextHLStyleReal{
-                    .font = &fonts.italic,
+                    .font = fonts.italic,
                     .color = colors.text,
                 },
                 .normal => TextHLStyleReal{
-                    .font = &fonts.standard,
+                    .font = fonts.standard,
                     .color = colors.text,
                 },
             },
             .heading => .{
-                .font = &fonts.heading,
+                .font = fonts.heading,
                 .color = colors.text,
             },
             .codeLanguage => .{
-                .font = &fonts.standard,
+                .font = fonts.standard,
                 .color = colors.inlineCode,
             },
             .code => .{
-                .font = &fonts.monospace,
+                .font = fonts.monospace,
                 .color = colors.text,
             },
             .inlineCode => .{
-                .font = &fonts.monospace,
+                .font = fonts.monospace,
                 .color = colors.inlineCode,
                 .bg = colors.codeBackground,
             },
             .showInvisibles => .{
-                .font = &fonts.monospace,
+                .font = fonts.monospace,
                 .color = colors.control,
             },
             .errort => .{
-                .font = &fonts.monospace,
+                .font = fonts.monospace,
                 .color = colors.errorc,
             },
         };
@@ -878,7 +851,7 @@ pub const App = struct {
             defer alloc.free(resText);
 
             var text = try win.Text.init(
-                &style.fonts.standard,
+                style.fonts.standard,
                 style.colors.text,
                 resText,
                 null,
@@ -920,7 +893,7 @@ pub fn main() !void {
     var window = try win.Window.init(alloc);
     defer window.deinit();
 
-    var style = Style{
+    var style: gui.Style = .{
         .colors = .{
             .text = win.Color.rgb(255, 255, 255),
             .control = win.Color.hex(0x727885),
@@ -936,12 +909,12 @@ pub fn main() !void {
             .cursor = win.Color.rgb(128, 128, 255),
         },
         .fonts = .{
-            .standard = standardFont,
-            .bold = boldFont,
-            .italic = italicFont,
-            .bolditalic = boldItalicFont,
-            .heading = headingFont,
-            .monospace = monospaceFont,
+            .standard = &standardFont,
+            .bold = &boldFont,
+            .italic = &italicFont,
+            .bolditalic = &boldItalicFont,
+            .heading = &headingFont,
+            .monospace = &monospaceFont,
         },
     };
 
@@ -1052,7 +1025,7 @@ pub fn main() !void {
 
             var yTop: i64 = 10;
 
-            var displayModeOffset = try displayedtr.render(&displayMode, &style.fonts.standard, &window, &imev, .{ .w = windowSize.w, .x = 0, .y = yTop });
+            var displayModeOffset = try displayedtr.render(&displayMode, style, &window, &imev, .{ .w = windowSize.w, .x = 0, .y = yTop });
             yTop += displayModeOffset.h;
 
             var size: win.Rect = .{
@@ -1069,7 +1042,7 @@ pub fn main() !void {
                 .gui => {
                     _ = try imedtr.render(
                         &updateMode, // should this update in the return value instead of updating the item directly?
-                        &style.fonts.standard,
+                        style,
                         &window,
                         &imev,
                         .{

@@ -2,6 +2,34 @@ const std = @import("std");
 const win = @import("./render.zig");
 const help = @import("./helpers.zig");
 
+pub const Style = struct {
+    colors: struct {
+        // syntax highlighting
+        text: win.Color,
+        control: win.Color,
+        special: win.Color,
+        errorc: win.Color,
+        inlineCode: win.Color,
+
+        // backgrounds
+        background: win.Color,
+        window: win.Color,
+        codeBackground: win.Color,
+        linebg: win.Color,
+
+        // special
+        cursor: win.Color,
+    },
+    fonts: struct {
+        standard: *win.Font,
+        bold: *win.Font,
+        italic: *win.Font,
+        bolditalic: *win.Font,
+        heading: *win.Font,
+        monospace: *win.Font,
+    },
+};
+
 pub const ImEvent = struct {
     const Internal = struct {
         mouseDown: bool = false,
@@ -304,7 +332,7 @@ fn StructEditor(comptime Struct: type) type {
         pub fn render(
             editor: *Editor,
             value: *Struct,
-            font: *win.Font,
+            style: Style,
             window: *win.Window,
             ev: *ImEvent,
             pos: win.TopRect,
@@ -327,7 +355,7 @@ fn StructEditor(comptime Struct: type) type {
                     const textSizeRect = try iteminfo.label.render(
                         .{
                             .text = labelText,
-                            .font = font,
+                            .font = style.fonts.standard,
                             .color = win.Color.hex(0xFFFFFF),
                             .halign = .left,
                         },
@@ -339,7 +367,7 @@ fn StructEditor(comptime Struct: type) type {
                     if (try iteminfo.toggleButton.render(
                         .{
                             .text = if (iteminfo.visible) "v" else ">",
-                            .font = font,
+                            .font = style.fonts.monospace,
                             .active = iteminfo.visible,
                         },
                         window,
@@ -353,13 +381,13 @@ fn StructEditor(comptime Struct: type) type {
                     // pos.right(count).newline().down(count)
                     currentPos.y += area.h + gap;
                     if (iteminfo.visible) {
-                        const rh = try item.render(fieldv, font, window, ev, currentPos.rightCut(indentWidth));
+                        const rh = try item.render(fieldv, style, window, ev, currentPos.rightCut(indentWidth));
                         currentPos.y += rh.h + gap;
                     }
                 } else {
                     const rh = try item.render(
                         fieldv,
-                        font,
+                        style,
                         window,
                         ev,
                         currentPos.rightCut(textWidth + textGap),
@@ -368,7 +396,7 @@ fn StructEditor(comptime Struct: type) type {
                     _ = try iteminfo.label.render(
                         .{
                             .text = labelText,
-                            .font = font,
+                            .font = style.fonts.standard,
                             .color = win.Color.hex(0xFFFFFF),
                             .halign = .left,
                         },
@@ -412,7 +440,7 @@ fn EnumEditor(comptime Enum: type) type {
         pub fn render(
             editor: *Editor,
             value: *Enum,
-            font: *win.Font,
+            style: Style,
             window: *win.Window,
             ev: *ImEvent,
             pos: win.TopRect,
@@ -432,7 +460,7 @@ fn EnumEditor(comptime Enum: type) type {
                     .{
                         .text = getName(Enum, field.name),
                         .active = value.* == @field(Enum, field.name),
-                        .font = font,
+                        .font = style.fonts.standard,
                     },
                     window,
                     ev,
