@@ -167,6 +167,14 @@ pub fn unionCallThis(comptime method: []const u8, unionValue: var, args: var) Un
     @panic("Did not match any enum value");
 }
 
+pub fn UnionFieldType(comptime Union: type, comptime fieldName: []const u8) type {
+    if (!@hasField(Union, fieldName)) @compileError("Union does not have field " ++ fieldName);
+    for (@typeInfo(Union).Union.fields) |field| {
+        if (std.mem.eql(u8, field.name, fieldName)) return field.field_type;
+    }
+    unreachable;
+}
+
 test "enum array" {
     const Enum = enum { One, Two, Three };
     const EnumArr = EnumArray(Enum, bool);

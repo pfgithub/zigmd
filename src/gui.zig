@@ -317,6 +317,7 @@ fn getName(comptime Container: type, comptime field: []const u8) []const u8 {
 fn StructEditor(comptime Struct: type) type {
     const typeInfo = @typeInfo(Struct).Struct;
     const DataStruct = Struct.ModeData;
+    if (!@hasDecl(Struct, "ModeData")) @compileError("Any structs to be edited require a pub const ModeData = struct {...everything: gui.Part(type)}. This is because zig does not currently have @Type for structs.");
 
     return struct {
         const Editor = @This();
@@ -429,6 +430,101 @@ fn StructEditor(comptime Struct: type) type {
     };
 }
 
+pub fn UnionPart(comptime T: type) type {
+    return DataEditor(T);
+}
+
+/// all choices must have a default value
+fn UnionEditor(comptime Union: type) type {
+    const typeInfo = @typeInfo(Union).Union;
+    const Enum = typeInfo.tag_type orelse @compileError("Can only edit tagged unions");
+    const enumInfo = @typeInfo(Enum).Enum;
+
+    if (!@hasDecl(Union, "ModeData")) @compileError("Any unions to be edited require a pub const ModeData = union(Tag) {...everything: gui.UnionPart(type), pub const default_...everything = defaultValue;}. This is because zig does not currently have @Type for unions.");
+    const modeDataInfo = @typeInfo(Union.ModeData).Union;
+    const MdiEnum = modeDataInfo.tag_type orelse @compileError("ModeData must be a tagged union too!");
+    if (Enum != MdiEnum) @compileError("ModeData tag must be outer union tag. Eg union(enum) {const Tag = @TagType(@This()); pub const ModeData = union(Tag){ ... };}");
+
+    return struct {
+        const Editor = @This();
+        enumEditor: DataEditor(Enum),
+        selectedUnionEditor: ?struct { choice: Enum, editor: Union.ModeData },
+        deselectedUnionData: [typeInfo.fields.len]Union, // storage for if you enter some data and select a different union choice so when you go back, your data is still there
+        pub const isInline = false;
+        pub fn init() Editor {
+            return .{
+                .enumEditor = DataEditor(Enum).init(),
+                .deselectedUnionData = blk: {
+                    var res: [typeInfo.fields.len]Union = undefined;
+                    inline for (typeInfo.fields) |field, i| {
+                        if (!@hasDecl(Union, "default_" ++ field.name)) @compileError("Missing default_" ++ field.name ++ ". All union choices to be edited require an accompanying pub const default_ value.");
+                        res[i] = @unionInit(Union, field.name, @field(Union, "default_" ++ field.name));
+                    }
+                    break :blk res;
+                },
+                .selectedUnionEditor = null, // so the right one can be initialized by fn render
+            };
+        }
+        pub fn deinit(editor: *Editor) void {
+            editor.enumEditor.deinit();
+            if (editor.selectedUnionEditor) |*sue|
+                help.unionCallThis("deinit", &sue.editor, .{});
+        }
+        pub fn render(
+            editor: *Editor,
+            value: *Union,
+            style: Style,
+            window: *win.Window,
+            ev: *ImEvent,
+            pos: win.TopRect,
+        ) !Height {
+            var cpos = pos;
+
+            const originalTag = std.meta.activeTag(value.*);
+            var activeTag = originalTag;
+            cpos.y += (try editor.enumEditor.render(&activeTag, style, window, ev, pos)).h;
+            if (activeTag != originalTag) {
+                value.* = editor.deselectedUnionData[@enumToInt(activeTag)];
+            }
+
+            if (editor.selectedUnionEditor) |*sue| {
+                if (sue.choice != activeTag) {
+                    help.unionCallThis("deinit", &sue.editor, .{});
+                    editor.selectedUnionEditor = null;
+                }
+            }
+            if (editor.selectedUnionEditor == null) {
+                editor.selectedUnionEditor = .{
+                    .choice = activeTag,
+                    .editor = help.unionCallReturnsThis(Union.ModeData, "init", activeTag, .{}),
+                };
+            }
+            const sue = &editor.selectedUnionEditor.?;
+
+            cpos.y += seperatorGap;
+
+            const callOptions: std.builtin.CallOptions = .{};
+            inline for (typeInfo.fields) |field| {
+                if (@enumToInt(activeTag) == field.enum_field.?.value) {
+                    cpos.y += (try @call(
+                        callOptions,
+                    // Union.ModeData :field field.name .type .render
+                        help.UnionFieldType(Union.ModeData, field.name).render,
+                        .{ &@field(sue.editor, field.name), &@field(value, field.name), style, window, ev, cpos },
+                    )).h;
+                    break;
+                }
+            }
+
+            editor.deselectedUnionData[@enumToInt(activeTag)] = value.*;
+            // it doesn't make sense to save it when it's active but idk how else to do it. this could be slow if the value is big.
+            // eg if someone else changes the tag of value, all the data would be lost when switching tabs if we don't save it somehow and idk what to do about that
+
+            return Height{ .h = cpos.y - pos.y };
+        }
+    };
+}
+
 fn EnumEditor(comptime Enum: type) type {
     const typeInfo = @typeInfo(Enum).Enum;
     if (typeInfo.fields.len == 0) unreachable;
@@ -498,10 +594,12 @@ fn EnumEditor(comptime Enum: type) type {
 // needs to keep data for each tab if you switch tabs and switch back
 
 pub fn DataEditor(comptime Data: type) type {
-    return switch (@typeInfo(Data)) {
+    const typeInfo = @typeInfo(Data);
+    return switch (typeInfo) {
         .Struct => StructEditor(Data),
+        .Union => UnionEditor(Data),
         .Enum => EnumEditor(Data),
-        else => @compileLog("must be struct or enum"),
+        else => @compileError("unsupported editor type: " ++ @tagName(@as(@TagType(@TypeOf(typeInfo)), typeInfo))),
     };
 }
 

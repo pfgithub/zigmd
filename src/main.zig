@@ -956,39 +956,46 @@ pub fn main() !void {
         const Four = enum { five, six, seven };
         const Eight = enum { nine, ten, eleven };
     };
+    const Poll = struct {
+        const ReportFPS = enum { no, yes };
+        reportFPS: ReportFPS,
+        pub const ModeData = struct {
+            reportFPS: gui.Part(ReportFPS),
+        };
+    };
+    const Update = union(enum) {
+        const Tag = @TagType(@This());
+        wait: Wait,
+        poll: Poll,
+        pub const default_wait: Wait = .todoRemoveThis;
+        pub const default_poll = Poll{ .reportFPS = .no };
+        const Wait = enum { todoRemoveThis };
+        pub const ModeData = union(Tag) {
+            wait: gui.UnionPart(Wait),
+            poll: gui.UnionPart(Poll),
+        };
+    };
     const UpdateMode = struct {
         pub const title_update = "Update Mode:";
         pub const title_another = "Another Option:";
         pub const title_three = "Three:";
-
         update: Update,
-        reportFPS: ReportFPS,
         another: Another,
         three: Three,
         substructure: Substructure,
         pub const ModeData = struct {
             update: gui.Part(Update),
-            reportFPS: gui.Part(ReportFPS),
             another: gui.Part(Another),
             three: gui.Part(Three),
             substructure: gui.Part(Substructure),
         };
-
-        const Update = enum {
-            wait,
-            poll,
-            pub const title_wait = "Wait for Events";
-            pub const title_poll = "Update Constantly";
-        };
-        const ReportFPS = enum { no, yes };
         const Another = enum { choice1, choice2, choice3 };
         const Three = enum { yes };
     };
     var imedtr = gui.DataEditor(UpdateMode).init();
     defer imedtr.deinit();
     var updateMode: UpdateMode = .{
-        .update = .wait,
-        .reportFPS = .no,
+        .update = .{ .wait = .todoRemoveThis },
         .another = .choice1,
         .three = .yes,
         .substructure = .{ .four = .five, .eight = .nine },
@@ -1026,7 +1033,7 @@ pub fn main() !void {
 
             try window.clear(style.colors.window);
 
-            if (updateMode.reportFPS == .yes) {
+            if (updateMode.update == .poll and updateMode.update.poll.reportFPS == .yes) {
                 frames += 1;
                 const time = timer.read();
                 if (time >= 1000000000) {
