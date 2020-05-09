@@ -117,22 +117,18 @@ fn unionCallReturnType(comptime Union: type, comptime method: []const u8) type {
     return res orelse @panic("Union must have at least one field");
 }
 
-pub fn unionCall(comptime Union: type, comptime method: []const u8) fn (@TagType(Union), var) unionCallReturnType(Union, method) {
+pub fn unionCall(comptime Union: type, comptime method: []const u8, enumValue: @TagType(Union), args: var) unionCallReturnType(Union, method) {
     const typeInfo = @typeInfo(Union).Union;
     const TagType = std.meta.TagType(Union);
     const ReturnType = comptime unionCallReturnType(Union, method);
 
-    return struct {
-        fn call(enumValue: TagType, args: var) ReturnType {
-            const callOpts: std.builtin.CallOptions = .{};
-            inline for (typeInfo.fields) |field| {
-                if (@enumToInt(enumValue) == field.enum_field.?.value) {
-                    return @call(callOpts, @field(field.field_type, method), args);
-                }
-            }
-            @panic("Did not match any enum value");
+    const callOpts: std.builtin.CallOptions = .{};
+    inline for (typeInfo.fields) |field| {
+        if (@enumToInt(enumValue) == field.enum_field.?.value) {
+            return @call(callOpts, @field(field.field_type, method), args);
         }
-    }.call;
+    }
+    @panic("Did not match any enum value");
 }
 
 // unionCallThis(*Union, "deinit")(someUnion, .{}) should work
@@ -216,8 +212,8 @@ test "unionCall" {
             }
         }
     };
-    std.testing.expectEqual(unionCall(Union, "init")(.TwentyFive, .{}), 25);
-    std.testing.expectEqual(unionCall(Union, "init")(.FiftySix, .{}), 56);
+    std.testing.expectEqual(unionCall(Union, "init", .TwentyFive, .{}), 25);
+    std.testing.expectEqual(unionCall(Union, "init", .FiftySix, .{}), 56);
 }
 
 test "unionCallThis" {
