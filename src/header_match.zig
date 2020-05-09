@@ -40,6 +40,13 @@ fn expectEqual(comptime b: ?[]const u8, comptime a: ?[]const u8) void {
         @compileError("Expected `" ++ a.? ++ "`, got `" ++ b.? ++ "`");
 }
 
+fn memoHeaderImpl(
+    comptime Header: type,
+    comptime Implementation: type,
+) type {
+    return struct { header: Header, implementation: Implementation };
+}
+
 fn implements(
     comptime Header: type,
     comptime Implementation: type,
@@ -47,7 +54,7 @@ fn implements(
     comptime memo: *Memo,
 ) ?[]const u8 {
     if (Header == Implementation) return null;
-    if (memo.seen(struct { header: Header, implementation: Implementation }))
+    if (memo.seen(memoHeaderImpl(Header, Implementation)))
         return null;
 
     const header = @typeInfo(Header);
@@ -309,15 +316,14 @@ test "fn different args" {
     }), "base: Struct > decl a: Fn > args[1]: Struct > typ: Int >: Types differ. Expected: u64, Got: u32.");
 }
 
-// uh oh! recursion will require special workarounds!
-// test "pass" {
-//     comptime testingImplements(struct {
-//         pub const Recursion = struct {
-//             pub const This = Recursion;
-//         };
-//     }, struct {
-//         pub const Recursion = struct {
-//             pub const This = Recursion;
-//         };
-//     });
-// }
+test "pass" {
+    comptime expectEqual(comptime testingImplements(struct {
+        pub const Recursion = struct {
+            pub const This = Recursion;
+        };
+    }, struct {
+        pub const Recursion = struct {
+            pub const This = Recursion;
+        };
+    }), null);
+}
