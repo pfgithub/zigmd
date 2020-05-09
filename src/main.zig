@@ -1033,6 +1033,7 @@ pub fn main() !void {
             .wait => try window.waitEvent(),
             .poll => try window.pollEvent(),
         };
+        imev.animationEnabled = updateMode.update == .poll;
         switch (event) {
             .Quit => return,
             else => {},

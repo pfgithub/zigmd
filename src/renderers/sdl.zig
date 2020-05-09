@@ -364,3 +364,7 @@ pub fn deinit() void {
     c.TTF_Quit();
     c.SDL_Quit();
 }
+
+pub fn time() u64 {
+    return c.SDL_GetTicks();
+}

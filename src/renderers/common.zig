@@ -26,7 +26,20 @@ pub const Color = struct {
         };
     }
     pub fn equal(a: Color, b: Color) bool {
-        return a.r == b.r and a.g == b.g and a.b == b.b and a.a == b.a;
+        return std.meta.eql(a, b);
+    }
+    pub fn interpolate(a: Color, b: Color, progress: f64) Color {
+        // might crash with <0 or >1 progress, so just return the start/end color instead of clamping floatToInt. this behaviour is probably also more useful.
+        if (progress > 1)
+            return b;
+        if (progress < 0)
+            return a;
+        return .{
+            .r = @intCast(u8, @intCast(i9, a.r) - @floatToInt(i9, @intToFloat(f64, @intCast(i9, a.r) - @intCast(i9, b.r)) * progress)),
+            .g = @intCast(u8, @intCast(i9, a.g) - @floatToInt(i9, @intToFloat(f64, @intCast(i9, a.g) - @intCast(i9, b.g)) * progress)),
+            .b = @intCast(u8, @intCast(i9, a.b) - @floatToInt(i9, @intToFloat(f64, @intCast(i9, a.b) - @intCast(i9, b.b)) * progress)),
+            .a = @intCast(u8, @intCast(i9, a.a) - @floatToInt(i9, @intToFloat(f64, @intCast(i9, a.a) - @intCast(i9, b.a)) * progress)),
+        };
     }
 };
 
