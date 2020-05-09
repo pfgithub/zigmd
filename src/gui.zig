@@ -200,46 +200,52 @@ pub const Text = struct {
     }
 };
 
-const ColorInterpolation = struct {
-    color: union(enum) {
-        started: struct {
-            base: win.Color,
-            target: win.Color,
-            startTime: u64,
-        },
-        unset: void,
-    },
-    transitionDuration: u64,
+pub fn Interpolation(comptime Kind: type) type {
+    return struct {
+        const Interp = @This();
 
-    pub fn init(transitionDuration: u64) ColorInterpolation {
-        return .{ .transitionDuration = transitionDuration, .color = .unset };
-    }
-    pub fn set(cinterp: *ColorInterpolation, imev: *ImEvent, newColor: win.Color) void {
-        switch (cinterp.color) {
-            .started => |*dat| {
-                if (dat.target.equal(newColor)) return; // otherwise the interpolation will lose precision. it's ok to lose precision if the color changes though
-                dat.base = cinterp.get(imev);
-                dat.startTime = imev.time;
-                dat.target = newColor;
+        color: union(enum) {
+            started: struct {
+                base: win.Color,
+                target: win.Color,
+                startTime: u64,
             },
-            .unset => {
-                cinterp.color = .{
-                    .started = .{
-                        .base = newColor,
-                        .startTime = imev.time,
-                        .target = newColor,
-                    },
-                };
-            },
+            unset: void,
+        },
+        transitionDuration: u64,
+
+        pub fn init(transitionDuration: u64) ColorInterpolation {
+            return .{ .transitionDuration = transitionDuration, .color = .unset };
         }
-    }
-    pub fn get(cinterp: ColorInterpolation, imev: *ImEvent) win.Color {
-        const dat = cinterp.color.started; // only call get after color has been set at least once
-        if (!imev.animationEnabled) return dat.target;
-        const timeOffset = @intToFloat(f64, imev.time - dat.startTime) / @intToFloat(f64, cinterp.transitionDuration);
-        return dat.base.interpolate(dat.target, timeOffset);
-    }
-};
+        pub fn set(cinterp: *ColorInterpolation, imev: *ImEvent, newColor: win.Color) void {
+            switch (cinterp.color) {
+                .started => |*dat| {
+                    if (std.meta.eql(dat.target, newColor)) return; // otherwise the interpolation will lose precision. it's ok to lose precision if the value changes though
+                    dat.base = cinterp.get(imev);
+                    dat.startTime = imev.time;
+                    dat.target = newColor;
+                },
+                .unset => {
+                    cinterp.color = .{
+                        .started = .{
+                            .base = newColor,
+                            .startTime = imev.time,
+                            .target = newColor,
+                        },
+                    };
+                },
+            }
+        }
+        pub fn get(cinterp: ColorInterpolation, imev: *ImEvent) win.Color {
+            const dat = cinterp.color.started; // only call get after color has been set at least once
+            if (!imev.animationEnabled) return dat.target;
+            const timeOffset = @intToFloat(f64, imev.time - dat.startTime) / @intToFloat(f64, cinterp.transitionDuration);
+            return help.interpolate(dat.base, dat.target, timeOffset);
+        }
+    };
+}
+
+const ColorInterpolation = Interpolation(win.Color);
 
 pub const Button = struct {
     clickStarted: bool = false,
