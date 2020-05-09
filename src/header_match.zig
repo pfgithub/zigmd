@@ -17,6 +17,8 @@ pub fn implements(
     comptime Implementation: type,
     comptime context: []const u8,
 ) ?[]const u8 {
+    if (Header == Implementation) return null;
+
     const header = @typeInfo(Header);
     const implementation = @typeInfo(Implementation);
 
