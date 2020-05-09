@@ -1106,7 +1106,6 @@ pub fn main() !void {
         event = try window.pollEvent();
         if (event != .Empty) continue;
         window.present();
-        event = try window.pollEvent();
     }
 }
 
