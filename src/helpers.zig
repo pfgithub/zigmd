@@ -117,7 +117,7 @@ fn unionCallReturnType(comptime Union: type, comptime method: []const u8) type {
     return res orelse @panic("Union must have at least one field");
 }
 
-pub fn unionCall(comptime Union: type, comptime method: []const u8) comptime fn (@TagType(Union), var) unionCallReturnType(Union, method) {
+pub fn unionCall(comptime Union: type, comptime method: []const u8) fn (@TagType(Union), var) unionCallReturnType(Union, method) {
     const typeInfo = @typeInfo(Union).Union;
     const TagType = std.meta.TagType(Union);
     const ReturnType = comptime unionCallReturnType(Union, method);
@@ -128,6 +128,26 @@ pub fn unionCall(comptime Union: type, comptime method: []const u8) comptime fn 
             inline for (typeInfo.fields) |field| {
                 if (@enumToInt(enumValue) == field.enum_field.?.value) {
                     return @call(callOpts, @field(field.field_type, method), args);
+                }
+            }
+            @panic("Did not match any enum value");
+        }
+    }.call;
+}
+
+// unionCallThis(*Union, "deinit")(someUnion, .{}) should work
+// also is there any reason it needs to return a fn? why can't it be unionCallThis(someUnion, "deinit", .{})
+pub fn unionCallThis(comptime Union: type, comptime method: []const u8) fn (Union, var) unionCallReturnType(Union, method) {
+    const typeInfo = @typeInfo(Union).Union;
+    const TagType = std.meta.TagType(Union);
+    const ReturnType = comptime unionCallReturnType(Union, method);
+
+    return struct {
+        fn call(unionValue: Union, args: var) ReturnType {
+            const callOpts: std.builtin.CallOptions = .{};
+            inline for (typeInfo.fields) |field| {
+                if (@enumToInt(std.meta.activeTag(unionValue)) == field.enum_field.?.value) {
+                    return @call(callOpts, @field(field.field_type, method), .{@field(unionValue, field.name)} ++ args);
                 }
             }
             @panic("Did not match any enum value");
@@ -198,4 +218,23 @@ test "unionCall" {
     };
     std.testing.expectEqual(unionCall(Union, "init")(.TwentyFive, .{}), 25);
     std.testing.expectEqual(unionCall(Union, "init")(.FiftySix, .{}), 56);
+}
+
+test "unionCallThis" {
+    const Union = union(enum) {
+        TwentyFive: struct {
+            v: i32,
+            v2: i64,
+            fn print(value: @This()) i64 {
+                return value.v2 + 25;
+            }
+        }, FiftySix: struct {
+            v: i64,
+            fn print(value: @This()) i64 {
+                return value.v;
+            }
+        }
+    };
+    std.testing.expectEqual(unionCallThis(Union, "print")(Union{ .TwentyFive = .{ .v = 5, .v2 = 10 } }, .{}), 35);
+    std.testing.expectEqual(unionCallThis(Union, "print")(Union{ .FiftySix = .{ .v = 28 } }, .{}), 28);
 }
