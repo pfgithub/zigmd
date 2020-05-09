@@ -9,3 +9,4 @@ full control over text rendering. newline characters can get rendered in one lin
 ## notes
 
 - font rendering with https://manpages.debian.org/testing/libxft-dev/Xft.3.en.html ?
+- rename imgui to gui?

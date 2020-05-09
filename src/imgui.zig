@@ -90,18 +90,21 @@ pub const Text = struct {
     pub fn deinit(txt: *Text) void {
         if (txt.text) |*text| text.text.deinit();
     }
-
+    // todo pub fn measure (text: []const u8, font: *win.Font)
+    // updates the internal text data if needed and returns the measure
     pub fn render(
         txt: *Text,
         settings: struct {
             text: []const u8,
             font: *win.Font,
             color: win.Color,
+            halign: enum { left, center, right } = .center,
+            valign: enum { top, center, bottom } = .center,
         },
         window: *win.Window,
         ev: *ImEvent,
         pos: win.Rect,
-    ) !void {
+    ) !win.Rect {
         try window.pushClipRect(pos);
         defer window.popClipRect();
 
@@ -142,10 +145,25 @@ pub const Text = struct {
             );
         }
         const center = pos.center();
+        const textSizeRect = (win.Rect{
+            .x = switch (settings.halign) {
+                .left => pos.x,
+                .center => center.x - @divFloor(text.text.size.w, 2),
+                .right => pos.x + pos.w - text.text.size.w,
+            },
+            .y = switch (settings.valign) {
+                .top => pos.y,
+                .center => center.y - @divFloor(text.text.size.h, 2),
+                .bottom => pos.y + pos.h - text.text.size.h,
+            },
+            .w = text.text.size.w,
+            .h = text.text.size.h,
+        }).overlap(pos);
         try text.text.render(window, .{
-            .x = center.x - @divFloor(text.text.size.w, 2),
-            .y = center.y - @divFloor(text.text.size.h, 2),
+            .x = textSizeRect.x,
+            .y = textSizeRect.y,
         });
+        return textSizeRect;
     }
 };
 
@@ -229,7 +247,7 @@ pub const Button = struct {
                 buttonPos,
             );
 
-            try btn.text.render(
+            _ = try btn.text.render(
                 .{
                     .text = settings.text,
                     .font = settings.font,
@@ -262,6 +280,7 @@ pub const seperatorGap = 10;
 pub const connectedGap = 1;
 pub const indentWidth = 20;
 pub const textGap = 5;
+pub const textWidth = 100;
 
 pub fn Part(comptime Type: type) type {
     return struct {
@@ -269,7 +288,16 @@ pub fn Part(comptime Type: type) type {
         editor: EditorType,
         visible: bool,
         toggleButton: Button,
+        label: Text,
     };
+}
+
+fn getName(comptime Container: type, comptime field: []const u8) []const u8 {
+    const titled = "title_" ++ field;
+    return if (@hasDecl(Container, titled))
+        @field(Container, titled)
+    else
+        field;
 }
 
 fn StructEditor(comptime Struct: type) type {
@@ -287,6 +315,7 @@ fn StructEditor(comptime Struct: type) type {
                     .editor = field.field_type.EditorType.init(),
                     .visible = true,
                     .toggleButton = Button.init(),
+                    .label = Text.init(),
                 };
             }
             return .{
@@ -295,7 +324,9 @@ fn StructEditor(comptime Struct: type) type {
         }
         pub fn deinit(editor: *Editor) void {
             inline for (@typeInfo(DataStruct).Struct.fields) |*field| {
-                @field(editor.data, field.name).editor.deinit();
+                var dat = &@field(editor.data, field.name);
+                dat.editor.deinit();
+                dat.label.deinit();
             }
         }
         pub fn render(
@@ -312,37 +343,32 @@ fn StructEditor(comptime Struct: type) type {
             var currentHeight: i64 = 0;
 
             inline for (typeInfo.fields) |field, i| {
-                var text = try win.Text.init(
-                    font,
-                    win.Color.hex(0xFFFFFF),
-                    if (@hasDecl(Struct, "title_" ++ field.name))
-                        @field(Struct, "title_" ++ field.name)
-                    else
-                        field.name,
-                    null,
-                    window,
-                );
-                defer text.deinit();
-
                 const ItemType = @TypeOf(@field(editor.data, field.name).editor);
                 var iteminfo = &@field(editor.data, field.name);
                 var item = &iteminfo.editor;
                 var fieldv = &@field(value, field.name);
+                const labelText = getName(Struct, field.name);
 
                 if (ItemType.isInline) {
                     const area: win.Rect = .{
                         .x = pos.x,
                         .y = currentHeight + pos.y,
                         .w = pos.w,
-                        .h = lineHeight + gap,
+                        .h = lineHeight,
                     };
-                    try text.render(
-                        window,
+
+                    const textSizeRect = try iteminfo.label.render(
                         .{
-                            .x = pos.x,
-                            .y = currentHeight + pos.y + @divFloor(lineHeight, 2) - @divFloor(text.size.h, 2),
+                            .text = labelText,
+                            .font = font,
+                            .color = win.Color.hex(0xFFFFFF),
+                            .halign = .left,
                         },
+                        window,
+                        ev,
+                        area,
                     );
+
                     if (try iteminfo.toggleButton.render(
                         .{
                             .text = if (iteminfo.visible) "v" else ">",
@@ -352,7 +378,7 @@ fn StructEditor(comptime Struct: type) type {
                         window,
                         ev,
                         .{
-                            .x = pos.x + text.size.w + textGap,
+                            .x = textSizeRect.x + textSizeRect.w + textGap,
                             .y = currentHeight + pos.y + @divFloor(lineHeight, 2) - @divFloor(20, 2),
                             .w = 20,
                             .h = 20,
@@ -361,7 +387,7 @@ fn StructEditor(comptime Struct: type) type {
                         iteminfo.visible = !iteminfo.visible;
                         ev.rerender();
                     }
-                    currentHeight += area.h;
+                    currentHeight += area.h + gap;
                     if (iteminfo.visible) {
                         const rh = try item.render(fieldv, font, window, ev, .{
                             .x = pos.x + indentWidth,
@@ -372,18 +398,28 @@ fn StructEditor(comptime Struct: type) type {
                     }
                 } else {
                     const rh = try item.render(fieldv, font, window, ev, .{
-                        .x = pos.x + text.size.w + textGap,
+                        .x = pos.x + textGap + textWidth + textGap,
                         .y = currentHeight + pos.y,
-                        .w = pos.w - (text.size.w + textGap),
+                        .w = pos.w - (textWidth + textGap),
                     });
 
-                    try text.render(
-                        window,
+                    _ = try iteminfo.label.render(
                         .{
-                            .x = pos.x,
-                            .y = currentHeight + pos.y + @divFloor(rh.h, 2) - @divFloor(text.size.h, 2),
+                            .text = labelText,
+                            .font = font,
+                            .color = win.Color.hex(0xFFFFFF),
+                            .halign = .left,
+                        },
+                        window,
+                        ev,
+                        .{
+                            .x = pos.x + textGap,
+                            .y = currentHeight + pos.y,
+                            .w = textWidth,
+                            .h = rh.h,
                         },
                     );
+
                     currentHeight += rh.h + gap;
                 }
             }
