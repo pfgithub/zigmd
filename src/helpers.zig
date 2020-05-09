@@ -105,12 +105,22 @@ pub fn UnionArray(comptime Union: type) type {
     };
 }
 
-pub fn unionCall(comptime Union: type, comptime method: []const u8) fn (@TagType(Union), var) @typeInfo(@TypeOf(@field(@typeInfo(Union).Union.fields[0].field_type, method))).Fn.return_type.? {
+// comptime only
+fn unionCallReturnType(comptime Union: type, comptime method: []const u8) type {
+    var res: ?type = null;
+    for (@typeInfo(Union).Union.fields) |field| {
+        const returnType = @typeInfo(@TypeOf(@field(field.field_type, method))).Fn.return_type orelse
+            @compileError("Generic functions are not supported");
+        if (res == null) res = returnType;
+        if (res) |re| if (re != returnType) @compileError("Return types for fn " ++ method ++ " differ. First found " ++ @typeName(re) ++ ", then found " ++ @typeName(returnType));
+    }
+    return res orelse @panic("Union must have at least one field");
+}
+
+pub fn unionCall(comptime Union: type, comptime method: []const u8) comptime fn (@TagType(Union), var) unionCallReturnType(Union, method) {
     const typeInfo = @typeInfo(Union).Union;
     const TagType = std.meta.TagType(Union);
-    const returnFn = @field(typeInfo.fields[0].field_type, method);
-    const fnInfo = @typeInfo(@TypeOf(returnFn)).Fn;
-    const ReturnType = fnInfo.return_type.?;
+    const ReturnType = comptime unionCallReturnType(Union, method);
 
     return struct {
         fn call(enumValue: TagType, args: var) ReturnType {
