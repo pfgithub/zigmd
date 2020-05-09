@@ -29,7 +29,7 @@ pub fn implements(
     switch (header) {
         .Struct => if (structImplements(Header, Implementation, namedContext)) |err|
             return err,
-        .Int, .Float => {
+        .Int, .Float, .Bool => {
             if (Header != Implementation) {
                 return (namedContext ++ " >: Types differ. Expected: " ++ @typeName(Header) ++ ", Got: " ++ @typeName(Implementation) ++ ".");
             }
@@ -49,8 +49,29 @@ pub fn fnImplements(
     const header = @typeInfo(Header).Fn;
     const impl = @typeInfo(Implementation).Fn;
 
+    if (header.is_generic) return (context ++ " >: Generic functions are not supported yet.");
+    if (header.is_var_args) return (context ++ " >: VarArgs functions are not supported yet.");
+    if (impl.is_generic) return (context ++ " >: Expected non-generic, got generic");
+    if (impl.is_var_args) return (context ++ " >: Expected non-varargs, got varargs.");
+    if (header.calling_convention != impl.calling_convention) return (context ++ " >: Wrong calling convention.");
+
     if (implements(header.return_type.?, impl.return_type.?, context ++ " > return")) |err|
         return err;
+
+    if (header.args.len != impl.args.len) return (context ++ " >: Expected {} arguments, got {}.");
+    for (header.args) |headerarg, i| {
+        const implarg = impl.args[i];
+
+        var buf = [_]u8{0} ** 100;
+        const res = std.fmt.bufPrint(&buf, " > args[{}]", .{i}) catch @compileError("buffer out of space");
+        const argContext = context ++ res;
+
+        if (headerarg.is_generic) return (argContext ++ " >: Generic args are not supported yet.");
+        if (implarg.is_generic) return (argContext ++ " >: Expected non-generic, got generic.");
+        if (headerarg.is_noalias != implarg.is_noalias) return (argContext ++ " >: Expected noalias?, got noalias?");
+        if (implements(headerarg.arg_type.?, implarg.arg_type.?, argContext)) |v| return v;
+    }
+
     return null;
 }
 
@@ -106,12 +127,13 @@ pub fn structImplements(
         if (!@hasDecl(Header, decl.name))
             return (context ++ " >: Header has extra disallowed declaration `pub " ++ decl.name ++ "`");
     }
+
     for (header.fields) |field| {
         // ensure implementation has field
         if (!@hasField(Implementation, field.name))
             return (context ++ " >: Implementation is missing field `" ++ field.name ++ "`");
         for (implementation.fields) |implfld| {
-            if (!std.meta.eql(field.name, implfld.name)) continue;
+            if (!std.mem.eql(u8, field.name, implfld.name)) continue;
 
             if (implements(field.field_type, implfld.field_type, context ++ " > " ++ field.name)) |err| return err;
         }
@@ -218,30 +240,38 @@ test "fn different return values" {
 test "fn equivalent" {
     comptime expectEqual(implements(struct {
         pub const Struct = struct { typ: u64 };
-        pub fn a(arg: Struct, arg2: u64, arg3: var) Struct {
+        pub fn a(arg: Struct, arg2: u64, arg3: bool) Struct {
             return undefined;
         }
     }, struct {
         pub const Struct = struct { typ: u64, extra_private: u64 };
-        pub fn a(arg: Struct, arg2: u64, arg3: var) Struct {
+        pub fn a(arg: Struct, arg2: u64, arg3: bool) Struct {
             return undefined;
         }
     }, "base"), null);
 }
 
-// test "fn different args" {
-//     comptime expectEqual(implements(struct {
-//         pub const Struct = struct { typ: u64 };
-//         pub fn a(arg: Struct, arg2: u64, arg3: var) Struct {
-//             return undefined;
-//         }
-//     }, struct {
-//         pub const Struct = struct { typ: u64, extra_private: u64 };
-//         pub fn a(arg: struct { typ: u64 }, arg2: u64, arg3: var) Struct {
-//             return undefined;
-//         }
-//     }, "base"), "err");
-// }
+test "fields" {
+    comptime expectEqual(implements(struct {
+        q: u64,
+    }, struct {
+        q: u32,
+    }, "base"), "base: Struct > q: Int >: Types differ. Expected: u64, Got: u32.");
+}
+
+test "fn different args" {
+    comptime expectEqual(implements(struct {
+        pub const Struct = struct { typ: u64 };
+        pub fn a(arg2: u64, arg: Struct, arg3: bool) Struct {
+            return undefined;
+        }
+    }, struct {
+        pub const Struct = struct { typ: u64, extra_private: u64 };
+        pub fn a(arg2: u64, arg: struct { typ: u32 }, arg3: bool) Struct {
+            return undefined;
+        }
+    }, "base"), "base: Struct > decl a: Fn > args[1]: Struct > typ: Int >: Types differ. Expected: u64, Got: u32.");
+}
 
 // uh oh! recursion will require special workarounds!
 // test "pass" {
