@@ -25,7 +25,7 @@ pub const Color = struct {
             .a = 0xFF,
         };
     }
-    fn equal(a: Color, b: Color) bool {
+    pub fn equal(a: Color, b: Color) bool {
         return a.r == b.r and a.g == b.g and a.b == b.b and a.a == b.a;
     }
 };
@@ -43,31 +43,31 @@ pub const Key = enum(u64) {
 
 pub const Event = union(enum) {
     Quit: void,
+    Unknown: UnknownEvent,
+    KeyDown: KeyEvent,
+    KeyUp: KeyEvent,
+    MouseDown: MouseEvent,
+    MouseUp: MouseEvent,
+    MouseMotion: MouseMotionEvent,
+    TextInput: TextInputEvent,
+    Empty: EmptyEvent,
     pub const UnknownEvent = struct {
         type: u32,
     };
-    Unknown: UnknownEvent,
     pub const KeyEvent = struct {
         key: Key,
     };
-    KeyDown: KeyEvent,
-    KeyUp: KeyEvent,
     pub const MouseEvent = struct {
         pos: Point,
     };
-    MouseDown: MouseEvent,
-    MouseUp: MouseEvent,
     pub const MouseMotionEvent = struct {
         pos: Point,
     };
-    MouseMotion: MouseMotionEvent,
     pub const TextInputEvent = struct {
         text: [100]u8,
         length: u32,
     };
-    TextInput: TextInputEvent,
     pub const EmptyEvent = void;
-    Empty: EmptyEvent,
     pub const empty = Event{ .Empty = {} };
     pub const Type = @TagType(@This());
 };
@@ -126,7 +126,7 @@ pub const Rect = struct {
         };
         // .overlap(rect)?
     }
-    fn overlap(one: Rect, two: Rect) Rect {
+    pub fn overlap(one: Rect, two: Rect) Rect {
         var fx = if (one.x > two.x) one.x else two.x;
         var fy = if (one.y > two.y) one.y else two.y;
         var onex2 = one.x + one.w;

@@ -38,6 +38,10 @@ pub const LineStop = union(enum) {
 };
 
 pub const Action = union(enum) {
+    insert: Insert,
+    delete: Delete,
+    moveCursorLR: MoveCursorLR,
+    save: Save,
     pub const Insert = struct {
         direction: Direction,
         mode: ActionMode,
@@ -64,7 +68,6 @@ pub const Action = union(enum) {
             }
         }
     };
-    insert: Insert,
     pub const Delete = struct {
         direction: Direction,
         stop: CharacterStop,
@@ -101,7 +104,6 @@ pub const Action = union(enum) {
             }
         }
     };
-    delete: Delete,
     pub const MoveCursorLR = struct {
         direction: Direction,
         stop: CharacterStop,
@@ -111,12 +113,10 @@ pub const Action = union(enum) {
             app.cursorLocation = stopPos;
         }
     };
-    moveCursorLR: MoveCursorLR,
     pub const MoveCursorUD = struct {
         direction: enum { up, down },
         mode: LineStop,
     };
-    save: Save,
     pub const Save = struct {
         fn apply(save: *const Save, app: *App) void {
             app.saveFile();

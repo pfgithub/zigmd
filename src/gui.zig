@@ -59,7 +59,7 @@ pub const ImEvent = struct {
     textInput: ?*const win.Event.TextInputEvent = null,
     const KeyArr = help.EnumArray(win.Key, bool);
 
-    fn apply(imev: *ImEvent, ev: win.Event) void {
+    pub fn apply(imev: *ImEvent, ev: win.Event) void {
         // clear instantanious flags (mouseDown, mouseUp)
         if (imev.internal.mouseDown) {
             imev.internal.mouseDown = false;
@@ -103,14 +103,14 @@ pub const ImEvent = struct {
         imev.mouseDown = imev.internal.mouseDown;
         imev.click = imev.internal.click;
     }
-    fn rerender(imev: *ImEvent) void {
+    pub fn rerender(imev: *ImEvent) void {
         imev.internal.rerender = true;
     }
-    fn takeMouseDown(imev: *ImEvent) void {
+    pub fn takeMouseDown(imev: *ImEvent) void {
         if (!imev.mouseDown) unreachable;
         imev.mouseDown = false;
     }
-    fn takeMouseUp(imev: *ImEvent) void {
+    pub fn takeMouseUp(imev: *ImEvent) void {
         if (!imev.mouseUp) unreachable;
         imev.mouseUp = false;
     }
