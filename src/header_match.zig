@@ -316,7 +316,7 @@ test "fn different args" {
     }), "base: Struct > decl a: Fn > args[1]: Struct > typ: Int >: Types differ. Expected: u64, Got: u32.");
 }
 
-test "pass" {
+test "basic recursion" {
     comptime expectEqual(comptime testingImplements(struct {
         pub const Recursion = struct {
             pub const This = Recursion;
@@ -324,6 +324,21 @@ test "pass" {
     }, struct {
         pub const Recursion = struct {
             pub const This = Recursion;
+        };
+    }), null);
+}
+test "fn this arg recursion" {
+    comptime expectEqual(testingImplements(struct {
+        pub const Ritigo = struct {
+            pub fn measureWidth(ritigo: Ritigo) u64 {
+                return undefined;
+            }
+        };
+    }, struct {
+        pub const Ritigo = struct {
+            pub fn measureWidth(ritigo: Ritigo) u64 {
+                return undefined;
+            }
         };
     }), null);
 }
