@@ -209,18 +209,8 @@ pub const Button = struct {
         const bumpHeight = 4;
         const bumpOffset: i64 = if (bumpy) if (settings.active) @as(i64, 2) else @as(i64, 4) else 0;
 
-        const buttonPos: win.Rect = .{
-            .x = pos.x,
-            .y = pos.y + (bumpHeight - bumpOffset),
-            .w = pos.w,
-            .h = pos.h - bumpHeight,
-        };
-        const bumpPos: win.Rect = .{
-            .x = buttonPos.x,
-            .y = buttonPos.y + buttonPos.h,
-            .w = buttonPos.w,
-            .h = (pos.y + pos.h) - (buttonPos.y + buttonPos.h),
-        };
+        const buttonPos: win.Rect = pos.addHeight(-bumpHeight).down(bumpHeight - bumpOffset);
+        const bumpPos: win.Rect = pos.downCut(pos.h - bumpHeight);
 
         // render
         {
@@ -332,7 +322,7 @@ fn StructEditor(comptime Struct: type) type {
             const gap = seperatorGap;
 
             const lenInt = @intCast(i64, typeInfo.fields.len);
-            var currentHeight: i64 = 0;
+            var currentPos = pos;
 
             inline for (typeInfo.fields) |field, i| {
                 const ItemType = @TypeOf(@field(editor.data, field.name).editor);
@@ -340,10 +330,9 @@ fn StructEditor(comptime Struct: type) type {
                 var item = &iteminfo.editor;
                 var fieldv = &@field(value, field.name);
                 const labelText = getName(Struct, field.name);
-                const linePos: win.TopRect = pos.down(currentHeight);
 
                 if (ItemType.isInline) {
-                    const area: win.Rect = linePos.height(lineHeight);
+                    const area: win.Rect = currentPos.height(lineHeight);
 
                     const textSizeRect = try iteminfo.label.render(
                         .{
@@ -365,24 +354,17 @@ fn StructEditor(comptime Struct: type) type {
                         },
                         window,
                         ev,
-                        .{
-                            .x = textSizeRect.x + textSizeRect.w + textGap,
-                            .y = currentHeight + pos.y + @divFloor(lineHeight, 2) - @divFloor(20, 2),
-                            .w = 20,
-                            .h = 20,
-                        },
+                        currentPos.setX2(textSizeRect.x + textSizeRect.w + textGap).rightCut(textSizeRect.w + textGap).width(20).height(20).down(@divFloor(lineHeight, 2) - @divFloor(20, 2)),
                     )) {
                         iteminfo.visible = !iteminfo.visible;
                         ev.rerender();
                     }
-                    currentHeight += area.h + gap;
+                    // this is where a stateful layout manager could be useful
+                    // pos.right(count).newline().down(count)
+                    currentPos.y += area.h + gap;
                     if (iteminfo.visible) {
-                        const rh = try item.render(fieldv, font, window, ev, .{
-                            .x = pos.x + indentWidth,
-                            .y = currentHeight + pos.y,
-                            .w = pos.w - indentWidth,
-                        });
-                        currentHeight += rh.h + gap;
+                        const rh = try item.render(fieldv, font, window, ev, currentPos.rightCut(indentWidth));
+                        currentPos.y += rh.h + gap;
                     }
                 } else {
                     const rh = try item.render(
@@ -390,7 +372,7 @@ fn StructEditor(comptime Struct: type) type {
                         font,
                         window,
                         ev,
-                        linePos.rightCut(textWidth + textGap),
+                        currentPos.rightCut(textWidth + textGap),
                     );
 
                     _ = try iteminfo.label.render(
@@ -402,14 +384,14 @@ fn StructEditor(comptime Struct: type) type {
                         },
                         window,
                         ev,
-                        linePos.width(textWidth).height(rh.h),
+                        currentPos.width(textWidth).height(rh.h),
                     );
 
-                    currentHeight += rh.h + gap;
+                    currentPos.y += rh.h + gap;
                 }
             }
 
-            return Height{ .h = currentHeight - gap };
+            return Height{ .h = currentPos.y - pos.y - gap };
         }
     };
 }
@@ -446,7 +428,6 @@ fn EnumEditor(comptime Enum: type) type {
             pos: win.TopRect,
         ) !Height {
             const gap = connectedGap;
-            const height = lineHeight;
 
             const lenInt = @intCast(i64, typeInfo.fields.len);
             const choiceWidth = @divFloor(
@@ -454,26 +435,18 @@ fn EnumEditor(comptime Enum: type) type {
                 lenInt,
             );
             inline for (typeInfo.fields) |field, i| {
-                const choiceHOffset = (choiceWidth + gap) * @intCast(i64, i);
+                const choicePos = pos.rightCut((choiceWidth + gap) * @intCast(i64, i)).width(choiceWidth).height(lineHeight);
+
                 var btn = &editor.buttonData[i];
                 var clicked = try btn.render(
                     .{
-                        .text = if (@hasDecl(Enum, "title_" ++ field.name))
-                            @field(Enum, "title_" ++ field.name)
-                        else
-                            field.name,
+                        .text = getName(Enum, field.name),
                         .active = value.* == @field(Enum, field.name),
-
                         .font = font,
                     },
                     window,
                     ev,
-                    .{
-                        .x = choiceHOffset + pos.x,
-                        .y = pos.y,
-                        .w = choiceWidth,
-                        .h = height,
-                    },
+                    choicePos,
                 );
                 if (clicked) {
                     value.* = @field(Enum, field.name);
@@ -481,7 +454,7 @@ fn EnumEditor(comptime Enum: type) type {
                 }
             }
 
-            return Height{ .h = height };
+            return Height{ .h = lineHeight };
         }
     };
 }

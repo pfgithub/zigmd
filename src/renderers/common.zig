@@ -102,6 +102,8 @@ pub const Rect = struct {
             .y = rect.y + @divFloor(rect.h, 2),
         };
     }
+    // pub fn alignRect(float halign, float valign)? eg 0.5 for half or 0 for top
+    // that level of granularity hasn't been necessary yet so (.left, .vcenter) is just as good
     fn overlap(one: Rect, two: Rect) Rect {
         var fx = if (one.x > two.x) one.x else two.x;
         var fy = if (one.y > two.y) one.y else two.y;
@@ -122,19 +124,31 @@ pub const Rect = struct {
         return .{ .x = rect.x + distance, .y = rect.y, .w = rect.w, .h = rect.h };
     }
     pub fn rightCut(rect: Rect, distance: i64) Rect {
-        return .{ .x = rect.x + distance, .y = rect.y, .w = rect.w - distance, .h = rect.h };
+        return rect.right(distance).addHeight(-distance);
     }
     pub fn down(rect: Rect, distance: i64) Rect {
         return .{ .x = rect.x, .y = rect.y + distance, .w = rect.w, .h = rect.h };
     }
     pub fn downCut(rect: Rect, distance: i64) Rect {
-        return .{ .x = rect.x, .y = rect.y + distance, .w = rect.w, .h = rect.h - distance };
+        return rect.down(distance).addHeight(-distance);
     }
     pub fn width(rect: Rect, newWidth: i64) Rect {
         return .{ .x = rect.x, .y = rect.y, .w = newWidth, .h = rect.h };
     }
+    pub fn addWidth(rect: Rect, newWidth: i64) Rect {
+        return rect.width(rect.w + newWidth);
+    }
+    pub fn setX2(rect: Rect, x2: i64) Rect {
+        return rect.width(x2 - rect.x);
+    }
     pub fn height(rect: Rect, newHeight: i64) Rect {
         return .{ .x = rect.x, .y = rect.y, .w = rect.w, .h = newHeight };
+    }
+    pub fn addHeight(rect: Rect, newHeight: i64) Rect {
+        return rect.height(rect.h + newHeight);
+    }
+    pub fn setY2(rect: Rect, y2: i64) Rect {
+        return rect.height(y2 - rect.y);
     }
 };
 pub const TopRect = struct {
@@ -145,13 +159,19 @@ pub const TopRect = struct {
         return .{ .x = rect.x + distance, .y = rect.y, .w = rect.w };
     }
     pub fn rightCut(rect: TopRect, distance: i64) TopRect {
-        return .{ .x = rect.x + distance, .y = rect.y, .w = rect.w - distance };
+        return rect.right(distance).addWidth(-distance);
     }
     pub fn down(rect: TopRect, distance: i64) TopRect {
         return .{ .x = rect.x, .y = rect.y + distance, .w = rect.w };
     }
     pub fn width(rect: TopRect, newWidth: i64) TopRect {
         return .{ .x = rect.x, .y = rect.y, .w = newWidth };
+    }
+    pub fn addWidth(rect: TopRect, newWidth: i64) TopRect {
+        return rect.width(rect.w + newWidth);
+    }
+    pub fn setX2(rect: TopRect, x2: i64) TopRect {
+        return rect.width(x2 - rect.x);
     }
     pub fn height(rect: TopRect, h: i64) Rect {
         return .{ .x = rect.x, .y = rect.y, .w = rect.w, .h = h };
