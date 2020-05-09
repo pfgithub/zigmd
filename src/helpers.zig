@@ -106,7 +106,7 @@ pub fn UnionArray(comptime Union: type) type {
 }
 
 // comptime only
-fn UnionCallReturnType(comptime Union: type, comptime method: []const u8) type {
+pub fn UnionCallReturnType(comptime Union: type, comptime method: []const u8) type {
     var res: ?type = null;
     for (@typeInfo(Union).Union.fields) |field| {
         const returnType = @typeInfo(@TypeOf(@field(field.field_type, method))).Fn.return_type orelse
@@ -132,6 +132,19 @@ pub fn unionCall(comptime Union: type, comptime method: []const u8, enumValue: @
     inline for (typeInfo.fields) |field| {
         if (@enumToInt(enumValue) == field.enum_field.?.value) {
             return @call(callOpts, @field(field.field_type, method), args);
+        }
+    }
+    @panic("Did not match any enum value");
+}
+
+pub fn unionCallReturnsThis(comptime Union: type, comptime method: []const u8, enumValue: @TagType(Union), args: var) Union {
+    const typeInfo = @typeInfo(Union).Union;
+    const TagType = std.meta.TagType(Union);
+
+    const callOpts: std.builtin.CallOptions = .{};
+    inline for (typeInfo.fields) |field| {
+        if (@enumToInt(enumValue) == field.enum_field.?.value) {
+            return @unionInit(Union, field.name, @call(callOpts, @field(field.field_type, method), args));
         }
     }
     @panic("Did not match any enum value");
@@ -217,6 +230,27 @@ test "unionCall" {
     };
     std.testing.expectEqual(unionCall(Union, "init", .TwentyFive, .{}), 25);
     std.testing.expectEqual(unionCall(Union, "init", .FiftySix, .{}), 56);
+}
+
+test "unionCallReturnsThis" {
+    const Union = union(enum) {
+        number: Number,
+        boolean: Boolean,
+        const Number = struct {
+            num: i64,
+            pub fn init() Number {
+                return .{ .num = 91 };
+            }
+        };
+        const Boolean = struct {
+            boo: bool,
+            pub fn init() Boolean {
+                return .{ .boo = true };
+            }
+        };
+    };
+    std.testing.expectEqual(unionCallReturnsThis(Union, "init", .number, .{}), Union{ .number = .{ .num = 91 } });
+    std.testing.expectEqual(unionCallReturnsThis(Union, "init", .boolean, .{}), Union{ .boolean = .{ .boo = true } });
 }
 
 test "unionCallThis" {
