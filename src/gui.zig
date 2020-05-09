@@ -508,7 +508,6 @@ fn UnionEditor(comptime Union: type) type {
                 if (@enumToInt(activeTag) == field.enum_field.?.value) {
                     cpos.y += (try @call(
                         callOptions,
-                    // Union.ModeData :field field.name .type .render
                         help.FieldType(Union.ModeData, field.name).render,
                         .{ &@field(sue.editor, field.name), &@field(value, field.name), style, window, ev, cpos },
                     )).h;
@@ -589,6 +588,24 @@ fn EnumEditor(comptime Enum: type) type {
     };
 }
 
+const VoidEditor = struct {
+    const Editor = @This();
+    pub const isInline = true;
+    pub fn init() Editor {
+        return .{};
+    }
+    pub fn deinit(editor: *Editor) void {}
+    pub fn render(
+        editor: *Editor,
+        value: *void,
+        style: Style,
+        window: *win.Window,
+        ev: *ImEvent,
+        pos: win.TopRect,
+    ) !Height {
+        return Height{ .h = 0 };
+    }
+};
 // unioneditor is more difficult
 // tabs at the top
 // needs to keep data for each tab if you switch tabs and switch back
@@ -599,6 +616,7 @@ pub fn DataEditor(comptime Data: type) type {
         .Struct => StructEditor(Data),
         .Union => UnionEditor(Data),
         .Enum => EnumEditor(Data),
+        .Void => VoidEditor,
         else => @compileError("unsupported editor type: " ++ @tagName(@as(@TagType(@TypeOf(typeInfo)), typeInfo))),
     };
 }

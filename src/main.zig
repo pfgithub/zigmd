@@ -965,13 +965,12 @@ pub fn main() !void {
     };
     const Update = union(enum) {
         const Tag = @TagType(@This());
-        wait: Wait,
+        wait: void,
         poll: Poll,
-        pub const default_wait: Wait = .todoRemoveThis;
+        pub const default_wait: void = {};
         pub const default_poll = Poll{ .reportFPS = .no };
-        const Wait = enum { todoRemoveThis };
         pub const ModeData = union(Tag) {
-            wait: gui.UnionPart(Wait),
+            wait: gui.UnionPart(void),
             poll: gui.UnionPart(Poll),
         };
     };
@@ -995,7 +994,7 @@ pub fn main() !void {
     var imedtr = gui.DataEditor(UpdateMode).init();
     defer imedtr.deinit();
     var updateMode: UpdateMode = .{
-        .update = .{ .wait = .todoRemoveThis },
+        .update = .wait,
         .another = .choice1,
         .three = .yes,
         .substructure = .{ .four = .five, .eight = .nine },
