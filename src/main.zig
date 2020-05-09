@@ -959,18 +959,22 @@ pub fn main() !void {
     const Poll = struct {
         const ReportFPS = enum { no, yes };
         reportFPS: ReportFPS,
+        njfkfnajdk: Njfkfnajdk,
+        const Njfkfnajdk = enum { avjdnj, fdjnsakjln };
         pub const ModeData = struct {
             reportFPS: gui.Part(ReportFPS),
+            njfkfnajdk: gui.Part(Njfkfnajdk),
         };
     };
     const Update = union(enum) {
         const Tag = @TagType(@This());
-        wait: void,
+        const Wait = enum { one, two, three };
+        wait: Wait,
         poll: Poll,
-        pub const default_wait: void = {};
-        pub const default_poll = Poll{ .reportFPS = .no };
+        pub const default_wait = Wait.one;
+        pub const default_poll = Poll{ .reportFPS = .no, .njfkfnajdk = .avjdnj };
         pub const ModeData = union(Tag) {
-            wait: gui.UnionPart(void),
+            wait: gui.UnionPart(Wait),
             poll: gui.UnionPart(Poll),
         };
     };
@@ -994,7 +998,7 @@ pub fn main() !void {
     var imedtr = gui.DataEditor(UpdateMode).init();
     defer imedtr.deinit();
     var updateMode: UpdateMode = .{
-        .update = .wait,
+        .update = .{ .wait = .one },
         .another = .choice1,
         .three = .yes,
         .substructure = .{ .four = .five, .eight = .nine },
