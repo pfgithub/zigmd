@@ -989,14 +989,17 @@ pub fn main() !void {
         another: Another,
         three: Three,
         substructure: Substructure,
+        textField: TextField,
         pub const ModeData = struct {
             update: gui.Part(Update),
             another: gui.Part(Another),
             three: gui.Part(Three),
             substructure: gui.Part(Substructure),
+            textField: gui.Part(TextField),
         };
         const Another = enum { choice1, choice2, choice3 };
         const Three = enum { yes };
+        const TextField = [100]u8;
     };
     var imedtr = gui.DataEditor(UpdateMode).init();
     defer imedtr.deinit();
@@ -1005,6 +1008,7 @@ pub fn main() !void {
         .another = .choice1,
         .three = .yes,
         .substructure = .{ .four = .five, .eight = .nine },
+        .textField = [_]u8{0} ** 100,
     };
 
     const DisplayMode = enum {

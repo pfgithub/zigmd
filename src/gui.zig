@@ -593,6 +593,54 @@ fn EnumEditor(comptime Enum: type) type {
     };
 }
 
+pub fn StringEditor(comptime RawData: type) type {
+    const typeInfo = @typeInfo(RawData).Array;
+    const Type = typeInfo.child;
+
+    return struct {
+        const Editor = @This();
+        text: Text,
+        pub const isInline = true;
+        pub fn init() Editor {
+            return .{
+                .text = Text.init(),
+            };
+        }
+        pub fn deinit(editor: *Editor) void {
+            editor.text.deinit();
+        }
+        pub fn render(
+            editor: *Editor,
+            value: *RawData,
+            style: Style,
+            window: *win.Window,
+            ev: *ImEvent,
+            pos: win.TopRect,
+        ) !Height {
+            const area = pos.height(lineHeight);
+            const textEntryArea = area.addHeight(-4);
+            const belowTextArea = area.downCut(area.h - 4);
+
+            const hover = area.containsPoint(ev.cursor) and !ev.click;
+            if (hover) {
+                window.cursor = .ibeam;
+            }
+
+            try win.renderRect(window, win.Color.hex(0x1c2029), textEntryArea);
+            try win.renderRect(window, if (hover) win.Color.hex(0x565f73) else win.Color.hex(0x3f4757), belowTextArea);
+
+            return Height{ .h = area.h };
+        }
+    };
+}
+
+pub fn ArrayEditor(comptime RawData: type) type {
+    const typeInfo = @typeInfo(RawData).Array;
+    const Type = typeInfo.child;
+    if (Type == u8) return StringEditor(RawData);
+    @compileError("Only strings are supported rn");
+}
+
 const WorkaroundError = error{CompilerBugWorkaround};
 
 const VoidEditor = struct {
@@ -623,7 +671,10 @@ pub fn DataEditor(comptime Data: type) type {
         .Struct => StructEditor(Data),
         .Union => UnionEditor(Data),
         .Enum => EnumEditor(Data),
+
+        .Array => ArrayEditor(Data),
         .Void => VoidEditor,
+
         else => @compileError("unsupported editor type: " ++ @tagName(@as(@TagType(@TypeOf(typeInfo)), typeInfo))),
     };
 }
