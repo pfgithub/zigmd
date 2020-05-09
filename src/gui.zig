@@ -589,6 +589,8 @@ fn EnumEditor(comptime Enum: type) type {
     };
 }
 
+const WorkaroundError = error{CompilerBugWorkaround};
+
 const VoidEditor = struct {
     const Editor = @This();
     pub const isInline = true;
@@ -603,8 +605,8 @@ const VoidEditor = struct {
         window: *win.Window,
         ev: *ImEvent,
         pos: win.TopRect,
-    ) !Height {
-        return Height{ .h = 0 };
+    ) WorkaroundError!Height {
+        return Height{ .h = 1 };
     }
 };
 // unioneditor is more difficult

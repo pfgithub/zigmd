@@ -969,11 +969,14 @@ pub fn main() !void {
     const Update = union(enum) {
         const Tag = @TagType(@This());
         const Wait = enum { one, two, three };
+        voidOptn: void,
         wait: Wait,
         poll: Poll,
+        pub const default_voidOptn = {};
         pub const default_wait = Wait.one;
         pub const default_poll = Poll{ .reportFPS = .no, .njfkfnajdk = .avjdnj };
         pub const ModeData = union(Tag) {
+            voidOptn: gui.UnionPart(void),
             wait: gui.UnionPart(Wait),
             poll: gui.UnionPart(Poll),
         };
@@ -998,7 +1001,7 @@ pub fn main() !void {
     var imedtr = gui.DataEditor(UpdateMode).init();
     defer imedtr.deinit();
     var updateMode: UpdateMode = .{
-        .update = .{ .wait = .one },
+        .update = .voidOptn,
         .another = .choice1,
         .three = .yes,
         .substructure = .{ .four = .five, .eight = .nine },
@@ -1021,7 +1024,7 @@ pub fn main() !void {
 
     while (true) blk: {
         var event = switch (updateMode.update) {
-            .poll => try window.pollEvent(),
+            .voidOptn, .poll => try window.pollEvent(),
             .wait => try window.waitEvent(),
         };
         switch (event) {
