@@ -908,6 +908,23 @@ pub fn main() !void {
 
             .cursor = win.Color.rgb(128, 128, 255),
         },
+        .gui = .{
+            .text = win.Color.hex(0xFFFFFF),
+            .button = .{
+                .base = .{
+                    .inactive = win.Color.hex(0x3f4757),
+                    .active = win.Color.hex(0x2c4a44),
+                },
+                .hover = .{
+                    .inactive = win.Color.hex(0x565f73),
+                    .active = win.Color.hex(0x385c55),
+                },
+                .shadow = .{
+                    .inactive = win.Color.hex(0x1c2029),
+                    .active = win.Color.hex(0x142927),
+                },
+            },
+        },
         .fonts = .{
             .standard = &standardFont,
             .bold = &boldFont,

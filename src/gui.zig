@@ -20,6 +20,18 @@ pub const Style = struct {
         // special
         cursor: win.Color,
     },
+    gui: struct {
+        text: win.Color,
+        button: struct {
+            pub const Active = struct {
+                inactive: win.Color,
+                active: win.Color,
+            };
+            base: Active,
+            hover: Active,
+            shadow: Active,
+        },
+    },
     fonts: struct {
         standard: *win.Font,
         bold: *win.Font,
@@ -202,11 +214,13 @@ pub const Button = struct {
             text: []const u8,
             font: *win.Font,
             active: bool = false,
+            style: Style,
         },
         window: *win.Window,
         ev: *ImEvent,
         pos: win.Rect,
     ) !bool {
+        const style = settings.style;
         var result: bool = false;
 
         if (ev.mouseDown and win.Rect.containsPoint(pos, ev.cursor)) {
@@ -236,22 +250,22 @@ pub const Button = struct {
                 try win.renderRect(
                     window,
                     if (settings.active)
-                        win.Color.hex(0x142927)
+                        style.gui.button.shadow.active
                     else
-                        win.Color.hex(0x1c2029),
+                        style.gui.button.shadow.inactive,
                     bumpPos,
                 );
             try win.renderRect(
                 window,
                 if (hoveringAny)
                     if (settings.active)
-                        win.Color.hex(0x385c55)
+                        style.gui.button.hover.active
                     else
-                        win.Color.hex(0x565f73)
+                        style.gui.button.hover.inactive
                 else if (settings.active)
-                    win.Color.hex(0x2c4a44)
+                    style.gui.button.base.active
                 else
-                    win.Color.hex(0x3f4757),
+                    style.gui.button.base.inactive,
                 buttonPos,
             );
 
@@ -259,7 +273,7 @@ pub const Button = struct {
                 .{
                     .text = settings.text,
                     .font = settings.font,
-                    .color = win.Color.hex(0xFFFFFF),
+                    .color = style.gui.text,
                 },
                 window,
                 ev,
@@ -356,7 +370,7 @@ fn StructEditor(comptime Struct: type) type {
                         .{
                             .text = labelText,
                             .font = style.fonts.standard,
-                            .color = win.Color.hex(0xFFFFFF),
+                            .color = style.gui.text,
                             .halign = .left,
                         },
                         window,
@@ -369,6 +383,7 @@ fn StructEditor(comptime Struct: type) type {
                             .text = if (iteminfo.visible) "v" else ">",
                             .font = style.fonts.monospace,
                             .active = iteminfo.visible,
+                            .style = style,
                         },
                         window,
                         ev,
@@ -397,7 +412,7 @@ fn StructEditor(comptime Struct: type) type {
                         .{
                             .text = labelText,
                             .font = style.fonts.standard,
-                            .color = win.Color.hex(0xFFFFFF),
+                            .color = style.gui.text,
                             .halign = .left,
                         },
                         window,
@@ -461,6 +476,7 @@ fn EnumEditor(comptime Enum: type) type {
                         .text = getName(Enum, field.name),
                         .active = value.* == @field(Enum, field.name),
                         .font = style.fonts.standard,
+                        .style = style,
                     },
                     window,
                     ev,
