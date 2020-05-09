@@ -509,7 +509,7 @@ fn UnionEditor(comptime Union: type) type {
                     cpos.y += (try @call(
                         callOptions,
                     // Union.ModeData :field field.name .type .render
-                        help.UnionFieldType(Union.ModeData, field.name).render,
+                        help.FieldType(Union.ModeData, field.name).render,
                         .{ &@field(sue.editor, field.name), &@field(value, field.name), style, window, ev, cpos },
                     )).h;
                     break;

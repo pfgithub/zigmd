@@ -167,10 +167,16 @@ pub fn unionCallThis(comptime method: []const u8, unionValue: var, args: var) Un
     @panic("Did not match any enum value");
 }
 
-pub fn UnionFieldType(comptime Union: type, comptime fieldName: []const u8) type {
-    if (!@hasField(Union, fieldName)) @compileError("Union does not have field " ++ fieldName);
-    for (@typeInfo(Union).Union.fields) |field| {
-        if (std.mem.eql(u8, field.name, fieldName)) return field.field_type;
+pub fn FieldType(comptime Container: type, comptime fieldName: []const u8) type {
+    if (!@hasField(Container, fieldName)) @compileError("Union does not have field " ++ fieldName);
+    switch (@typeInfo(Container)) {
+        .Union => |uni| for (uni.fields) |field| {
+            if (std.mem.eql(u8, field.name, fieldName)) return field.field_type;
+        },
+        .Struct => |stru| for (stru.fields) |field| {
+            if (std.mem.eql(u8, field.name, fieldName)) return field.field_type;
+        },
+        else => @compileError("Must be Union | Struct"),
     }
     unreachable;
 }
@@ -299,4 +305,19 @@ test "unionCallThis pointer arg" {
     std.testing.expectEqual(unionCallThis("print", &val, .{}), 35);
     val = Union{ .FiftySix = .{ .v = 28 } };
     std.testing.expectEqual(unionCallThis("print", &val, .{}), 28);
+}
+
+test "FieldType" {
+    const Struct = struct {
+        thing: u8,
+        text: []const u8,
+    };
+    comptime std.testing.expectEqual(FieldType(Struct, "thing"), u8);
+    comptime std.testing.expectEqual(FieldType(Struct, "text"), []const u8);
+    const Union = union {
+        a: f64,
+        b: bool,
+    };
+    comptime std.testing.expectEqual(FieldType(Union, "a"), f64);
+    comptime std.testing.expectEqual(FieldType(Union, "b"), bool);
 }
