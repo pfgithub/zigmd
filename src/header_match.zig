@@ -1,5 +1,23 @@
 const std = @import("std");
 
+fn seen(comptime a: type, comptime list: *[]const type) bool {
+    for (list.*) |itm| {
+        if (a == itm) return true;
+    }
+    list.* = list.* ++ [_]type{a};
+    return false;
+}
+
+test "seen" {
+    comptime {
+        var array: [0]type = [_]type{};
+        var slice: []const type = &array;
+        if (seen(u8, &slice)) unreachable;
+        if (seen(u16, &slice)) unreachable;
+        if (!seen(u8, &slice)) unreachable;
+    }
+}
+
 // the std.testing one doesn't work at comptime
 pub fn expectEqual(comptime b: ?[]const u8, comptime a: ?[]const u8) void {
     if (a == null) {
