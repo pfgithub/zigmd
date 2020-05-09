@@ -320,12 +320,11 @@ pub const Button = struct {
 
         // render
         {
-            if (bumpy)
-                try win.renderRect(
-                    window,
-                    btn.bumpColor.get(ev),
-                    bumpPos,
-                );
+            try win.renderRect(
+                window,
+                btn.bumpColor.get(ev),
+                bumpPos,
+            );
             try win.renderRect(
                 window,
                 btn.topColor.get(ev),
