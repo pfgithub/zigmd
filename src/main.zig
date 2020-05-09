@@ -2,6 +2,7 @@ const std = @import("std");
 pub const win = @import("./render.zig");
 pub const parser = @import("./parser.zig");
 pub const gui = @import("./gui.zig");
+const help = @import("./helpers.zig");
 const List = std.SinglyLinkedList;
 const ArrayList = std.ArrayList;
 
@@ -42,12 +43,17 @@ pub const Action = union(enum) {
     delete: Delete,
     moveCursorLR: MoveCursorLR,
     save: Save,
+
+    pub fn apply(value: Action, app: *App) void {
+        return help.unionCallThis("apply", value, .{app});
+    }
+
     pub const Insert = struct {
         direction: Direction,
         mode: ActionMode,
         text: []const u8,
 
-        fn apply(insert: *const Insert, app: *App) void {
+        pub fn apply(insert: Insert, app: *App) void {
             app.text.insertSlice(app.cursorLocation, insert.text) catch
                 return; // rip, text could not be inserted. do nothing, do not move cursor.
 
@@ -72,7 +78,7 @@ pub const Action = union(enum) {
         direction: Direction,
         stop: CharacterStop,
 
-        fn apply(delete: *const Delete, app: *App) void {
+        pub fn apply(delete: Delete, app: *App) void {
             const stopPos = app.findStop(delete.stop, delete.direction);
             const moveDistance = blk: {
                 const left = std.math.min(app.cursorLocation, stopPos);
@@ -108,7 +114,7 @@ pub const Action = union(enum) {
         direction: Direction,
         stop: CharacterStop,
 
-        fn apply(moveCursorLR: *const MoveCursorLR, app: *App) void {
+        pub fn apply(moveCursorLR: MoveCursorLR, app: *App) void {
             const stopPos = app.findStop(moveCursorLR.stop, moveCursorLR.direction);
             app.cursorLocation = stopPos;
         }
@@ -118,7 +124,7 @@ pub const Action = union(enum) {
         mode: LineStop,
     };
     pub const Save = struct {
-        fn apply(save: *const Save, app: *App) void {
+        pub fn apply(save: Save, app: *App) void {
             app.saveFile();
         }
     };
@@ -693,35 +699,35 @@ pub const App = struct {
                 const action: Action = .{
                     .moveCursorLR = .{ .direction = .left, .stop = .codepoint },
                 };
-                action.moveCursorLR.apply(app);
+                action.apply(app);
             },
             .Right => {
                 const action: Action = .{
                     .moveCursorLR = .{ .direction = .right, .stop = .codepoint },
                 };
-                action.moveCursorLR.apply(app);
+                action.apply(app);
             },
             .Backspace => {
                 const action: Action = .{
                     .delete = .{ .direction = .left, .stop = .codepoint },
                 };
-                action.delete.apply(app);
+                action.apply(app);
             },
             .Return => {
                 const action: Action = .{
                     .insert = .{ .direction = .left, .mode = .raw, .text = "\n" },
                 };
-                action.insert.apply(app);
+                action.apply(app);
             },
             .Delete => {
                 const action: Action = .{
                     .delete = .{ .direction = .right, .stop = .codepoint },
                 };
-                action.delete.apply(app);
+                action.apply(app);
             },
             .Escape => {
                 const action: Action = .{ .save = .{} };
-                action.save.apply(app);
+                action.apply(app);
             },
             else => {},
         };
