@@ -28,7 +28,6 @@ fn testingImplements(comptime Header: type, comptime Implementation: type) ?[]co
     return implements(Header, Implementation, "base", &memo);
 }
 
-// the std.testing one doesn't work at comptime
 fn expectEqual(comptime b: ?[]const u8, comptime a: ?[]const u8) void {
     if (a == null) {
         if (b == null)
