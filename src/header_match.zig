@@ -20,8 +20,16 @@ test "seen" {
     }
 }
 
+pub fn userImplements(comptime Header: type, comptime Implementation: type) void {
+    if (testingImplements(Header, Implementation)) |err| @compileError(err);
+}
+fn testingImplements(comptime Header: type, comptime Implementation: type) ?[]const u8 {
+    var memo: Memo = .{};
+    return implements(Header, Implementation, "base", &memo);
+}
+
 // the std.testing one doesn't work at comptime
-pub fn expectEqual(comptime b: ?[]const u8, comptime a: ?[]const u8) void {
+fn expectEqual(comptime b: ?[]const u8, comptime a: ?[]const u8) void {
     if (a == null) {
         if (b == null)
             return;
@@ -32,12 +40,15 @@ pub fn expectEqual(comptime b: ?[]const u8, comptime a: ?[]const u8) void {
         @compileError("Expected `" ++ a.? ++ "`, got `" ++ b.? ++ "`");
 }
 
-pub fn implements(
+fn implements(
     comptime Header: type,
     comptime Implementation: type,
     comptime context: []const u8,
+    comptime memo: *Memo,
 ) ?[]const u8 {
     if (Header == Implementation) return null;
+    if (memo.seen(struct { header: Header, implementation: Implementation }))
+        return null;
 
     const header = @typeInfo(Header);
     const implementation = @typeInfo(Implementation);
@@ -49,24 +60,25 @@ pub fn implements(
 
     const namedContext: []const u8 = context ++ ": " ++ @tagName(headerTag);
     switch (header) {
-        .Struct => if (structImplements(Header, Implementation, namedContext)) |err|
+        .Struct => if (structImplements(Header, Implementation, namedContext, memo)) |err|
             return err,
         .Int, .Float, .Bool => {
             if (Header != Implementation) {
                 return (namedContext ++ " >: Types differ. Expected: " ++ @typeName(Header) ++ ", Got: " ++ @typeName(Implementation) ++ ".");
             }
         },
-        .Fn => if (fnImplements(Header, Implementation, namedContext)) |err|
+        .Fn => if (fnImplements(Header, Implementation, namedContext, memo)) |err|
             return err,
         else => return (context ++ " >: Not supported yet: " ++ @tagName(headerTag)),
     }
     return null;
 }
 
-pub fn fnImplements(
+fn fnImplements(
     comptime Header: type,
     comptime Implementation: type,
     comptime context: []const u8,
+    comptime memo: *Memo,
 ) ?[]const u8 {
     const header = @typeInfo(Header).Fn;
     const impl = @typeInfo(Implementation).Fn;
@@ -77,7 +89,7 @@ pub fn fnImplements(
     if (impl.is_var_args) return (context ++ " >: Expected non-varargs, got varargs.");
     if (header.calling_convention != impl.calling_convention) return (context ++ " >: Wrong calling convention.");
 
-    if (implements(header.return_type.?, impl.return_type.?, context ++ " > return")) |err|
+    if (implements(header.return_type.?, impl.return_type.?, context ++ " > return", memo)) |err|
         return err;
 
     if (header.args.len != impl.args.len) return (context ++ " >: Expected {} arguments, got {}.");
@@ -91,16 +103,17 @@ pub fn fnImplements(
         if (headerarg.is_generic) return (argContext ++ " >: Generic args are not supported yet.");
         if (implarg.is_generic) return (argContext ++ " >: Expected non-generic, got generic.");
         if (headerarg.is_noalias != implarg.is_noalias) return (argContext ++ " >: Expected noalias?, got noalias?");
-        if (implements(headerarg.arg_type.?, implarg.arg_type.?, argContext)) |v| return v;
+        if (implements(headerarg.arg_type.?, implarg.arg_type.?, argContext, memo)) |v| return v;
     }
 
     return null;
 }
 
-pub fn structImplements(
+fn structImplements(
     comptime Header: type,
     comptime Implementation: type,
     comptime context: []const u8,
+    comptime memo: *Memo,
 ) ?[]const u8 {
     const header = @typeInfo(Header).Struct;
     const implementation = @typeInfo(Implementation).Struct;
@@ -136,10 +149,11 @@ pub fn structImplements(
                 typ,
                 @field(Implementation, decl.name),
                 namedContext,
+                memo,
             )) |err| return err,
             .Fn => |fndecl| {
                 const fnimpl = impldecl.data.Fn;
-                if (implements(fndecl.fn_type, fnimpl.fn_type, namedContext)) |err|
+                if (implements(fndecl.fn_type, fnimpl.fn_type, namedContext, memo)) |err|
                     return err;
             },
             else => |v| return (namedContext ++ " >: Not supported yet: " ++ @tagName(headerDataType)),
@@ -157,56 +171,56 @@ pub fn structImplements(
         for (implementation.fields) |implfld| {
             if (!std.mem.eql(u8, field.name, implfld.name)) continue;
 
-            if (implements(field.field_type, implfld.field_type, context ++ " > " ++ field.name)) |err| return err;
+            if (implements(field.field_type, implfld.field_type, context ++ " > " ++ field.name, memo)) |err| return err;
         }
     }
     return null;
 }
 
 test "extra declaration" {
-    comptime expectEqual(implements(struct {
+    comptime expectEqual(testingImplements(struct {
         pub const A = u64;
     }, struct {
         pub const A = u64;
         pub const B = u32;
-    }, "base"), "base: Struct >: Header has extra disallowed declaration `pub B`");
+    }), "base: Struct >: Header has extra disallowed declaration `pub B`");
 }
 
 test "extra private declaration ok" {
-    comptime expectEqual(implements(struct {
+    comptime expectEqual(testingImplements(struct {
         pub const A = u64;
     }, struct {
         pub const A = u64;
         const B = u32;
-    }, "base"), "base: Struct >: Header has extra disallowed declaration `pub B`");
+    }), "base: Struct >: Header has extra disallowed declaration `pub B`");
 }
 
 test "missing declaration" {
-    comptime expectEqual(implements(struct {
+    comptime expectEqual(testingImplements(struct {
         pub const A = u64;
     }, struct {
         pub const B = u32;
-    }, "base"), "base: Struct > decl A >: Implementation is missing declaration.");
+    }), "base: Struct > decl A >: Implementation is missing declaration.");
 }
 
 test "integer different" {
-    comptime expectEqual(implements(struct {
+    comptime expectEqual(testingImplements(struct {
         pub const A = u64;
     }, struct {
         pub const A = u32;
-    }, "base"), "base: Struct > decl A: Int >: Types differ. Expected: u64, Got: u32.");
+    }), "base: Struct > decl A: Int >: Types differ. Expected: u64, Got: u32.");
 }
 
 test "integer equivalent" {
-    comptime expectEqual(implements(struct {
+    comptime expectEqual(testingImplements(struct {
         pub const A = u64;
     }, struct {
         pub const A = u64;
-    }, "base"), null);
+    }), null);
 }
 
 test "fields missing" {
-    comptime expectEqual(implements(struct {
+    comptime expectEqual(testingImplements(struct {
         pub const A = u64;
         a: A,
         b: u32,
@@ -216,11 +230,11 @@ test "fields missing" {
         a: A,
         b: u32,
         private_member: f64,
-    }, "base"), "base: Struct >: Implementation is missing field `c`");
+    }), "base: Struct >: Implementation is missing field `c`");
 }
 
 test "fields wrong type" {
-    comptime expectEqual(implements(struct {
+    comptime expectEqual(testingImplements(struct {
         pub const A = u64;
         a: A,
         b: u64,
@@ -229,11 +243,11 @@ test "fields wrong type" {
         a: A,
         b: u32,
         private_member: f64,
-    }, "base"), "base: Struct > b: Int >: Types differ. Expected: u64, Got: u32.");
+    }), "base: Struct > b: Int >: Types differ. Expected: u64, Got: u32.");
 }
 
 test "fields equivalent + extra private" {
-    comptime expectEqual(implements(struct {
+    comptime expectEqual(testingImplements(struct {
         pub const A = u64;
         a: A,
         b: u32,
@@ -242,11 +256,11 @@ test "fields equivalent + extra private" {
         a: A,
         b: u32,
         private_member: f64,
-    }, "base"), null);
+    }), null);
 }
 
 test "fn different return values" {
-    comptime expectEqual(implements(struct {
+    comptime expectEqual(testingImplements(struct {
         pub const Struct = struct { typ: u64 };
         pub fn a(arg: Struct) Struct {
             return undefined;
@@ -256,11 +270,11 @@ test "fn different return values" {
         pub fn a(arg: Struct) struct { a: u64 } {
             return undefined;
         }
-    }, "base"), "base: Struct > decl a: Fn > return: Struct >: Implementation is missing field `typ`");
+    }), "base: Struct > decl a: Fn > return: Struct >: Implementation is missing field `typ`");
 }
 
 test "fn equivalent" {
-    comptime expectEqual(implements(struct {
+    comptime expectEqual(testingImplements(struct {
         pub const Struct = struct { typ: u64 };
         pub fn a(arg: Struct, arg2: u64, arg3: bool) Struct {
             return undefined;
@@ -270,19 +284,19 @@ test "fn equivalent" {
         pub fn a(arg: Struct, arg2: u64, arg3: bool) Struct {
             return undefined;
         }
-    }, "base"), null);
+    }), null);
 }
 
 test "fields" {
-    comptime expectEqual(implements(struct {
+    comptime expectEqual(testingImplements(struct {
         q: u64,
     }, struct {
         q: u32,
-    }, "base"), "base: Struct > q: Int >: Types differ. Expected: u64, Got: u32.");
+    }), "base: Struct > q: Int >: Types differ. Expected: u64, Got: u32.");
 }
 
 test "fn different args" {
-    comptime expectEqual(implements(struct {
+    comptime expectEqual(testingImplements(struct {
         pub const Struct = struct { typ: u64 };
         pub fn a(arg2: u64, arg: Struct, arg3: bool) Struct {
             return undefined;
@@ -292,12 +306,12 @@ test "fn different args" {
         pub fn a(arg2: u64, arg: struct { typ: u32 }, arg3: bool) Struct {
             return undefined;
         }
-    }, "base"), "base: Struct > decl a: Fn > args[1]: Struct > typ: Int >: Types differ. Expected: u64, Got: u32.");
+    }), "base: Struct > decl a: Fn > args[1]: Struct > typ: Int >: Types differ. Expected: u64, Got: u32.");
 }
 
 // uh oh! recursion will require special workarounds!
 // test "pass" {
-//     comptime implements(struct {
+//     comptime testingImplements(struct {
 //         pub const Recursion = struct {
 //             pub const This = Recursion;
 //         };
@@ -305,5 +319,5 @@ test "fn different args" {
 //         pub const Recursion = struct {
 //             pub const This = Recursion;
 //         };
-//     }, "base");
+//     });
 // }
