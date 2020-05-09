@@ -133,22 +133,19 @@ pub fn unionCall(comptime Union: type, comptime method: []const u8, enumValue: @
 
 // unionCallThis(*Union, "deinit")(someUnion, .{}) should work
 // also is there any reason it needs to return a fn? why can't it be unionCallThis(someUnion, "deinit", .{})
-pub fn unionCallThis(comptime Union: type, comptime method: []const u8) fn (Union, var) unionCallReturnType(Union, method) {
+pub fn unionCallThis(comptime method: []const u8, unionValue: var, args: var) unionCallReturnType(@TypeOf(unionValue), method) {
+    const Union = @TypeOf(unionValue);
     const typeInfo = @typeInfo(Union).Union;
     const TagType = std.meta.TagType(Union);
     const ReturnType = comptime unionCallReturnType(Union, method);
 
-    return struct {
-        fn call(unionValue: Union, args: var) ReturnType {
-            const callOpts: std.builtin.CallOptions = .{};
-            inline for (typeInfo.fields) |field| {
-                if (@enumToInt(std.meta.activeTag(unionValue)) == field.enum_field.?.value) {
-                    return @call(callOpts, @field(field.field_type, method), .{@field(unionValue, field.name)} ++ args);
-                }
-            }
-            @panic("Did not match any enum value");
+    const callOpts: std.builtin.CallOptions = .{};
+    inline for (typeInfo.fields) |field| {
+        if (@enumToInt(std.meta.activeTag(unionValue)) == field.enum_field.?.value) {
+            return @call(callOpts, @field(field.field_type, method), .{@field(unionValue, field.name)} ++ args);
         }
-    }.call;
+    }
+    @panic("Did not match any enum value");
 }
 
 test "enum array" {
@@ -231,6 +228,6 @@ test "unionCallThis" {
             }
         }
     };
-    std.testing.expectEqual(unionCallThis(Union, "print")(Union{ .TwentyFive = .{ .v = 5, .v2 = 10 } }, .{}), 35);
-    std.testing.expectEqual(unionCallThis(Union, "print")(Union{ .FiftySix = .{ .v = 28 } }, .{}), 28);
+    std.testing.expectEqual(unionCallThis("print", Union{ .TwentyFive = .{ .v = 5, .v2 = 10 } }, .{}), 35);
+    std.testing.expectEqual(unionCallThis("print", Union{ .FiftySix = .{ .v = 28 } }, .{}), 28);
 }
