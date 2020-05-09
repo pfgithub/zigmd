@@ -204,40 +204,40 @@ pub fn Interpolation(comptime Kind: type) type {
     return struct {
         const Interp = @This();
 
-        color: union(enum) {
+        value: union(enum) {
             started: struct {
-                base: win.Color,
-                target: win.Color,
+                base: Kind,
+                target: Kind,
                 startTime: u64,
             },
             unset: void,
         },
         transitionDuration: u64,
 
-        pub fn init(transitionDuration: u64) ColorInterpolation {
-            return .{ .transitionDuration = transitionDuration, .color = .unset };
+        pub fn init(transitionDuration: u64) Interp {
+            return .{ .transitionDuration = transitionDuration, .value = .unset };
         }
-        pub fn set(cinterp: *ColorInterpolation, imev: *ImEvent, newColor: win.Color) void {
-            switch (cinterp.color) {
+        pub fn set(cinterp: *Interp, imev: *ImEvent, nv: Kind) void {
+            switch (cinterp.value) {
                 .started => |*dat| {
-                    if (std.meta.eql(dat.target, newColor)) return; // otherwise the interpolation will lose precision. it's ok to lose precision if the value changes though
+                    if (std.meta.eql(dat.target, nv)) return; // otherwise the interpolation will lose precision. it's ok to lose precision if the value changes though
                     dat.base = cinterp.get(imev);
                     dat.startTime = imev.time;
-                    dat.target = newColor;
+                    dat.target = nv;
                 },
                 .unset => {
-                    cinterp.color = .{
+                    cinterp.value = .{
                         .started = .{
-                            .base = newColor,
+                            .base = nv,
                             .startTime = imev.time,
-                            .target = newColor,
+                            .target = nv,
                         },
                     };
                 },
             }
         }
-        pub fn get(cinterp: ColorInterpolation, imev: *ImEvent) win.Color {
-            const dat = cinterp.color.started; // only call get after color has been set at least once
+        pub fn get(cinterp: Interp, imev: *ImEvent) Kind {
+            const dat = cinterp.value.started; // only call get after value has been set at least once
             if (!imev.animationEnabled) return dat.target;
             const timeOffset = @intToFloat(f64, imev.time - dat.startTime) / @intToFloat(f64, cinterp.transitionDuration);
             return help.interpolate(dat.base, dat.target, timeOffset);
@@ -246,18 +246,21 @@ pub fn Interpolation(comptime Kind: type) type {
 }
 
 const ColorInterpolation = Interpolation(win.Color);
+const PosInterpolation = Interpolation(i64);
 
 pub const Button = struct {
     clickStarted: bool = false,
     text: Text,
     bumpColor: ColorInterpolation,
     topColor: ColorInterpolation,
+    bumpOffset: PosInterpolation,
 
     pub fn init() Button {
         return .{
             .text = Text.init(),
             .bumpColor = ColorInterpolation.init(100),
             .topColor = ColorInterpolation.init(100),
+            .bumpOffset = PosInterpolation.init(100),
         };
     }
     pub fn deinit(btn: *Button) void {
@@ -295,7 +298,8 @@ pub const Button = struct {
         const bumpy = !btn.clickStarted;
 
         const bumpHeight = 4;
-        const bumpOffset: i64 = if (bumpy) if (settings.active) @as(i64, 2) else @as(i64, 4) else 0;
+        btn.bumpOffset.set(ev, if (bumpy) if (settings.active) @as(i64, 2) else @as(i64, 4) else 0);
+        const bumpOffset = btn.bumpOffset.get(ev);
 
         const buttonPos: win.Rect = pos.addHeight(-bumpHeight).down(bumpHeight - bumpOffset);
         const bumpPos: win.Rect = pos.downCut(pos.h - bumpHeight);
