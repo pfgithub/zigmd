@@ -98,8 +98,8 @@ pub const Text = struct {
             text: []const u8,
             font: *win.Font,
             color: win.Color,
-            halign: enum { left, center, right } = .center,
-            valign: enum { top, center, bottom } = .center,
+            halign: win.HAlign = .hcenter,
+            valign: win.VAlign = .vcenter,
         },
         window: *win.Window,
         ev: *ImEvent,
@@ -145,20 +145,10 @@ pub const Text = struct {
             );
         }
         const center = pos.center();
-        const textSizeRect = (win.Rect{
-            .x = switch (settings.halign) {
-                .left => pos.x,
-                .center => center.x - @divFloor(text.text.size.w, 2),
-                .right => pos.x + pos.w - text.text.size.w,
-            },
-            .y = switch (settings.valign) {
-                .top => pos.y,
-                .center => center.y - @divFloor(text.text.size.h, 2),
-                .bottom => pos.y + pos.h - text.text.size.h,
-            },
+        const textSizeRect = pos.position(.{
             .w = text.text.size.w,
             .h = text.text.size.h,
-        }).overlap(pos);
+        }, settings.halign, settings.valign).overlap(pos);
         try text.text.render(window, .{
             .x = textSizeRect.x,
             .y = textSizeRect.y,
@@ -354,7 +344,7 @@ fn StructEditor(comptime Struct: type) type {
                         },
                         window,
                         ev,
-                        currentPos.setX2(textSizeRect.x + textSizeRect.w + textGap).rightCut(textSizeRect.w + textGap).width(20).height(20).down(@divFloor(lineHeight, 2) - @divFloor(20, 2)),
+                        area.right(textSizeRect.w + textGap).position(.{ .w = 20, .h = 20 }, .left, .vcenter),
                     )) {
                         iteminfo.visible = !iteminfo.visible;
                         ev.rerender();

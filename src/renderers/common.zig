@@ -87,6 +87,12 @@ pub const Point = struct {
     x: i64,
     y: i64,
 };
+pub const WH = struct {
+    w: i64,
+    h: i64,
+};
+pub const HAlign = enum { left, hcenter, right };
+pub const VAlign = enum { top, vcenter, bottom };
 pub const Rect = struct {
     x: i64,
     y: i64,
@@ -102,8 +108,24 @@ pub const Rect = struct {
             .y = rect.y + @divFloor(rect.h, 2),
         };
     }
-    // pub fn alignRect(float halign, float valign)? eg 0.5 for half or 0 for top
-    // that level of granularity hasn't been necessary yet so (.left, .vcenter) is just as good
+    pub fn position(rect: Rect, item: WH, halign: HAlign, valign: VAlign) Rect {
+        return .{
+            // rect.x + rect.w * percent - item.w * percent
+            .x = switch (halign) {
+                .left => rect.x,
+                .hcenter => rect.x + @divFloor(rect.w, 2) - @divFloor(item.w, 2),
+                .right => rect.x + rect.w - item.w,
+            },
+            .y = switch (valign) {
+                .top => rect.y,
+                .vcenter => rect.y + @divFloor(rect.h, 2) - @divFloor(item.h, 2),
+                .bottom => rect.y + rect.h - item.h,
+            },
+            .w = item.w,
+            .h = item.h,
+        };
+        // .overlap(rect)?
+    }
     fn overlap(one: Rect, two: Rect) Rect {
         var fx = if (one.x > two.x) one.x else two.x;
         var fy = if (one.y > two.y) one.y else two.y;
