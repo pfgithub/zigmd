@@ -106,7 +106,7 @@ pub fn UnionArray(comptime Union: type) type {
 }
 
 // comptime only
-fn unionCallReturnType(comptime Union: type, comptime method: []const u8) type {
+fn UnionCallReturnType(comptime Union: type, comptime method: []const u8) type {
     var res: ?type = null;
     for (@typeInfo(Union).Union.fields) |field| {
         const returnType = @typeInfo(@TypeOf(@field(field.field_type, method))).Fn.return_type orelse
@@ -117,10 +117,16 @@ fn unionCallReturnType(comptime Union: type, comptime method: []const u8) type {
     return res orelse @panic("Union must have at least one field");
 }
 
-pub fn unionCall(comptime Union: type, comptime method: []const u8, enumValue: @TagType(Union), args: var) unionCallReturnType(Union, method) {
+pub fn DePointer(comptime Type: type) type {
+    return switch (@typeInfo(Type)) {
+        .Pointer => |ptr| ptr.child,
+        else => Type,
+    };
+}
+
+pub fn unionCall(comptime Union: type, comptime method: []const u8, enumValue: @TagType(Union), args: var) UnionCallReturnType(Union, method) {
     const typeInfo = @typeInfo(Union).Union;
     const TagType = std.meta.TagType(Union);
-    const ReturnType = comptime unionCallReturnType(Union, method);
 
     const callOpts: std.builtin.CallOptions = .{};
     inline for (typeInfo.fields) |field| {
@@ -133,16 +139,16 @@ pub fn unionCall(comptime Union: type, comptime method: []const u8, enumValue: @
 
 // unionCallThis(*Union, "deinit")(someUnion, .{}) should work
 // also is there any reason it needs to return a fn? why can't it be unionCallThis(someUnion, "deinit", .{})
-pub fn unionCallThis(comptime method: []const u8, unionValue: var, args: var) unionCallReturnType(@TypeOf(unionValue), method) {
-    const Union = @TypeOf(unionValue);
+pub fn unionCallThis(comptime method: []const u8, unionValue: var, args: var) UnionCallReturnType(DePointer(@TypeOf(unionValue)), method) {
+    const isPtr = @typeInfo(@TypeOf(unionValue)) == .Pointer;
+    const Union = DePointer(@TypeOf(unionValue));
     const typeInfo = @typeInfo(Union).Union;
     const TagType = std.meta.TagType(Union);
-    const ReturnType = comptime unionCallReturnType(Union, method);
 
     const callOpts: std.builtin.CallOptions = .{};
     inline for (typeInfo.fields) |field| {
-        if (@enumToInt(std.meta.activeTag(unionValue)) == field.enum_field.?.value) {
-            return @call(callOpts, @field(field.field_type, method), .{@field(unionValue, field.name)} ++ args);
+        if (@enumToInt(std.meta.activeTag(if (isPtr) unionValue.* else unionValue)) == field.enum_field.?.value) {
+            return @call(callOpts, @field(field.field_type, method), .{if (isPtr) &@field(unionValue, field.name) else @field(unionValue, field.name)} ++ args);
         }
     }
     @panic("Did not match any enum value");
@@ -230,4 +236,25 @@ test "unionCallThis" {
     };
     std.testing.expectEqual(unionCallThis("print", Union{ .TwentyFive = .{ .v = 5, .v2 = 10 } }, .{}), 35);
     std.testing.expectEqual(unionCallThis("print", Union{ .FiftySix = .{ .v = 28 } }, .{}), 28);
+}
+
+test "unionCallThis pointer arg" {
+    const Union = union(enum) {
+        TwentyFive: struct {
+            v: i32,
+            v2: i64,
+            fn print(value: *@This()) i64 {
+                return value.v2 + 25;
+            }
+        }, FiftySix: struct {
+            v: i64,
+            fn print(value: *@This()) i64 {
+                return value.v;
+            }
+        }
+    };
+    var val = Union{ .TwentyFive = .{ .v = 5, .v2 = 10 } };
+    std.testing.expectEqual(unionCallThis("print", &val, .{}), 35);
+    val = Union{ .FiftySix = .{ .v = 28 } };
+    std.testing.expectEqual(unionCallThis("print", &val, .{}), 28);
 }
