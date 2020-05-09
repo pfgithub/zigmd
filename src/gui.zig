@@ -505,6 +505,7 @@ fn UnionEditor(comptime Union: type) type {
 
             const callOptions: std.builtin.CallOptions = .{};
             inline for (typeInfo.fields) |field| {
+                // COMPILER BUG: even when this ifs on false, it still calls the function and gives the wrong return value.
                 if (@enumToInt(activeTag) == field.enum_field.?.value) {
                     cpos.y += (try @call(
                         callOptions,
