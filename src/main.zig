@@ -1021,6 +1021,7 @@ pub fn main() !void {
 
     var timer = try std.time.Timer.start();
     var frames: u64 = 0;
+    var rerenders: u64 = 0;
 
     var event = switch (updateMode.update) {
         .wait => try window.waitEvent(),
@@ -1038,6 +1039,20 @@ pub fn main() !void {
             else => {},
         }
 
+        if (updateMode.update == .poll and updateMode.update.poll.reportFPS == .yes) {
+            frames += 1;
+            const time = timer.read();
+            if (time >= 1000000000) {
+                std.debug.warn("FPS: {d} ({d}% rerenders)\n", .{ @intToFloat(f32, frames) / (@intToFloat(f32, time) / 1000000000.0), 100 - @trunc(@intToFloat(f32, frames) / @intToFloat(f32, rerenders) * 100) });
+                timer.reset();
+                frames = 0;
+                rerenders = 0;
+            }
+        } else {
+            frames = 0;
+            rerenders = 0;
+        }
+
         // === RENDER
         imev.animationEnabled = switch (updateMode.update) {
             .poll => |p| p.animations == .enabled,
@@ -1047,23 +1062,12 @@ pub fn main() !void {
         imev.rerender();
         while (imev.internal.rerender) {
             imev.apply(event, &window);
+            rerenders += 1;
             event = .{ .Empty = {} };
 
             window.cursor = .default;
 
             try window.clear(style.colors.window);
-
-            if (updateMode.update == .poll and updateMode.update.poll.reportFPS == .yes) {
-                frames += 1;
-                const time = timer.read();
-                if (time >= 1000000000) {
-                    std.debug.warn("FPS: {d}\n", .{@intToFloat(f32, frames) / (@intToFloat(f32, time) / 1000000000.0)});
-                    timer.reset();
-                    frames = 0;
-                }
-            } else {
-                frames = 0;
-            }
 
             var windowSize = try window.getSize();
 
