@@ -759,7 +759,7 @@ pub const App = struct {
         };
     }
 
-    fn render(app: *App, imev: gui.ImEvent, fullArea: win.Rect) !void {
+    fn render(app: *App, imev: *gui.ImEvent, fullArea: win.Rect) !void {
         try app.textRenderCache.clean();
         const window = imev.window;
 
@@ -767,6 +767,7 @@ pub const App = struct {
             window.cursor = .ibeam;
             app.scrollY += -imev.scrollDelta.y;
         }
+        if (app.scrollY < 0) app.scrollY = 0;
 
         const pos = fullArea.noHeight().addWidth(-40).rightCut(20).down(10 + -app.scrollY);
 
@@ -816,6 +817,13 @@ pub const App = struct {
 
         try app.remeasureText(pos.w);
         const textInfo = app.textInfo.?;
+
+        const lastLine = textInfo.lines.items[textInfo.lines.items.len - 1];
+        const maxScrollY = lastLine.yTop + lastLine.height - 20;
+        if (app.scrollY > maxScrollY) {
+            app.scrollY = maxScrollY;
+            imev.rerender();
+        }
 
         if (imev.mouseDown) blk: {
             const mpos = imev.cursor;
@@ -1160,7 +1168,7 @@ pub fn main() !void {
 
             switch (displayMode) {
                 .editor => {
-                    try app.render(imev, currentPos.setY2(windowSize.h));
+                    try app.render(&imev, currentPos.setY2(windowSize.h));
                 },
                 .gui => {
                     currentPos.y += gui.seperatorGap;
