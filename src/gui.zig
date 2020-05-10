@@ -900,13 +900,13 @@ pub fn UnsupportedEditor(comptime Ignore: type) type {
 }
 
 pub const EditorHeader = struct {
-    pub const isInline = header_check.any(bool);
-    pub fn init(ev: *ImEvent) header_check.this() {
+    pub const isInline: bool = undefined;
+    pub fn init(ev: *ImEvent) EditorHeader {
         return undefined;
     }
-    pub fn deinit(editor: *header_check.this()) void {}
+    pub fn deinit(editor: *EditorHeader) void {}
     pub fn render(
-        editor: *header_check.this(),
+        editor: *EditorHeader,
         value: *Ignore,
         style: Style,
         ev: *ImEvent,

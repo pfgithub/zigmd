@@ -59,12 +59,21 @@ fn implements(
     const header = @typeInfo(Header);
     const implementation = @typeInfo(Implementation);
 
+    if ((header == .Struct or header == .Union or header == .Enum) and @hasDecl(Header, "__custom_type_compare")) {
+        if (Header.__custom_type_compare(Implementation)) {
+            return null;
+        } else {
+            return context ++ " >: Custom comparison function failed";
+        }
+    }
+
     const headerTag = @as(@TagType(@TypeOf(header)), header);
     const implementationTag = @as(@TagType(@TypeOf(implementation)), implementation);
     if (headerTag != implementationTag)
         return (context ++ " >: Implementation has incorrect type (expected " ++ @tagName(headerTag) ++ ", got " ++ @tagName(implementationTag) ++ ")");
 
     const namedContext: []const u8 = context ++ ": " ++ @tagName(headerTag);
+
     switch (header) {
         .Struct => if (structImplements(Header, Implementation, namedContext, memo)) |err|
             return err,
@@ -75,7 +84,7 @@ fn implements(
         },
         .Fn => if (fnImplements(Header, Implementation, namedContext, memo)) |err|
             return err,
-        else => return (context ++ " >: Not supported yet: " ++ @tagName(headerTag)),
+        else => return (namedContext ++ " >: Not supported yet: " ++ @tagName(headerTag)),
     }
     return null;
 }
@@ -181,6 +190,12 @@ fn structImplements(
         }
     }
     return null;
+}
+
+pub fn CustomTypeCompare(comptime comparisonFn: fn (type) bool) type {
+    return struct {
+        const __custom_type_compare = comparisonFn;
+    };
 }
 
 test "extra declaration" {
@@ -339,5 +354,27 @@ test "fn this arg recursion" {
                 return undefined;
             }
         };
+    }), null);
+}
+test "" {
+    comptime expectEqual(testingImplements(struct {
+        a: CustomTypeCompare(struct {
+            pub fn a(comptime Other: type) bool {
+                return Other == u64;
+            }
+        }.a),
+    }, struct {
+        a: u32,
+    }), "base: Struct > a >: Custom comparison function failed");
+}
+test "" {
+    comptime expectEqual(testingImplements(struct {
+        a: CustomTypeCompare(struct {
+            pub fn a(comptime Other: type) bool {
+                return Other == u64;
+            }
+        }.a),
+    }, struct {
+        a: u64,
     }), null);
 }
