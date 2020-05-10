@@ -211,16 +211,16 @@ pub const timing = struct {
     pub fn _EaseIn(t: f64) f64 {
         return t * t * t;
     }
-    pub const EaseOut: TimingFunction = _EaseOut;
-    pub fn _EaseOut(t: f64) f64 {
-        return 1 - EaseIn(t);
-    }
     pub const EaseInOut: TimingFunction = _EaseInOut;
     pub fn _EaseInOut(t: f64) f64 {
         return if (t < 0.5) 4 * t * t * t else (t - 1) * (2 * t - 2) * (2 * t - 2) + 1;
     }
 };
+/// forward/reverse: Apply the easing function in this direction (eg forward easeIn = reverse easeOut)
+/// positive/negative: Apply the easing function forward when the object is moving in this direction. eg if the object is moving in the positive direction, forward easeIn, else reverse easeIn.
+pub const EaseMode = enum { forward, reverse, positive, negative };
 pub fn Interpolation(comptime Kind: type) type {
+    const isInt = @typeInfo(Kind) == .Int;
     return struct {
         const Interp = @This();
 
@@ -230,6 +230,7 @@ pub fn Interpolation(comptime Kind: type) type {
                 target: Kind,
                 startTime: u64,
                 timingFunction: TimingFunction,
+                easeMode: EaseMode,
                 // timingFunctionBack: TimingFunction,
                 // timingFunctionForwards: TimingFunction,
                 // eg EaseIn going down, EaseOut going up
@@ -241,14 +242,17 @@ pub fn Interpolation(comptime Kind: type) type {
         pub fn init(transitionDuration: u64) Interp {
             return .{ .transitionDuration = transitionDuration, .value = .unset };
         }
-        pub fn set(cinterp: *Interp, imev: *ImEvent, nv: Kind, timingFunction: TimingFunction) void {
+        pub fn set(cinterp: *Interp, imev: *ImEvent, nv: Kind, timingFunction: TimingFunction, easeMode: EaseMode) void {
             switch (cinterp.value) {
                 .started => |*dat| {
                     if (std.meta.eql(dat.target, nv)) return; // otherwise the interpolation will lose precision. it's ok to lose precision if the value changes though
-                    dat.base = cinterp.get(imev);
-                    dat.startTime = imev.time;
-                    dat.target = nv;
-                    dat.timingFunction = timingFunction;
+                    dat.* = .{
+                        .base = cinterp.get(imev),
+                        .startTime = imev.time,
+                        .target = nv,
+                        .timingFunction = timingFunction,
+                        .easeMode = easeMode,
+                    };
                 },
                 .unset => {
                     cinterp.value = .{
@@ -257,6 +261,7 @@ pub fn Interpolation(comptime Kind: type) type {
                             .startTime = imev.time,
                             .target = nv,
                             .timingFunction = timingFunction,
+                            .easeMode = easeMode,
                         },
                     };
                 },
@@ -266,7 +271,13 @@ pub fn Interpolation(comptime Kind: type) type {
             const dat = cinterp.value.started; // only call get after value has been set at least once
             if (!imev.animationEnabled) return dat.target;
             const timeOffset = @intToFloat(f64, imev.time - dat.startTime) / @intToFloat(f64, cinterp.transitionDuration);
-            return help.interpolate(dat.base, dat.target, dat.timingFunction(timeOffset));
+
+            return switch (dat.easeMode) {
+                .forward => help.interpolate(dat.base, dat.target, dat.timingFunction(timeOffset)),
+                .reverse => help.interpolate(dat.base, dat.target, 1 - dat.timingFunction(1 - timeOffset)),
+                .positive => if (isInt) if (dat.base > dat.target) help.interpolate(dat.base, dat.target, dat.timingFunction(timeOffset)) else help.interpolate(dat.base, dat.target, 1 - dat.timingFunction(1 - timeOffset)) else @panic(".positive is only available for integer types"),
+                .negative => if (isInt) if (dat.base < dat.target) help.interpolate(dat.base, dat.target, dat.timingFunction(timeOffset)) else help.interpolate(dat.base, dat.target, 1 - dat.timingFunction(1 - timeOffset)) else @panic(".negative is only available for integer types"),
+            };
         }
     };
 }
@@ -324,7 +335,7 @@ pub const Button = struct {
         const bumpy = !btn.clickStarted;
 
         const bumpHeight = 4;
-        btn.bumpOffset.set(ev, if (bumpy) if (settings.active) @as(i64, 2) else @as(i64, 4) else 0, timing.EaseInOut);
+        btn.bumpOffset.set(ev, if (bumpy) if (settings.active) @as(i64, 2) else @as(i64, 4) else 0, timing.EaseIn, .negative);
         const bumpOffset = btn.bumpOffset.get(ev);
 
         const buttonPos: win.Rect = pos.addHeight(-bumpHeight).down(bumpHeight - bumpOffset);
@@ -333,7 +344,7 @@ pub const Button = struct {
         btn.bumpColor.set(ev, if (settings.active)
             style.gui.button.shadow.active
         else
-            style.gui.button.shadow.inactive, timing.Linear);
+            style.gui.button.shadow.inactive, timing.Linear, .forward);
         btn.topColor.set(ev, if (hoveringAny)
             if (settings.active)
                 style.gui.button.hover.active
@@ -342,7 +353,7 @@ pub const Button = struct {
         else if (settings.active)
             style.gui.button.base.active
         else
-            style.gui.button.base.inactive, timing.Linear);
+            style.gui.button.base.inactive, timing.Linear, .forward);
 
         // render
         {
