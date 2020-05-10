@@ -938,78 +938,66 @@ pub fn main() !void {
     // if in foreground, loop pollevent
     // if in background, waitevent
 
-    const Substructure = struct {
-        four: Four,
-        eight: Eight,
+    const PointlessButtons = struct {
+        const T = gui.StructDataHelper(@This());
+
+        one: enum { two, three, four, five, six } = .two,
+        seven: enum { eight, nine } = .eight,
+
         pub const ModeData = struct {
-            four: gui.Part(Four),
-            eight: gui.Part(Eight),
+            one: T(.one),
+            seven: T(.seven),
         };
-        const Four = enum { five, six, seven };
-        const Eight = enum { nine, ten, eleven };
     };
     const Poll = struct {
-        const ReportFPS = enum { no, yes };
-        reportFPS: ReportFPS,
-        animations: Animations,
-        const Animations = enum { disabled, enabled };
+        const T = gui.StructDataHelper(@This());
+
+        reportFPS: enum { no, yes } = .no,
+        animations: enum { disabled, enabled } = .enabled,
+
         pub const ModeData = struct {
-            reportFPS: gui.Part(ReportFPS),
-            animations: gui.Part(Animations),
+            reportFPS: T(.reportFPS),
+            animations: T(.animations),
         };
     };
     const Update = union(enum) {
-        const Tag = @TagType(@This());
+        const T = gui.UnionDataHelper(@This());
         wait: void,
         poll: Poll,
         pub const default_wait = {};
-        pub const default_poll = Poll{ .reportFPS = .no, .animations = .enabled };
-        pub const ModeData = union(Tag) {
-            wait: gui.UnionPart(void),
-            poll: gui.UnionPart(Poll),
+        pub const default_poll = Poll{};
+
+        pub const ModeData = union(T(type)) {
+            wait: T(.wait),
+            poll: T(.poll),
         };
     };
     const UpdateMode = struct {
-        const T = @This();
-        // todo move these to DisplayDetails or something
-        pub const title_update = "Update Mode:";
-        pub const title_another = "Another Option:";
-        pub const title_three = "Three:";
-        update: Update,
-        guiDisplay: GUIDisplay = .single,
+        const T = gui.StructDataHelper(@This());
+
+        // todo move title_... and other things these to DisplayDetails or something
+
+        update: Update = .{ .poll = Update.default_poll },
+        guiDisplay: enum { single, double } = .single,
         showRenderCount: enum { no, yes } = .no,
-        another: Another,
-        three: Three,
-        substructure: Substructure,
-        textField: TextField,
+
+        pointlessButtons: PointlessButtons = PointlessButtons{},
+        textField: [100]u8 = [_]u8{0} ** 100,
+
         pub const ModeData = struct {
-            // this could be simplified to
-            // update: gui.Part(help.FieldType(S, "update"))
-            // and then not everything needs a manual type declaration
-            update: gui.Part(Update),
-            guiDisplay: gui.Part(GUIDisplay),
-            showRenderCount: gui.Part(help.FieldType(T, "showRenderCount")),
-            another: gui.Part(Another),
-            three: gui.Part(Three),
-            substructure: gui.Part(Substructure),
-            textField: gui.Part(TextField),
+            update: T(.update),
+            guiDisplay: T(.guiDisplay),
+            showRenderCount: T(.showRenderCount),
+
+            pointlessButtons: T(.pointlessButtons),
+            textField: T(.textField),
         };
-        const GUIDisplay = enum { single, double };
-        const Another = enum { choice1, choice2, choice3 };
-        const Three = enum { yes };
-        const TextField = [100]u8;
     };
     var imedtr = gui.DataEditor(UpdateMode).init();
     defer imedtr.deinit();
     var imedtr2 = gui.DataEditor(UpdateMode).init();
     defer imedtr2.deinit();
-    var updateMode: UpdateMode = .{
-        .update = .{ .poll = Update.default_poll },
-        .another = .choice1,
-        .three = .yes,
-        .substructure = .{ .four = .five, .eight = .nine },
-        .textField = [_]u8{0} ** 100,
-    };
+    var updateMode: UpdateMode = .{};
 
     const DisplayMode = enum {
         editor,

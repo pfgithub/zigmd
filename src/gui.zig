@@ -397,6 +397,14 @@ pub const indentWidth = 20;
 pub const textGap = 5;
 pub const textWidth = 100;
 
+pub fn StructDataHelper(comptime Struct: type) fn (var) type {
+    return struct {
+        pub fn g(arg: var) type {
+            return Part(help.FieldType(Struct, @tagName(arg)));
+        }
+    }.g;
+}
+
 pub fn Part(comptime Type: type) type {
     return struct {
         pub const EditorType = DataEditor(Type);
@@ -525,6 +533,15 @@ fn StructEditor(comptime Struct: type) type {
             return Height{ .h = currentPos.y - pos.y - gap };
         }
     };
+}
+
+pub fn UnionDataHelper(comptime Union: type) fn (var) type {
+    return struct {
+        pub fn g(arg: var) type {
+            if (@TypeOf(arg) == type) return @TagType(Union);
+            return UnionPart(help.FieldType(Union, @tagName(arg)));
+        }
+    }.g;
 }
 
 pub fn UnionPart(comptime T: type) type {
