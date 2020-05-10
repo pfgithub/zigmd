@@ -970,11 +970,14 @@ pub fn main() !void {
         };
     };
     const UpdateMode = struct {
+        const T = @This();
+        // todo move these to DisplayDetails or something
         pub const title_update = "Update Mode:";
         pub const title_another = "Another Option:";
         pub const title_three = "Three:";
         update: Update,
         guiDisplay: GUIDisplay = .single,
+        showRenderCount: enum { no, yes } = .no,
         another: Another,
         three: Three,
         substructure: Substructure,
@@ -985,6 +988,7 @@ pub fn main() !void {
             // and then not everything needs a manual type declaration
             update: gui.Part(Update),
             guiDisplay: gui.Part(GUIDisplay),
+            showRenderCount: gui.Part(help.FieldType(T, "showRenderCount")),
             another: gui.Part(Another),
             three: gui.Part(Three),
             substructure: gui.Part(Substructure),
@@ -1019,14 +1023,12 @@ pub fn main() !void {
 
     var imev: gui.ImEvent = .{};
 
-    var timer = try std.time.Timer.start();
-    var frames: u64 = 0;
-    var rerenders: u64 = 0;
-
     var event = switch (updateMode.update) {
         .wait => try window.waitEvent(),
         .poll => try window.pollEvent(),
     };
+
+    var renderCount: u64 = 0;
     while (true) {
         if (event == .Empty) {
             event = switch (updateMode.update) {
@@ -1040,17 +1042,7 @@ pub fn main() !void {
         }
 
         if (updateMode.update == .poll and updateMode.update.poll.reportFPS == .yes) {
-            frames += 1;
-            const time = timer.read();
-            if (time >= 1000000000) {
-                std.debug.warn("FPS: {d} ({d}% rerenders)\n", .{ @intToFloat(f32, frames) / (@intToFloat(f32, time) / 1000000000.0), 100 - @trunc(@intToFloat(f32, frames) / @intToFloat(f32, rerenders) * 100) });
-                timer.reset();
-                frames = 0;
-                rerenders = 0;
-            }
-        } else {
-            frames = 0;
-            rerenders = 0;
+            // todo report fps
         }
 
         // === RENDER
@@ -1062,7 +1054,7 @@ pub fn main() !void {
         imev.rerender();
         while (imev.internal.rerender) {
             imev.apply(event, &window);
-            rerenders += 1;
+            renderCount += 1;
             event = .{ .Empty = {} };
 
             window.cursor = .default;
@@ -1099,6 +1091,14 @@ pub fn main() !void {
 
         event = try window.pollEvent();
         if (event != .Empty) continue;
+        if (updateMode.showRenderCount == .yes) {
+            const msg = try std.fmt.allocPrint0(alloc, "{}", .{renderCount});
+            defer alloc.free(msg);
+            var renderText = try win.Text.init(style.fonts.standard, style.gui.text, msg, null, &window);
+            defer renderText.deinit();
+            try renderText.render(&window, .{ .x = 0, .y = 0 });
+            renderCount = 0;
+        }
         window.present();
     }
 }
