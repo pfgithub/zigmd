@@ -275,6 +275,13 @@ pub fn Interpolation(comptime Kind: type) type {
                 .negative => if (isInt) if (dat.base < dat.target) help.interpolate(dat.base, dat.target, dat.timingFunction(timeOffset)) else help.interpolate(dat.base, dat.target, 1 - dat.timingFunction(1 - timeOffset)) else @panic(".negative is only available for integer types"),
             };
         }
+        pub fn getOptional(cinterp: Interp, imev: *ImEvent) ?Kind {
+            if (cinterp.value == .started) return cinterp.get(imev);
+            return null;
+        }
+        pub fn final(cinterp: Interp) Kind {
+            return cinterp.value.started.target;
+        }
     };
 }
 
@@ -467,6 +474,7 @@ fn StructEditor(comptime Struct: type) type {
 
             const lenInt = @intCast(i64, typeInfo.fields.len);
             var currentPos = pos;
+            var trueHeight: i64 = 0;
 
             inline for (typeInfo.fields) |field, i| {
                 const ItemType = @TypeOf(@field(editor.data, field.name).editor);
@@ -513,7 +521,9 @@ fn StructEditor(comptime Struct: type) type {
                     } else {
                         iteminfo.choiceHeight.set(ev, 0, timing.EaseInOut, .forward);
                     }
-                    currentPos.y += iteminfo.choiceHeight.get(ev);
+                    const cval = iteminfo.choiceHeight.get(ev);
+                    currentPos.y += cval;
+                    trueHeight += iteminfo.choiceHeight.final() - cval;
                 } else {
                     const rh = try item.render(
                         fieldv,
@@ -537,7 +547,7 @@ fn StructEditor(comptime Struct: type) type {
                 }
             }
 
-            return Height{ .h = currentPos.y - pos.y - gap };
+            return Height{ .h = currentPos.y - pos.y - gap + trueHeight };
         }
     };
 }
@@ -603,6 +613,8 @@ fn UnionEditor(comptime Union: type) type {
             const window = ev.window;
             var cpos = pos;
 
+            var trueHeight: i64 = 0;
+
             const originalTag = std.meta.activeTag(value.*);
             var activeTag = originalTag;
             cpos.y += (try editor.enumEditor.render(&activeTag, style, ev, pos)).h;
@@ -636,9 +648,12 @@ fn UnionEditor(comptime Union: type) type {
                         help.FieldType(Union.ModeData, field.name).render,
                         .{ &@field(sue.editor, field.name), &@field(value, field.name), style, ev, cpos },
                     )).h;
-                    if (addY == 0) addY -= seperatorGap;
+                    if (addY > 0) addY += seperatorGap;
                     editor.choiceHeight.set(ev, addY, timing.EaseInOut, .forward);
-                    cpos.y += editor.choiceHeight.get(ev);
+
+                    const cval = editor.choiceHeight.get(ev);
+                    cpos.y += cval;
+                    trueHeight += editor.choiceHeight.final() - cval;
                     break;
                 }
             }
@@ -647,7 +662,7 @@ fn UnionEditor(comptime Union: type) type {
             // it doesn't make sense to save it when it's active but idk how else to do it. this could be slow if the value is big.
             // eg if someone else changes the tag of value, all the data would be lost when switching tabs if we don't save it somehow and idk what to do about that
 
-            return Height{ .h = cpos.y - pos.y };
+            return Height{ .h = cpos.y - pos.y - seperatorGap + trueHeight };
         }
     };
 }
