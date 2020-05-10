@@ -667,11 +667,11 @@ fn UnionEditor(comptime Union: type) type {
     };
 }
 
-fn tagName0(thing: var) []const u8 {
+fn tagNameTerminated(thing: var, comptime terminator: []const u8) []const u8 {
     const TI = @typeInfo(@TypeOf(thing)).Enum;
     inline for (TI.fields) |fld| {
         if (@enumToInt(thing) == fld.value) {
-            return fld.name ++ [_]u8{0};
+            return fld.name ++ terminator;
         }
     }
     unreachable;
@@ -747,7 +747,7 @@ fn EnumEditor(comptime Enum: type) type {
             } else {
                 // render dropdown menu
                 var btnRes = try editor.dropdownMenuShow.render(.{
-                    .text = tagName0(value.*),
+                    .text = tagNameTerminated(value.*, &[_]u8{ ' ', 'v', 0 }),
                     .font = style.fonts.standard,
                     .style = style,
                 }, ev, pos.height(lineHeight));
