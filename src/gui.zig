@@ -643,16 +643,28 @@ fn UnionEditor(comptime Union: type) type {
     };
 }
 
+fn tagName0(thing: var) []const u8 {
+    const TI = @typeInfo(@TypeOf(thing)).Enum;
+    inline for (TI.fields) |fld| {
+        if (@enumToInt(thing) == fld.value) {
+            return fld.name ++ [_]u8{0};
+        }
+    }
+    unreachable;
+}
+
 fn EnumEditor(comptime Enum: type) type {
     const typeInfo = @typeInfo(Enum).Enum;
     if (typeInfo.fields.len == 0) unreachable;
     return struct {
         const Editor = @This();
+        dropdownMenuShow: Button,
         buttonData: [typeInfo.fields.len]Button,
         consideringChange: ?Enum = null,
         pub const isInline = true;
         pub fn init() Editor {
             return .{
+                .dropdownMenuShow = Button.init(),
                 .buttonData = blk: {
                     var res: [typeInfo.fields.len]Button = undefined;
                     inline for (typeInfo.fields) |field, i| {
@@ -666,6 +678,7 @@ fn EnumEditor(comptime Enum: type) type {
             inline for (typeInfo.fields) |field, i| {
                 editor.buttonData[i].deinit();
             }
+            editor.dropdownMenuShow.deinit();
         }
         pub fn render(
             editor: *Editor,
@@ -682,32 +695,45 @@ fn EnumEditor(comptime Enum: type) type {
                 (pos.w - gap * (lenInt - 1)),
                 lenInt,
             );
-            inline for (typeInfo.fields) |field, i| {
-                const choicePos = pos.rightCut((choiceWidth + gap) * @intCast(i64, i)).width(choiceWidth).height(lineHeight);
-                const thisTag = @field(Enum, field.name);
+            if (choiceWidth > 50) {
+                inline for (typeInfo.fields) |field, i| {
+                    const choicePos = pos.rightCut((choiceWidth + gap) * @intCast(i64, i)).width(choiceWidth).height(lineHeight);
+                    const thisTag = @field(Enum, field.name);
 
-                var btn = &editor.buttonData[i];
-                var btnRes = try btn.render(
-                    .{
+                    var btn = &editor.buttonData[i];
+                    var btnRes = try btn.render(.{
                         .text = getName(Enum, field.name),
                         .active = value.* == thisTag,
                         .forceUp = value.* == thisTag and editor.consideringChange != null,
                         .font = style.fonts.standard,
                         .style = style,
-                    },
-                    ev,
-                    choicePos,
-                );
-                if (btnRes.click) {
-                    value.* = @field(Enum, field.name);
-                    ev.rerender();
+                    }, ev, choicePos);
+                    if (btnRes.click) {
+                        value.* = @field(Enum, field.name);
+                        ev.rerender();
+                    }
+                    if (btnRes.active and (editor.consideringChange == null or (editor.consideringChange != null and editor.consideringChange.? != thisTag))) {
+                        editor.consideringChange = thisTag;
+                        ev.rerender();
+                    } else if (!btnRes.active and editor.consideringChange != null and editor.consideringChange.? == thisTag) {
+                        editor.consideringChange = null;
+                        ev.rerender();
+                    }
                 }
-                if (btnRes.active and (editor.consideringChange == null or (editor.consideringChange != null and editor.consideringChange.? != thisTag))) {
-                    editor.consideringChange = thisTag;
-                    ev.rerender();
-                } else if (!btnRes.active and editor.consideringChange != null and editor.consideringChange.? == thisTag) {
-                    editor.consideringChange = null;
-                    ev.rerender();
+            } else {
+                // render dropdown menu
+                var btnRes = try editor.dropdownMenuShow.render(.{
+                    .text = tagName0(value.*),
+                    .font = style.fonts.standard,
+                    .style = style,
+                }, ev, pos.height(lineHeight));
+                if (btnRes.click) {
+                    var nv = @enumToInt(value.*);
+                    if (nv == @typeInfo(Enum).Enum.fields.len - 1)
+                        nv = 0
+                    else
+                        nv += 1;
+                    value.* = @intToEnum(Enum, nv);
                 }
             }
 
