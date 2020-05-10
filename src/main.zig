@@ -562,10 +562,11 @@ pub const App = struct {
     textInfo: ?TextInfo,
     prevWidth: ?i64,
     cursorBlinkTime: u64,
+    id: u64,
 
     textRenderCache: TextRenderCache,
 
-    fn init(alloc: *std.mem.Allocator, style: *const gui.Style, filename: []const u8) !App {
+    fn init(alloc: *std.mem.Allocator, style: *const gui.Style, filename: []const u8, ev: *gui.ImEvent) !App {
         var readOnly = false;
         var file: []u8 = std.fs.cwd().readFileAlloc(alloc, filename, 10000000) catch |e| blk: {
             readOnly = true;
@@ -599,6 +600,7 @@ pub const App = struct {
             .textInfo = null,
             .prevWidth = null,
             .cursorBlinkTime = 0,
+            .id = ev.newID(),
         };
     }
     fn deinit(app: *App) void {
@@ -1020,10 +1022,6 @@ pub fn main() !void {
         },
     };
 
-    var appV = try App.init(alloc, &style, "tests/b.md");
-    defer appV.deinit();
-    var app = &appV;
-
     defer std.debug.warn("Quitting!\n", .{});
 
     // only if mode has raw text input flag sethttps://thetravelers.online/leaderboard
@@ -1107,11 +1105,6 @@ pub fn main() !void {
             textField: T(.textField),
         };
     };
-    var imedtr = gui.DataEditor(UpdateMode).init();
-    defer imedtr.deinit();
-    var imedtr2 = gui.DataEditor(UpdateMode).init();
-    defer imedtr2.deinit();
-    var updateMode: UpdateMode = .{};
 
     const DisplayMode = enum {
         editor,
@@ -1119,16 +1112,24 @@ pub fn main() !void {
         pub const title_editor = "Editor";
         pub const title_gui = "GUI Demo";
     };
-    var displayMode: DisplayMode = .editor;
-    var displayedtr = gui.DataEditor(DisplayMode).init();
-    defer displayedtr.deinit();
 
     var imev: gui.ImEvent = .{};
 
-    var event = switch (updateMode.update) {
-        .wait => try window.waitEvent(),
-        .poll => try window.pollEvent(),
-    };
+    var imedtr = gui.DataEditor(UpdateMode).init(&imev);
+    defer imedtr.deinit();
+    var imedtr2 = gui.DataEditor(UpdateMode).init(&imev);
+    defer imedtr2.deinit();
+    var updateMode: UpdateMode = .{};
+
+    var appV = try App.init(alloc, &style, "tests/b.md", &imev);
+    defer appV.deinit();
+    var app = &appV;
+
+    var displayMode: DisplayMode = .editor;
+    var displayedtr = gui.DataEditor(DisplayMode).init(&imev);
+    defer displayedtr.deinit();
+
+    var event: win.Event = .empty;
 
     var renderCount: u64 = 0;
     while (true) {

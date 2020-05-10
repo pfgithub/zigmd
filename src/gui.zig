@@ -47,6 +47,7 @@ pub const ImEvent = struct {
         mouseDown: bool = false,
         click: bool = false,
         rerender: bool = undefined,
+        id: u64 = 0,
     };
     internal: Internal = Internal{},
     click: bool = false,
@@ -62,6 +63,11 @@ pub const ImEvent = struct {
     scrollDelta: win.Point = undefined, // unfortunately, sdl scrolling is really bad. numbers are completely random and useless, and it only scrolls by whole ticks. this is one of the places raylib is better.
     window: *win.Window = undefined,
     const KeyArr = help.EnumArray(win.Key, bool);
+
+    pub fn newID(imev: *ImEvent) u64 {
+        imev.internal.id += 1;
+        return imev.internal.id;
+    }
 
     pub fn apply(imev: *ImEvent, ev: win.Event, window: *win.Window) void {
         // clear instantanious flags (mouseDown, mouseUp)
@@ -128,14 +134,15 @@ pub const ImEvent = struct {
 
 // caching text
 pub const Text = struct {
+    id: u64,
     text: ?struct {
         hash: u32, // std.hash.autoHash("text")
         text: win.Text,
         color: win.Color,
         font: *win.Font,
     } = null,
-    pub fn init() Text {
-        return .{};
+    pub fn init(ev: *ImEvent) Text {
+        return .{ .id = ev.newID() };
     }
     pub fn deinit(txt: *Text) void {
         if (txt.text) |*text| text.text.deinit();
@@ -295,14 +302,16 @@ const PosInterpolation = Interpolation(i64);
 
 pub const Button = struct {
     clickStarted: bool = false,
+    id: u64,
     text: Text,
     bumpColor: ColorInterpolation,
     topColor: ColorInterpolation,
     bumpOffset: PosInterpolation,
 
-    pub fn init() Button {
+    pub fn init(ev: *ImEvent) Button {
         return .{
-            .text = Text.init(),
+            .id = ev.newID(),
+            .text = Text.init(ev),
             .bumpColor = ColorInterpolation.init(100),
             .topColor = ColorInterpolation.init(100),
             .bumpOffset = PosInterpolation.init(100),
@@ -443,20 +452,22 @@ fn StructEditor(comptime Struct: type) type {
 
     return struct {
         const Editor = @This();
+        id: u64,
         data: DataStruct,
         pub const isInline = false;
-        pub fn init() Editor {
+        pub fn init(ev: *ImEvent) Editor {
             var data: DataStruct = undefined;
             inline for (@typeInfo(DataStruct).Struct.fields) |field| {
                 @field(data, field.name) = .{
-                    .editor = field.field_type.EditorType.init(),
+                    .editor = field.field_type.EditorType.init(ev),
                     .visible = true,
-                    .toggleButton = Button.init(),
-                    .label = Text.init(),
+                    .toggleButton = Button.init(ev),
+                    .label = Text.init(ev),
                     .choiceHeight = PosInterpolation.init(100),
                 };
             }
             return .{
+                .id = ev.newID(),
                 .data = data,
             };
         }
@@ -586,14 +597,16 @@ fn UnionEditor(comptime Union: type) type {
 
     return struct {
         const Editor = @This();
+        id: u64,
         enumEditor: DataEditor(Enum),
         selectedUnionEditor: ?struct { choice: Enum, editor: ModeData },
         deselectedUnionData: [typeInfo.fields.len]Union, // storage for if you enter some data and select a different union choice so when you go back, your data is still there
         choiceHeight: PosInterpolation,
         pub const isInline = false;
-        pub fn init() Editor {
+        pub fn init(ev: *ImEvent) Editor {
             return .{
-                .enumEditor = DataEditor(Enum).init(),
+                .id = ev.newID(),
+                .enumEditor = DataEditor(Enum).init(ev),
                 .deselectedUnionData = blk: {
                     var res: [typeInfo.fields.len]Union = undefined;
                     inline for (typeInfo.fields) |field, i| {
@@ -644,7 +657,7 @@ fn UnionEditor(comptime Union: type) type {
             if (editor.selectedUnionEditor == null) {
                 editor.selectedUnionEditor = .{
                     .choice = activeTag,
-                    .editor = help.unionCallReturnsThis(ModeData, "init", activeTag, .{}),
+                    .editor = help.unionCallReturnsThis(ModeData, "init", activeTag, .{ev}),
                 };
             }
             const sue = &editor.selectedUnionEditor.?;
@@ -695,17 +708,19 @@ fn EnumEditor(comptime Enum: type) type {
     if (typeInfo.fields.len == 0) unreachable;
     return struct {
         const Editor = @This();
+        id: u64,
         dropdownMenuShow: Button,
         buttonData: [typeInfo.fields.len]Button,
         consideringChange: ?Enum = null,
         pub const isInline = true;
-        pub fn init() Editor {
+        pub fn init(ev: *ImEvent) Editor {
             return .{
-                .dropdownMenuShow = Button.init(),
+                .id = ev.newID(),
+                .dropdownMenuShow = Button.init(ev),
                 .buttonData = blk: {
                     var res: [typeInfo.fields.len]Button = undefined;
                     inline for (typeInfo.fields) |field, i| {
-                        res[i] = Button.init();
+                        res[i] = Button.init(ev);
                     }
                     break :blk res;
                 },
@@ -785,11 +800,13 @@ pub fn StringEditor(comptime RawData: type) type {
 
     return struct {
         const Editor = @This();
+        id: u64,
         text: Text,
         pub const isInline = true;
-        pub fn init() Editor {
+        pub fn init(ev: *ImEvent) Editor {
             return .{
-                .text = Text.init(),
+                .id = ev.newID(),
+                .text = Text.init(ev),
             };
         }
         pub fn deinit(editor: *Editor) void {
@@ -833,7 +850,7 @@ pub fn VoidEditor(comptime Ignore: type) type {
     return struct {
         const Editor = @This();
         pub const isInline = true;
-        pub fn init() Editor {
+        pub fn init(ev: *ImEvent) Editor {
             return .{};
         }
         pub fn deinit(editor: *Editor) void {}
@@ -853,10 +870,11 @@ pub fn VoidEditor(comptime Ignore: type) type {
 pub fn UnsupportedEditor(comptime Ignore: type) type {
     return struct {
         const Editor = @This();
+        id: u64,
         text: Text,
         pub const isInline = true;
-        pub fn init() Editor {
-            return .{ .text = Text.init() };
+        pub fn init(ev: *ImEvent) Editor {
+            return .{ .id = ev.newID(), .text = Text.init(ev) };
         }
         pub fn deinit(editor: *Editor) void {
             editor.text.deinit();
@@ -880,6 +898,24 @@ pub fn UnsupportedEditor(comptime Ignore: type) type {
         }
     };
 }
+
+pub const EditorHeader = struct {
+    pub const isInline = header_check.any(bool);
+    pub fn init(ev: *ImEvent) header_check.this() {
+        return undefined;
+    }
+    pub fn deinit(editor: *header_check.this()) void {}
+    pub fn render(
+        editor: *header_check.this(),
+        value: *Ignore,
+        style: Style,
+        ev: *ImEvent,
+        pos: win.TopRect,
+    ) header_check.atleastOneError(Height) {
+        return undefined;
+    }
+};
+
 // unioneditor is more difficult
 // tabs at the top
 // needs to keep data for each tab if you switch tabs and switch back
