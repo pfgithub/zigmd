@@ -561,6 +561,7 @@ pub const App = struct {
     textChanged: bool,
     textInfo: ?TextInfo,
     prevWidth: ?i64,
+    cursorBlinkTime: u64,
 
     textRenderCache: TextRenderCache,
 
@@ -597,6 +598,7 @@ pub const App = struct {
             .textChanged = true,
             .textInfo = null,
             .prevWidth = null,
+            .cursorBlinkTime = 0,
         };
     }
     fn deinit(app: *App) void {
@@ -905,16 +907,17 @@ pub const App = struct {
         if (app.cursorLocation > 0) {
             const charIndex = app.cursorLocation - 1;
             const cursorPosition = textInfo.characterPositions.items[charIndex];
-            try win.renderRect(
-                window,
-                app.style.colors.cursor,
-                .{
-                    .x = cursorPosition.x + cursorPosition.w + pos.x,
-                    .y = cursorPosition.line.yTop + pos.y,
-                    .w = 2,
-                    .h = cursorPosition.line.height,
-                },
-            );
+            if (!imev.animationEnabled or @rem(imev.time - app.cursorBlinkTime, 1000) < 500)
+                try win.renderRect(
+                    window,
+                    app.style.colors.cursor,
+                    .{
+                        .x = cursorPosition.x + cursorPosition.w + pos.x - 1,
+                        .y = cursorPosition.line.yTop + pos.y,
+                        .w = 2,
+                        .h = cursorPosition.line.height,
+                    },
+                );
 
             var cursor2 = parser.TreeCursor.init(app.tree.root());
             defer cursor2.deinit();
