@@ -53,6 +53,7 @@ pub const ImEvent = struct {
     click: bool = false,
     mouseDown: bool = false,
     mouseUp: bool = undefined,
+    mouseDelta: win.Point = undefined,
     cursor: win.Point = win.Point{ .x = 0, .y = 0 },
     keyDown: ?win.Key = undefined,
     key: KeyArr = KeyArr.initDefault(false),
@@ -82,6 +83,8 @@ pub const ImEvent = struct {
         imev.time = win.time();
         imev.window = window;
         imev.scrollDelta = .{ .x = 0, .y = 0 };
+
+        const startCursor = imev.cursor;
 
         // apply event
         switch (ev) {
@@ -118,6 +121,7 @@ pub const ImEvent = struct {
         // transfer internal to ev itself
         imev.mouseDown = imev.internal.mouseDown;
         imev.click = imev.internal.click;
+        imev.mouseDelta = .{ .x = imev.cursor.x - startCursor.x, .y = imev.cursor.y - startCursor.y };
     }
     pub fn rerender(imev: *ImEvent) void {
         imev.internal.rerender = true;
@@ -243,6 +247,7 @@ pub fn Interpolation(comptime Kind: type) type {
             started: struct {
                 base: Kind,
                 target: Kind,
+                exact: ?Kind,
                 startTime: u64,
                 timingFunction: TimingFunction,
                 easeMode: EaseMode,
@@ -257,11 +262,17 @@ pub fn Interpolation(comptime Kind: type) type {
         pub fn init(transitionDuration: u64) Interp {
             return .{ .transitionDuration = transitionDuration, .value = .unset };
         }
+        pub fn teleport(cinterp: *Interp, imev: *ImEvent, nv: Kind, timingFunction: TimingFunction, easeMode: EaseMode) void {
+            if (cinterp.value.started.exact == null)
+                cinterp.set(imev, nv, timingFunction, easeMode);
+            cinterp.value.started.exact = nv;
+        }
         pub fn set(cinterp: *Interp, imev: *ImEvent, nv: Kind, timingFunction: TimingFunction, easeMode: EaseMode) void {
             const baseValue: Kind = if (cinterp.value == .started and imev.animationEnabled)
-                if (std.meta.eql(cinterp.value.started.target, nv))
-                    return {}
-                else
+                if (std.meta.eql(cinterp.value.started.target, nv)) {
+                    cinterp.value.started.exact = null;
+                    return {};
+                } else
                     cinterp.get(imev)
             else
                 nv;
@@ -270,6 +281,7 @@ pub fn Interpolation(comptime Kind: type) type {
                     .base = baseValue,
                     .startTime = imev.time,
                     .target = nv,
+                    .exact = null,
                     .timingFunction = timingFunction,
                     .easeMode = easeMode,
                 },
@@ -279,12 +291,13 @@ pub fn Interpolation(comptime Kind: type) type {
             const dat = cinterp.value.started; // only call get after value has been set at least once
             if (!imev.animationEnabled) return dat.target;
             const timeOffset = @intToFloat(f64, imev.time - dat.startTime) / @intToFloat(f64, cinterp.transitionDuration);
+            const target = cinterp.final();
 
             return switch (dat.easeMode) {
-                .forward => help.interpolate(dat.base, dat.target, dat.timingFunction(timeOffset)),
-                .reverse => help.interpolate(dat.base, dat.target, 1 - dat.timingFunction(1 - timeOffset)),
-                .positive => if (isInt) if (dat.base > dat.target) help.interpolate(dat.base, dat.target, dat.timingFunction(timeOffset)) else help.interpolate(dat.base, dat.target, 1 - dat.timingFunction(1 - timeOffset)) else @panic(".positive is only available for integer types"),
-                .negative => if (isInt) if (dat.base < dat.target) help.interpolate(dat.base, dat.target, dat.timingFunction(timeOffset)) else help.interpolate(dat.base, dat.target, 1 - dat.timingFunction(1 - timeOffset)) else @panic(".negative is only available for integer types"),
+                .forward => help.interpolate(dat.base, target, dat.timingFunction(timeOffset)),
+                .reverse => help.interpolate(dat.base, target, 1 - dat.timingFunction(1 - timeOffset)),
+                .positive => if (isInt) if (dat.base > target) help.interpolate(dat.base, target, dat.timingFunction(timeOffset)) else help.interpolate(dat.base, target, 1 - dat.timingFunction(1 - timeOffset)) else @panic(".positive is only available for integer types"),
+                .negative => if (isInt) if (dat.base < target) help.interpolate(dat.base, target, dat.timingFunction(timeOffset)) else help.interpolate(dat.base, target, 1 - dat.timingFunction(1 - timeOffset)) else @panic(".negative is only available for integer types"),
             };
         }
         pub fn getOptional(cinterp: Interp, imev: *ImEvent) ?Kind {
@@ -292,7 +305,7 @@ pub fn Interpolation(comptime Kind: type) type {
             return null;
         }
         pub fn final(cinterp: Interp) Kind {
-            return cinterp.value.started.target;
+            return if (cinterp.value.started.exact) |exct| exct else cinterp.value.started.target;
         }
     };
 }
@@ -904,12 +917,13 @@ pub fn BoolEditor(comptime Bool: type) type {
         const Editor = @This();
         id: u64,
         rightOffset: PosInterpolation,
-        clicking: bool = false,
+        clicking: union(enum) { no: void, yes: struct { moved: bool } },
         pub const isInline = true;
         pub fn init(ev: *ImEvent) Editor {
             return .{
                 .id = ev.newID(),
                 .rightOffset = PosInterpolation.init(100),
+                .clicking = .no,
             };
         }
         pub fn deinit(editor: *Editor) void {}
@@ -925,27 +939,54 @@ pub fn BoolEditor(comptime Bool: type) type {
             const switchPos = area.position(.{ .w = 50, .h = 20 }, .left, .vcenter);
 
             const hover = switchPos.containsPoint(ev.cursor);
+            var rightOffset = if (!value.*) 0 else switchPos.w - 20;
+            const switchButtonArea = switchPos.width(25).right(rightOffset);
             if (hover) {
                 if (ev.mouseDown) {
-                    editor.clicking = true;
+                    editor.clicking = .{
+                        .yes = .{
+                            .moved = !switchButtonArea.containsPoint(ev.cursor),
+                        },
+                    };
                 }
             }
-            if (ev.mouseUp) {
-                editor.clicking = false;
-                if (hover) {
-                    value.* = !value.*;
+            if (editor.clicking == .yes) {
+                const clk = &editor.clicking.yes;
+                if (!clk.moved and ev.mouseDelta.x != 0)
+                    clk.moved = true;
+                if (clk.moved) {
+                    rightOffset = ev.cursor.x - 10 - switchPos.x;
+                    rightOffset = std.math.max(std.math.min(rightOffset, switchPos.w - 20), 0);
+                }
+                if (clk.moved)
+                    editor.rightOffset.teleport(ev, rightOffset, timing.EaseInOut, .forward)
+                else
+                    editor.rightOffset.set(ev, rightOffset, timing.EaseInOut, .forward);
+
+                if (ev.mouseUp) {
+                    const moved = clk.moved;
+                    editor.clicking = .no;
+                    if (hover and !moved) {
+                        value.* = !value.*;
+                    } else if (rightOffset < @divFloor(switchPos.w, 2) - 10) {
+                        value.* = false;
+                    } else {
+                        value.* = true;
+                    }
                     ev.rerender();
                 }
             }
+            if (editor.clicking == .no) {
+                editor.rightOffset.set(ev, rightOffset, timing.EaseInOut, .forward);
+            }
 
-            try win.renderRect(window, win.Color.hex(0x070707), switchPos.downCut(4));
-            try win.renderRect(window, win.Color.hex(0x000000), switchPos.downCut(8));
+            try win.renderRect(window, win.Color.hex(0x101010), switchPos.downCut(4));
+            try win.renderRect(window, win.Color.hex(0x020202), switchPos.downCut(8));
 
-            editor.rightOffset.set(ev, if (value.*) 0 else switchPos.w - 20, timing.EaseInOut, .forward);
-            const rightOffset = editor.rightOffset.get(ev);
+            const visualRightOffset = editor.rightOffset.get(ev);
 
-            try win.renderRect(window, win.Color.hex(0x777777), switchPos.addHeight(-4).width(20).right(rightOffset));
-            try win.renderRect(window, win.Color.hex(0x555555), switchPos.downCut(switchPos.h - 4).width(20).right(rightOffset));
+            try win.renderRect(window, win.Color.hex(0x777777), switchPos.addHeight(-4).width(20).right(visualRightOffset));
+            try win.renderRect(window, win.Color.hex(0x555555), switchPos.downCut(switchPos.h - 4).width(20).right(visualRightOffset));
 
             return Height{ .h = area.h };
         }
