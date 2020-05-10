@@ -549,7 +549,8 @@ pub const TextRenderData = struct {
 pub const TextRenderCache = Cache(TextRenderInfo, TextRenderData);
 
 pub const App = struct {
-    scrollY: i64, // scrollX is only for individual parts of the UI, such as tables.
+    scrollY: i64,
+    scrollYAnim: gui.PosInterpolation,
     alloc: *std.mem.Allocator,
     style: *const gui.Style,
     cursorLocation: usize,
@@ -587,6 +588,7 @@ pub const App = struct {
         // const initialText = "Test! **Bold**.";
         return App{
             .scrollY = 0,
+            .scrollYAnim = gui.PosInterpolation.init(100),
             .alloc = alloc,
             .style = style,
             .cursorLocation = 0,
@@ -771,9 +773,16 @@ pub const App = struct {
             window.cursor = .ibeam;
             app.scrollY += -imev.scrollDelta.y;
         }
-        if (app.scrollY < 0) app.scrollY = 0;
 
-        const pos = fullArea.noHeight().addWidth(-40).rightCut(20).down(10 + -app.scrollY);
+        app.scrollYAnim.set(imev, app.scrollY, gui.timing.EaseIn, .reverse);
+        const scrollY = app.scrollYAnim.get(imev); // app.scrollAnimationEnabled ? scrollYAnim.get : app.scrollY
+
+        if (app.scrollY < 0) {
+            app.scrollY = 0;
+            if (!imev.animationEnabled) imev.rerender();
+        }
+
+        const pos = fullArea.noHeight().addWidth(-40).rightCut(20).down(10 + -scrollY);
 
         const style = app.style;
 
@@ -826,7 +835,7 @@ pub const App = struct {
         const maxScrollY = lastLine.yTop + lastLine.height - 20;
         if (app.scrollY > maxScrollY) {
             app.scrollY = maxScrollY;
-            imev.rerender();
+            if (!imev.animationEnabled) imev.rerender();
         }
 
         if (imev.mouseDown) blk: {
@@ -850,8 +859,8 @@ pub const App = struct {
 
         for (textInfo.lines.items) |line| blk: {
             for (line.drawCalls.items) |drawCall| {
-                if (line.yTop + line.height - app.scrollY < 0) continue;
-                if (line.yTop - app.scrollY > fullArea.h) break :blk;
+                if (line.yTop + line.height - scrollY < 0) continue;
+                if (line.yTop - scrollY > fullArea.h) break :blk;
                 if (drawCall.bg) |bg| {
                     try win.renderRect(
                         window,
@@ -885,8 +894,8 @@ pub const App = struct {
 
         for (textInfo.lines.items) |line| blk: {
             for (line.drawCalls.items) |drawCall| {
-                if (line.yTop + line.height - app.scrollY < 0) continue;
-                if (line.yTop - app.scrollY > fullArea.h) break :blk;
+                if (line.yTop + line.height - scrollY < 0) continue;
+                if (line.yTop - scrollY > fullArea.h) break :blk;
                 const text = try app.textRenderCache.getOrCreate(.{
                     .font = drawCall.font,
                     .color = drawCall.color,

@@ -297,8 +297,8 @@ pub fn Interpolation(comptime Kind: type) type {
     };
 }
 
-const ColorInterpolation = Interpolation(win.Color);
-const PosInterpolation = Interpolation(i64);
+pub const ColorInterpolation = Interpolation(win.Color);
+pub const PosInterpolation = Interpolation(i64);
 
 pub const Button = struct {
     clickStarted: bool = false,
