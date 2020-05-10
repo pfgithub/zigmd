@@ -938,8 +938,8 @@ pub fn BoolEditor(comptime Bool: type) type {
                 }
             }
 
-            try win.renderRect(window, win.Color.hex(0x000000), switchPos.downCut(4));
-            try win.renderRect(window, win.Color.hex(0x111111), switchPos.downCut(8));
+            try win.renderRect(window, win.Color.hex(0x070707), switchPos.downCut(4));
+            try win.renderRect(window, win.Color.hex(0x000000), switchPos.downCut(8));
 
             editor.rightOffset.set(ev, if (value.*) 0 else switchPos.w - 20, timing.EaseInOut, .forward);
             const rightOffset = editor.rightOffset.get(ev);
