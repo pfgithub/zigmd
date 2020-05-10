@@ -677,8 +677,9 @@ pub const App = struct {
         };
     }
 
-    fn render(app: *App, window: *win.Window, imev: gui.ImEvent, fullArea: win.Rect) !void {
+    fn render(app: *App, imev: gui.ImEvent, fullArea: win.Rect) !void {
         try app.textRenderCache.clean();
+        const window = imev.window;
 
         const pos: win.Rect = .{
             .x = fullArea.x + 20,
@@ -1045,7 +1046,7 @@ pub fn main() !void {
 
         imev.rerender();
         while (imev.internal.rerender) {
-            imev.apply(event);
+            imev.apply(event, &window);
             event = .{ .Empty = {} };
 
             window.cursor = .default;
@@ -1068,11 +1069,11 @@ pub fn main() !void {
 
             var currentPos: win.TopRect = windowSize.xy(0, 0).noHeight().down(5);
 
-            currentPos.y += (try displayedtr.render(&displayMode, style, &window, &imev, currentPos)).h;
+            currentPos.y += (try displayedtr.render(&displayMode, style, &imev, currentPos)).h;
 
             switch (displayMode) {
                 .editor => {
-                    try app.render(&window, imev, currentPos.setY2(windowSize.h));
+                    try app.render(imev, currentPos.setY2(windowSize.h));
                 },
                 .gui => {
                     currentPos.y += gui.seperatorGap;
@@ -1080,11 +1081,11 @@ pub fn main() !void {
                     switch (updateMode.guiDisplay) {
                         .double => {
                             const cx = currentPos.centerX();
-                            _ = try imedtr.render(&updateMode, style, &window, &imev, guiPos.setX2(cx - 20));
-                            _ = try imedtr2.render(&updateMode, style, &window, &imev, guiPos.rightCut(cx + 20));
+                            _ = try imedtr.render(&updateMode, style, &imev, guiPos.setX2(cx - 20));
+                            _ = try imedtr2.render(&updateMode, style, &imev, guiPos.rightCut(cx + 20));
                         },
                         .single => {
-                            _ = try imedtr.render(&updateMode, style, &window, &imev, guiPos);
+                            _ = try imedtr.render(&updateMode, style, &imev, guiPos);
                         },
                     }
                 },

@@ -46,22 +46,23 @@ pub const ImEvent = struct {
     const Internal = struct {
         mouseDown: bool = false,
         click: bool = false,
-        rerender: bool = false,
+        rerender: bool = undefined,
     };
     internal: Internal = Internal{},
     click: bool = false,
     mouseDown: bool = false,
-    mouseUp: bool = false,
+    mouseUp: bool = undefined,
     cursor: win.Point = win.Point{ .x = 0, .y = 0 },
-    keyDown: ?win.Key = null,
+    keyDown: ?win.Key = undefined,
     key: KeyArr = KeyArr.initDefault(false),
-    keyUp: ?win.Key = null,
-    textInput: ?*const win.Event.TextInputEvent = null,
-    time: u64 = 0,
+    keyUp: ?win.Key = undefined,
+    textInput: ?*const win.Event.TextInputEvent = undefined,
+    time: u64 = undefined,
     animationEnabled: bool = false,
+    window: *win.Window = undefined,
     const KeyArr = help.EnumArray(win.Key, bool);
 
-    pub fn apply(imev: *ImEvent, ev: win.Event) void {
+    pub fn apply(imev: *ImEvent, ev: win.Event, window: *win.Window) void {
         // clear instantanious flags (mouseDown, mouseUp)
         if (imev.internal.mouseDown) {
             imev.internal.mouseDown = false;
@@ -72,6 +73,7 @@ pub const ImEvent = struct {
         imev.keyUp = null;
         imev.textInput = null;
         imev.time = win.time();
+        imev.window = window;
 
         // apply event
         switch (ev) {
@@ -144,10 +146,11 @@ pub const Text = struct {
             halign: win.HAlign = .hcenter,
             valign: win.VAlign = .vcenter,
         },
-        window: *win.Window,
         ev: *ImEvent,
         pos: win.Rect,
     ) !win.Rect {
+        const window = ev.window;
+
         try window.pushClipRect(pos);
         defer window.popClipRect();
 
@@ -310,10 +313,11 @@ pub const Button = struct {
             forceUp: bool = false,
             style: Style,
         },
-        window: *win.Window,
         ev: *ImEvent,
         pos: win.Rect,
     ) !ButtonReturnState {
+        const window = ev.window;
+
         const style = settings.style;
         var clickedThisFrame: bool = false;
 
@@ -373,7 +377,6 @@ pub const Button = struct {
                     .font = settings.font,
                     .color = style.gui.text,
                 },
-                window,
                 ev,
                 buttonPos,
             );
@@ -446,10 +449,10 @@ fn StructEditor(comptime Struct: type) type {
             editor: *Editor,
             value: *Struct,
             style: Style,
-            window: *win.Window,
             ev: *ImEvent,
             pos: win.TopRect,
         ) !Height {
+            const window = ev.window;
             const gap = seperatorGap;
 
             const lenInt = @intCast(i64, typeInfo.fields.len);
@@ -472,7 +475,6 @@ fn StructEditor(comptime Struct: type) type {
                             .color = style.gui.text,
                             .halign = .left,
                         },
-                        window,
                         ev,
                         area,
                     );
@@ -484,7 +486,6 @@ fn StructEditor(comptime Struct: type) type {
                             .active = iteminfo.visible,
                             .style = style,
                         },
-                        window,
                         ev,
                         area.right(textSizeRect.w + textGap).position(.{ .w = 20, .h = 20 }, .left, .vcenter),
                     )).click) {
@@ -495,14 +496,13 @@ fn StructEditor(comptime Struct: type) type {
                     // pos.right(count).newline().down(count)
                     currentPos.y += area.h + gap;
                     if (iteminfo.visible) {
-                        const rh = try item.render(fieldv, style, window, ev, currentPos.rightCut(indentWidth));
+                        const rh = try item.render(fieldv, style, ev, currentPos.rightCut(indentWidth));
                         currentPos.y += rh.h + gap;
                     }
                 } else {
                     const rh = try item.render(
                         fieldv,
                         style,
-                        window,
                         ev,
                         currentPos.rightCut(textWidth + textGap),
                     );
@@ -514,7 +514,6 @@ fn StructEditor(comptime Struct: type) type {
                             .color = style.gui.text,
                             .halign = .left,
                         },
-                        window,
                         ev,
                         currentPos.width(textWidth).height(rh.h),
                     );
@@ -572,15 +571,15 @@ fn UnionEditor(comptime Union: type) type {
             editor: *Editor,
             value: *Union,
             style: Style,
-            window: *win.Window,
             ev: *ImEvent,
             pos: win.TopRect,
         ) !Height {
+            const window = ev.window;
             var cpos = pos;
 
             const originalTag = std.meta.activeTag(value.*);
             var activeTag = originalTag;
-            cpos.y += (try editor.enumEditor.render(&activeTag, style, window, ev, pos)).h;
+            cpos.y += (try editor.enumEditor.render(&activeTag, style, ev, pos)).h;
             if (activeTag != originalTag) {
                 value.* = editor.deselectedUnionData[@enumToInt(activeTag)];
             }
@@ -608,7 +607,7 @@ fn UnionEditor(comptime Union: type) type {
                     var addY = (try @call(
                         callOptions,
                         help.FieldType(Union.ModeData, field.name).render,
-                        .{ &@field(sue.editor, field.name), &@field(value, field.name), style, window, ev, cpos },
+                        .{ &@field(sue.editor, field.name), &@field(value, field.name), style, ev, cpos },
                     )).h;
                     if (addY == 0)
                         cpos.y -= seperatorGap
@@ -655,10 +654,10 @@ fn EnumEditor(comptime Enum: type) type {
             editor: *Editor,
             value: *Enum,
             style: Style,
-            window: *win.Window,
             ev: *ImEvent,
             pos: win.TopRect,
         ) !Height {
+            const window = ev.window;
             const gap = connectedGap;
 
             const lenInt = @intCast(i64, typeInfo.fields.len);
@@ -679,7 +678,6 @@ fn EnumEditor(comptime Enum: type) type {
                         .font = style.fonts.standard,
                         .style = style,
                     },
-                    window,
                     ev,
                     choicePos,
                 );
@@ -721,10 +719,10 @@ pub fn StringEditor(comptime RawData: type) type {
             editor: *Editor,
             value: *RawData,
             style: Style,
-            window: *win.Window,
             ev: *ImEvent,
             pos: win.TopRect,
         ) !Height {
+            const window = ev.window;
             const area = pos.height(lineHeight);
             const textEntryArea = area.addHeight(-4);
             const belowTextArea = area.downCut(area.h - 4);
@@ -762,10 +760,10 @@ const VoidEditor = struct {
         editor: *Editor,
         value: *void,
         style: Style,
-        window: *win.Window,
         ev: *ImEvent,
         pos: win.TopRect,
     ) WorkaroundError!Height {
+        const window = ev.window;
         return Height{ .h = 0 };
     }
 };
