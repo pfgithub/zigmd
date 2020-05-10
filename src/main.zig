@@ -560,7 +560,7 @@ pub const App = struct {
     tree: parser.Tree,
     textChanged: bool,
     textInfo: ?TextInfo,
-    prevPos: ?win.Rect,
+    prevWidth: ?i64,
 
     textRenderCache: TextRenderCache,
 
@@ -596,7 +596,7 @@ pub const App = struct {
             .tree = tree,
             .textChanged = true,
             .textInfo = null,
-            .prevPos = null,
+            .prevWidth = null,
         };
     }
     fn deinit(app: *App) void {
@@ -677,20 +677,20 @@ pub const App = struct {
         };
     }
 
-    fn remeasureText(app: *App, pos: win.Rect) !void {
+    fn remeasureText(app: *App, width: i64) !void {
         // this logic took me way too long to figure out, that's why there is an empty if branch instead of if(!(...)) return
         if (app.textChanged or
             app.textInfo == null or
-            app.prevPos == null or
-            !std.meta.eql(pos, app.prevPos.?))
+            app.prevWidth == null or
+            width != app.prevWidth.?)
         {} else return;
-        app.prevPos = pos;
+        app.prevWidth = width;
 
         var cursor = parser.TreeCursor.init(app.tree.root());
         defer cursor.deinit();
 
         if (app.textInfo) |*ti| ti.deinit();
-        app.textInfo = try TextInfo.init(app.alloc, pos.w, &cursor);
+        app.textInfo = try TextInfo.init(app.alloc, width, &cursor);
         // typescript would be better here, it would know that textInfo is not null
         // not sure if that could even work in this language
         for (app.text.items) |char, index| {
@@ -769,7 +769,7 @@ pub const App = struct {
         }
 
         const paddingDown = 10;
-        const pos: win.Rect = fullArea.addWidth(-40).rightCut(20).addHeight(-paddingDown * 2).downCut(paddingDown).downCut(-app.scrollY);
+        const pos = fullArea.noHeight().addWidth(-40).rightCut(20).down(-app.scrollY);
 
         const style = app.style;
 
@@ -815,7 +815,7 @@ pub const App = struct {
         app.tree.lock();
         defer app.tree.unlock();
 
-        try app.remeasureText(pos);
+        try app.remeasureText(pos.w);
         const textInfo = app.textInfo.?;
 
         if (imev.mouseDown) blk: {
@@ -934,8 +934,8 @@ pub const App = struct {
             );
             defer text.deinit();
             try text.render(window, .{
-                .x = pos.x + pos.w - text.size.w,
-                .y = pos.y + pos.h - text.size.h,
+                .x = fullArea.x + fullArea.w - text.size.w,
+                .y = fullArea.y + fullArea.h - text.size.h,
             });
         } else {
             // render cursor at position 0
