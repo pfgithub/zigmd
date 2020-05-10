@@ -166,8 +166,8 @@ fn eventFromSDL(event: c.SDL_Event) Event {
             // if these are backwards, try checking event.direction. maybe it will do something.
             .mouseWheel = .{
                 // convert random number to number of pixels to scroll
-                .x = event.wheel.x * 10,
-                .y = event.wheel.y * 10,
+                .x = event.wheel.x * 59,
+                .y = event.wheel.y * 50,
             },
         },
         else => Event{ .unknown = .{ .type = event.type } },

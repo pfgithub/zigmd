@@ -549,7 +549,7 @@ pub const TextRenderData = struct {
 pub const TextRenderCache = Cache(TextRenderInfo, TextRenderData);
 
 pub const App = struct {
-    scrollY: i32, // scrollX is only for individual parts of the UI, such as tables.
+    scrollY: i64, // scrollX is only for individual parts of the UI, such as tables.
     alloc: *std.mem.Allocator,
     style: *const gui.Style,
     cursorLocation: usize,
@@ -763,12 +763,13 @@ pub const App = struct {
         try app.textRenderCache.clean();
         const window = imev.window;
 
-        const pos: win.Rect = .{
-            .x = fullArea.x + 20,
-            .y = fullArea.y + 10,
-            .w = fullArea.w - 40,
-            .h = fullArea.h - 20,
-        };
+        if (fullArea.containsPoint(imev.cursor)) {
+            window.cursor = .ibeam;
+            app.scrollY += -imev.scrollDelta.y;
+        }
+
+        const paddingDown = 10;
+        const pos: win.Rect = fullArea.addWidth(-20).rightCut(20).addHeight(-paddingDown).downCut(paddingDown).downCut(-app.scrollY);
 
         const style = app.style;
 
@@ -831,8 +832,6 @@ pub const App = struct {
 
         // ==== rendering ====
 
-        if (fullArea.containsPoint(imev.cursor)) window.cursor = .ibeam;
-
         try window.pushClipRect(fullArea);
         defer window.popClipRect();
 
@@ -840,7 +839,8 @@ pub const App = struct {
 
         for (textInfo.lines.items) |line| blk: {
             for (line.drawCalls.items) |drawCall| {
-                if (line.yTop > pos.h) break :blk;
+                if (line.yTop + line.height - app.scrollY < 0) continue;
+                if (line.yTop - app.scrollY > fullArea.h) break :blk;
                 if (drawCall.bg) |bg| {
                     try win.renderRect(
                         window,
@@ -874,7 +874,8 @@ pub const App = struct {
 
         for (textInfo.lines.items) |line| blk: {
             for (line.drawCalls.items) |drawCall| {
-                if (line.yTop > fullArea.h) break :blk;
+                if (line.yTop + line.height - app.scrollY < 0) continue;
+                if (line.yTop - app.scrollY > fullArea.h) break :blk;
                 const text = try app.textRenderCache.getOrCreate(.{
                     .font = drawCall.font,
                     .color = drawCall.color,
