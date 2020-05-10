@@ -29,12 +29,12 @@ fn testingImplements(comptime Header: type, comptime Implementation: type) ?[]co
 }
 
 fn expectEqual(comptime b: ?[]const u8, comptime a: ?[]const u8) void {
-    if (a == null) {
-        if (b == null)
+    if (b == null) {
+        if (a == null)
             return;
         @compileError("Expected null, got `" ++ b.? ++ "`");
-    } else if (b == null)
-        @compileError("Expected `" ++ a.? ++ "`, got null");
+    } else if (a == null)
+        @compileError("Expected `" ++ b.? ++ "`, got null");
     if (!std.mem.eql(u8, a.?, b.?))
         @compileError("Expected `" ++ a.? ++ "`, got `" ++ b.? ++ "`");
 }
@@ -60,11 +60,17 @@ fn implements(
     const implementation = @typeInfo(Implementation);
 
     if ((header == .Struct or header == .Union or header == .Enum) and @hasDecl(Header, "__custom_type_compare")) {
-        if (Header.__custom_type_compare(Implementation)) {
-            return null;
-        } else {
-            return context ++ " >: Custom comparison function failed";
-        }
+        const namedContext = context ++ "[custom]";
+        const compare = struct {
+            fn a(comptime H: type, comptime I: type) ?[]const u8 {
+                return implements(H, I, "", memo);
+            }
+        }.a;
+        if (Header.__custom_type_compare(Implementation, compare)) |err|
+            return context ++
+                "[custom]" ++
+                if (err[0] == ' ' or err[0] == ':') " > custom" ++ err else " >: " ++ err;
+        return null;
     }
 
     const headerTag = @as(@TagType(@TypeOf(header)), header);
@@ -192,7 +198,7 @@ fn structImplements(
     return null;
 }
 
-pub fn CustomTypeCompare(comptime comparisonFn: fn (type) bool) type {
+pub fn CustomTypeCompare(comptime comparisonFn: fn (type, var) ?[]const u8) type {
     return struct {
         const __custom_type_compare = comparisonFn;
     };
@@ -359,22 +365,52 @@ test "fn this arg recursion" {
 test "" {
     comptime expectEqual(testingImplements(struct {
         a: CustomTypeCompare(struct {
-            pub fn a(comptime Other: type) bool {
-                return Other == u64;
+            pub fn a(comptime Other: type, comptime compare: var) ?[]const u8 {
+                return if (Other == u64) null else "Expected u64";
             }
         }.a),
     }, struct {
         a: u32,
-    }), "base: Struct > a >: Custom comparison function failed");
+    }), "base: Struct > a[custom] >: Expected u64");
 }
 test "" {
     comptime expectEqual(testingImplements(struct {
         a: CustomTypeCompare(struct {
-            pub fn a(comptime Other: type) bool {
-                return Other == u64;
+            pub fn a(comptime Other: type, comptime compare: var) ?[]const u8 {
+                return if (Other == u64) null else "Expected u64";
             }
         }.a),
     }, struct {
         a: u64,
     }), null);
+}
+test "" {
+    comptime expectEqual(testingImplements(struct {
+        a: CustomTypeCompare(struct {
+            pub fn a(comptime Other: type, comptime compare: var) ?[]const u8 {
+                if (compare(struct { one: u64 }, Other)) |err| return err;
+                return null;
+            }
+        }.a),
+    }, struct {
+        a: struct {
+            one: u64,
+            two: u64,
+        },
+    }), null);
+}
+test "" {
+    comptime expectEqual(testingImplements(struct {
+        a: CustomTypeCompare(struct {
+            pub fn a(comptime Other: type, comptime compare: var) ?[]const u8 {
+                if (compare(struct { one: u64 }, Other)) |err| return err;
+                return null;
+            }
+        }.a),
+    }, struct {
+        a: struct {
+            one: u32,
+            two: u64,
+        },
+    }), "base: Struct > a[custom] > custom: Struct > one: Int >: Types differ. Expected: u64, Got: u32.");
 }
