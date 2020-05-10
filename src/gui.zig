@@ -243,15 +243,16 @@ pub fn Interpolation(comptime Kind: type) type {
             return .{ .transitionDuration = transitionDuration, .value = .unset };
         }
         pub fn set(cinterp: *Interp, imev: *ImEvent, nv: Kind, timingFunction: TimingFunction, easeMode: EaseMode) void {
+            const baseValue: Kind = if (cinterp.value == .started and imev.animationEnabled)
+                if (std.meta.eql(cinterp.value.started.target, nv))
+                    return {}
+                else
+                    cinterp.get(imev)
+            else
+                nv;
             cinterp.value = .{
                 .started = .{
-                    .base = if (cinterp.value == .started and imev.animationEnabled)
-                        if (std.meta.eql(cinterp.value.started.target, nv))
-                            return
-                        else
-                            cinterp.get(imev)
-                    else
-                        nv,
+                    .base = baseValue,
                     .startTime = imev.time,
                     .target = nv,
                     .timingFunction = timingFunction,

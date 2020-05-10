@@ -965,11 +965,11 @@ pub fn main() !void {
     const Poll = struct {
         const ReportFPS = enum { no, yes };
         reportFPS: ReportFPS,
-        njfkfnajdk: Njfkfnajdk,
-        const Njfkfnajdk = enum { avjdnj, fdjnsakjln };
+        animations: Animations,
+        const Animations = enum { disabled, enabled };
         pub const ModeData = struct {
             reportFPS: gui.Part(ReportFPS),
-            njfkfnajdk: gui.Part(Njfkfnajdk),
+            animations: gui.Part(Animations),
         };
     };
     const Update = union(enum) {
@@ -977,7 +977,7 @@ pub fn main() !void {
         wait: void,
         poll: Poll,
         pub const default_wait = {};
-        pub const default_poll = Poll{ .reportFPS = .no, .njfkfnajdk = .avjdnj };
+        pub const default_poll = Poll{ .reportFPS = .no, .animations = .enabled };
         pub const ModeData = union(Tag) {
             wait: gui.UnionPart(void),
             poll: gui.UnionPart(Poll),
@@ -1006,7 +1006,7 @@ pub fn main() !void {
     var imedtr = gui.DataEditor(UpdateMode).init();
     defer imedtr.deinit();
     var updateMode: UpdateMode = .{
-        .update = .wait,
+        .update = .{ .poll = Update.default_poll },
         .another = .choice1,
         .three = .yes,
         .substructure = .{ .four = .five, .eight = .nine },
@@ -1045,7 +1045,10 @@ pub fn main() !void {
         }
 
         // === RENDER
-        imev.animationEnabled = updateMode.update == .poll;
+        imev.animationEnabled = switch (updateMode.update) {
+            .poll => |p| p.animations == .enabled,
+            else => false,
+        };
 
         imev.rerender();
         while (imev.internal.rerender) {
