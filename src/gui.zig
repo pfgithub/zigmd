@@ -26,6 +26,9 @@ pub const Style = struct {
             pub const Active = struct {
                 inactive: win.Color,
                 active: win.Color,
+                pub fn of(activity: Active, mode: bool) win.Color {
+                    return if (mode) activity.active else activity.inactive;
+                }
             };
             base: Active,
             hover: Active,
@@ -918,11 +921,17 @@ pub fn BoolEditor(comptime Bool: type) type {
         id: u64,
         rightOffset: PosInterpolation,
         clicking: union(enum) { no: void, yes: struct { moved: bool } },
+        buttonColor: ColorInterpolation,
+        buttonShadowColor: ColorInterpolation,
+        buttonPressLevel: PosInterpolation,
         pub const isInline = true;
         pub fn init(ev: *ImEvent) Editor {
             return .{
                 .id = ev.newID(),
                 .rightOffset = PosInterpolation.init(100),
+                .buttonColor = ColorInterpolation.init(100),
+                .buttonShadowColor = ColorInterpolation.init(100),
+                .buttonPressLevel = PosInterpolation.init(100),
                 .clicking = .no,
             };
         }
@@ -939,6 +948,7 @@ pub fn BoolEditor(comptime Bool: type) type {
             const switchPos = area.position(.{ .w = 50, .h = 20 }, .left, .vcenter);
 
             const hover = switchPos.containsPoint(ev.cursor);
+            const hoveringThis = (hover and !ev.click) or (hover and editor.clicking == .yes);
             var rightOffset = if (!value.*) 0 else switchPos.w - 20;
             const switchButtonArea = switchPos.width(25).right(rightOffset);
             if (hover) {
@@ -984,9 +994,14 @@ pub fn BoolEditor(comptime Bool: type) type {
             try win.renderRect(window, win.Color.hex(0x020202), switchPos.downCut(8));
 
             const visualRightOffset = editor.rightOffset.get(ev);
+            editor.buttonPressLevel.set(ev, if (editor.clicking == .yes) 4 else if (value.*) @as(i64, 0) else 0, timing.EaseIn, .negative);
+            const resh = editor.buttonPressLevel.get(ev);
 
-            try win.renderRect(window, win.Color.hex(0x777777), switchPos.addHeight(-4).width(20).right(visualRightOffset));
-            try win.renderRect(window, win.Color.hex(0x555555), switchPos.downCut(switchPos.h - 4).width(20).right(visualRightOffset));
+            editor.buttonColor.set(ev, (if (hoveringThis) style.gui.button.hover else style.gui.button.base).of(value.*), timing.Linear, .forward);
+            editor.buttonShadowColor.set(ev, style.gui.button.shadow.of(value.*), timing.Linear, .forward);
+
+            try win.renderRect(window, editor.buttonColor.get(ev), switchPos.addHeight(-4).down(resh).width(20).right(visualRightOffset));
+            try win.renderRect(window, editor.buttonShadowColor.get(ev), switchPos.downCut(switchPos.h - 4 + resh).width(20).right(visualRightOffset));
 
             return Height{ .h = area.h };
         }
