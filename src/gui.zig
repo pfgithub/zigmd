@@ -56,9 +56,10 @@ pub const ImEvent = struct {
     keyDown: ?win.Key = undefined,
     key: KeyArr = KeyArr.initDefault(false),
     keyUp: ?win.Key = undefined,
-    textInput: ?*const win.Event.TextInputEvent = undefined,
+    textInput: ?*const win.Event.TextInput = undefined,
     time: u64 = undefined,
     animationEnabled: bool = false,
+    scrollDelta: win.Point = undefined, // unfortunately, sdl scrolling is really bad. numbers are completely random and useless, and it only scrolls by whole ticks. this is one of the places raylib is better.
     window: *win.Window = undefined,
     const KeyArr = help.EnumArray(win.Key, bool);
 
@@ -74,32 +75,36 @@ pub const ImEvent = struct {
         imev.textInput = null;
         imev.time = win.time();
         imev.window = window;
+        imev.scrollDelta = .{ .x = 0, .y = 0 };
 
         // apply event
         switch (ev) {
-            .MouseMotion => |mmv| {
+            .mouseMotion => |mmv| {
                 imev.cursor = mmv.pos;
             },
-            .MouseDown => |clk| {
+            .mouseDown => |clk| {
                 imev.internal.mouseDown = true;
                 imev.cursor = clk.pos;
                 imev.internal.click = true;
             },
-            .MouseUp => |clk| {
+            .mouseUp => |clk| {
                 imev.mouseUp = true;
                 imev.cursor = clk.pos;
                 imev.internal.click = false;
             },
-            .KeyDown => |keyev| {
+            .keyDown => |keyev| {
                 imev.keyDown = keyev.key;
                 _ = imev.key.set(keyev.key, true);
             },
-            .KeyUp => |keyev| {
+            .keyUp => |keyev| {
                 _ = imev.key.set(keyev.key, false);
                 imev.keyUp = keyev.key;
             },
-            .TextInput => |*textin| {
+            .textInput => |*textin| {
                 imev.textInput = textin;
+            },
+            .mouseWheel => |wheel| {
+                imev.scrollDelta = .{ .x = wheel.x, .y = wheel.y };
             },
             else => {},
         }

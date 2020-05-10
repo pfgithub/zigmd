@@ -120,19 +120,19 @@ fn keyFromSDL(sdlKey: var) Key {
 
 fn eventFromSDL(event: c.SDL_Event) Event {
     return switch (event.type) {
-        c.SDL_QUIT => Event{ .Quit = {} },
+        c.SDL_QUIT => Event{ .quit = {} },
         c.SDL_KEYDOWN => Event{
-            .KeyDown = .{
+            .keyDown = .{
                 .key = keyFromSDL(event.key.keysym.scancode),
             },
         },
         c.SDL_KEYUP => Event{
-            .KeyUp = .{
+            .keyUp = .{
                 .key = keyFromSDL(event.key.keysym.scancode),
             },
         },
         c.SDL_MOUSEBUTTONDOWN => Event{
-            .MouseDown = .{
+            .mouseDown = .{
                 .pos = .{
                     .x = event.button.x,
                     .y = event.button.y,
@@ -140,7 +140,7 @@ fn eventFromSDL(event: c.SDL_Event) Event {
             },
         },
         c.SDL_MOUSEBUTTONUP => Event{
-            .MouseUp = .{
+            .mouseUp = .{
                 .pos = .{
                     .x = event.button.x,
                     .y = event.button.y,
@@ -148,7 +148,7 @@ fn eventFromSDL(event: c.SDL_Event) Event {
             },
         },
         c.SDL_MOUSEMOTION => Event{
-            .MouseMotion = .{
+            .mouseMotion = .{
                 .pos = .{
                     .x = event.motion.x,
                     .y = event.motion.y,
@@ -159,10 +159,18 @@ fn eventFromSDL(event: c.SDL_Event) Event {
             var text: [100]u8 = undefined;
             std.mem.copy(u8, &text, &event.text.text); // does the event.text.text memory get leaked? what happens to it?
             break :blk Event{
-                .TextInput = .{ .text = text, .length = @intCast(u32, c.strlen(&event.text.text)) },
+                .textInput = .{ .text = text, .length = @intCast(u32, c.strlen(&event.text.text)) },
             };
         },
-        else => Event{ .Unknown = .{ .type = event.type } },
+        c.SDL_MOUSEWHEEL => Event{
+            // if these are backwards, try checking event.direction. maybe it will do something.
+            .mouseWheel = .{
+                // convert random number to number of pixels to scroll
+                .x = event.wheel.x * 10,
+                .y = event.wheel.y * 10,
+            },
+        },
+        else => Event{ .unknown = .{ .type = event.type } },
     };
 }
 

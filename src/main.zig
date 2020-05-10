@@ -1121,14 +1121,14 @@ pub fn main() !void {
 
     var renderCount: u64 = 0;
     while (true) {
-        if (event == .Empty) {
+        if (event == .empty) {
             event = switch (updateMode.update) {
                 .wait => try window.waitEvent(),
                 .poll => try window.pollEvent(),
             };
         }
         switch (event) {
-            .Quit => return,
+            .quit => return,
             else => {},
         }
 
@@ -1146,7 +1146,7 @@ pub fn main() !void {
         while (imev.internal.rerender) {
             imev.apply(event, &window);
             renderCount += 1;
-            event = .{ .Empty = {} };
+            event = .empty;
 
             window.cursor = .default;
 
@@ -1181,7 +1181,7 @@ pub fn main() !void {
         // ===
 
         event = try window.pollEvent();
-        if (event != .Empty) continue;
+        if (event != .empty) continue;
         if (updateMode.showRenderCount == .yes) {
             const msg = try std.fmt.allocPrint0(alloc, "{}", .{renderCount});
             defer alloc.free(msg);

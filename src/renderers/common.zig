@@ -50,33 +50,37 @@ pub const Key = enum(u64) {
 };
 
 pub const Event = union(enum) {
-    Quit: void,
-    Unknown: UnknownEvent,
-    KeyDown: KeyEvent,
-    KeyUp: KeyEvent,
-    MouseDown: MouseEvent,
-    MouseUp: MouseEvent,
-    MouseMotion: MouseMotionEvent,
-    TextInput: TextInputEvent,
-    Empty: EmptyEvent,
-    pub const UnknownEvent = struct {
+    quit: void,
+    unknown: Unknown,
+    keyDown: KeyEv,
+    keyUp: KeyEv,
+    mouseDown: Mouse,
+    mouseUp: Mouse,
+    mouseMotion: MouseMotion,
+    textInput: TextInput,
+    mouseWheel: MouseWheel,
+    empty: Empty,
+    pub const Unknown = struct {
         type: u32,
     };
-    pub const KeyEvent = struct {
+    pub const KeyEv = struct {
         key: Key,
     };
-    pub const MouseEvent = struct {
+    pub const Mouse = struct {
         pos: Point,
     };
-    pub const MouseMotionEvent = struct {
+    pub const MouseMotion = struct {
         pos: Point,
     };
-    pub const TextInputEvent = struct {
+    pub const TextInput = struct {
         text: [100]u8,
         length: u32,
     };
-    pub const EmptyEvent = void;
-    pub const empty = Event{ .Empty = {} };
+    pub const MouseWheel = struct {
+        x: i64, // number of pixels to scroll
+        y: i64,
+    };
+    pub const Empty = void;
     pub const Type = @TagType(@This());
 };
 
