@@ -157,7 +157,7 @@ fn eventFromSDL(event: c.SDL_Event) Event {
         },
         c.SDL_TEXTINPUT => blk: {
             var text: [100]u8 = undefined;
-            std.mem.copy(u8, &text, &event.text.text); // does the event.text.text memory get leaked? what happens to it?
+            std.mem.copy(u8, &text, &event.text.text);
             break :blk Event{
                 .textInput = .{ .text = text, .length = @intCast(u32, c.strlen(&event.text.text)) },
             };
