@@ -768,8 +768,7 @@ pub const App = struct {
             app.scrollY += -imev.scrollDelta.y;
         }
 
-        const paddingDown = 10;
-        const pos = fullArea.noHeight().addWidth(-40).rightCut(20).down(-app.scrollY);
+        const pos = fullArea.noHeight().addWidth(-40).rightCut(20).down(10 + -app.scrollY);
 
         const style = app.style;
 
