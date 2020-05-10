@@ -973,17 +973,23 @@ pub fn main() !void {
         pub const title_another = "Another Option:";
         pub const title_three = "Three:";
         update: Update,
+        guiDisplay: GUIDisplay = .single,
         another: Another,
         three: Three,
         substructure: Substructure,
         textField: TextField,
         pub const ModeData = struct {
+            // this could be simplified to
+            // update: gui.Part(help.FieldType(S, "update"))
+            // and then not everything needs a manual type declaration
             update: gui.Part(Update),
+            guiDisplay: gui.Part(GUIDisplay),
             another: gui.Part(Another),
             three: gui.Part(Three),
             substructure: gui.Part(Substructure),
             textField: gui.Part(TextField),
         };
+        const GUIDisplay = enum { single, double };
         const Another = enum { choice1, choice2, choice3 };
         const Three = enum { yes };
         const TextField = [100]u8;
@@ -1070,9 +1076,17 @@ pub fn main() !void {
                 },
                 .gui => {
                     currentPos.y += gui.seperatorGap;
-                    const cx = currentPos.centerX();
-                    _ = try imedtr.render(&updateMode, style, &window, &imev, currentPos.right(40).setX2(cx - 20));
-                    _ = try imedtr2.render(&updateMode, style, &window, &imev, currentPos.rightCut(cx + 20));
+                    const guiPos = currentPos.addWidth(-40).rightCut(40);
+                    switch (updateMode.guiDisplay) {
+                        .double => {
+                            const cx = currentPos.centerX();
+                            _ = try imedtr.render(&updateMode, style, &window, &imev, guiPos.setX2(cx - 20));
+                            _ = try imedtr2.render(&updateMode, style, &window, &imev, guiPos.rightCut(cx + 20));
+                        },
+                        .single => {
+                            _ = try imedtr.render(&updateMode, style, &window, &imev, guiPos);
+                        },
+                    }
                 },
             }
         }
