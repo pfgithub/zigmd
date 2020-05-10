@@ -243,29 +243,21 @@ pub fn Interpolation(comptime Kind: type) type {
             return .{ .transitionDuration = transitionDuration, .value = .unset };
         }
         pub fn set(cinterp: *Interp, imev: *ImEvent, nv: Kind, timingFunction: TimingFunction, easeMode: EaseMode) void {
-            switch (cinterp.value) {
-                .started => |*dat| {
-                    if (std.meta.eql(dat.target, nv)) return; // otherwise the interpolation will lose precision. it's ok to lose precision if the value changes though
-                    dat.* = .{
-                        .base = cinterp.get(imev),
-                        .startTime = imev.time,
-                        .target = nv,
-                        .timingFunction = timingFunction,
-                        .easeMode = easeMode,
-                    };
+            cinterp.value = .{
+                .started = .{
+                    .base = if (cinterp.value == .started and imev.animationEnabled)
+                        if (std.meta.eql(cinterp.value.started.target, nv))
+                            return
+                        else
+                            cinterp.get(imev)
+                    else
+                        nv,
+                    .startTime = imev.time,
+                    .target = nv,
+                    .timingFunction = timingFunction,
+                    .easeMode = easeMode,
                 },
-                .unset => {
-                    cinterp.value = .{
-                        .started = .{
-                            .base = nv,
-                            .startTime = imev.time,
-                            .target = nv,
-                            .timingFunction = timingFunction,
-                            .easeMode = easeMode,
-                        },
-                    };
-                },
-            }
+            };
         }
         pub fn get(cinterp: Interp, imev: *ImEvent) Kind {
             const dat = cinterp.value.started; // only call get after value has been set at least once
