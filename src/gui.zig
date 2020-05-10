@@ -412,6 +412,7 @@ pub fn Part(comptime Type: type) type {
         visible: bool,
         toggleButton: Button,
         label: Text,
+        choiceHeight: PosInterpolation,
     };
 }
 
@@ -440,6 +441,7 @@ fn StructEditor(comptime Struct: type) type {
                     .visible = true,
                     .toggleButton = Button.init(),
                     .label = Text.init(),
+                    .choiceHeight = PosInterpolation.init(100),
                 };
             }
             return .{
@@ -504,9 +506,14 @@ fn StructEditor(comptime Struct: type) type {
                     // pos.right(count).newline().down(count)
                     currentPos.y += area.h + gap;
                     if (iteminfo.visible) {
+                        var tmpY: i64 = 0;
                         const rh = try item.render(fieldv, style, ev, currentPos.rightCut(indentWidth));
-                        currentPos.y += rh.h + gap;
+                        tmpY += rh.h + gap;
+                        iteminfo.choiceHeight.set(ev, tmpY, timing.EaseInOut, .forward);
+                    } else {
+                        iteminfo.choiceHeight.set(ev, 0, timing.EaseInOut, .forward);
                     }
+                    currentPos.y += iteminfo.choiceHeight.get(ev);
                 } else {
                     const rh = try item.render(
                         fieldv,
@@ -564,6 +571,7 @@ fn UnionEditor(comptime Union: type) type {
         enumEditor: DataEditor(Enum),
         selectedUnionEditor: ?struct { choice: Enum, editor: Union.ModeData },
         deselectedUnionData: [typeInfo.fields.len]Union, // storage for if you enter some data and select a different union choice so when you go back, your data is still there
+        choiceHeight: PosInterpolation,
         pub const isInline = false;
         pub fn init() Editor {
             return .{
@@ -576,7 +584,8 @@ fn UnionEditor(comptime Union: type) type {
                     }
                     break :blk res;
                 },
-                .selectedUnionEditor = null, // so the right one can be initialized by fn render
+                .selectedUnionEditor = null,
+                .choiceHeight = PosInterpolation.init(100), // only for setting when we change enum values. otherwise, teleport. so that union{union{}} doesn't double interpolate.
             };
         }
         pub fn deinit(editor: *Editor) void {
@@ -619,17 +628,17 @@ fn UnionEditor(comptime Union: type) type {
 
             const callOptions: std.builtin.CallOptions = .{};
             inline for (typeInfo.fields) |field| {
-                // COMPILER BUG: even when this ifs on false, it still calls the function and gives the wrong return value.
                 if (@enumToInt(activeTag) == field.enum_field.?.value) {
+                    // if(activeTag != originalTag)
+                    //
                     var addY = (try @call(
                         callOptions,
                         help.FieldType(Union.ModeData, field.name).render,
                         .{ &@field(sue.editor, field.name), &@field(value, field.name), style, ev, cpos },
                     )).h;
-                    if (addY == 0)
-                        cpos.y -= seperatorGap
-                    else
-                        cpos.y += addY;
+                    if (addY == 0) addY -= seperatorGap;
+                    editor.choiceHeight.set(ev, addY, timing.EaseInOut, .forward);
+                    cpos.y += editor.choiceHeight.get(ev);
                     break;
                 }
             }

@@ -938,15 +938,34 @@ pub fn main() !void {
     // if in foreground, loop pollevent
     // if in background, waitevent
 
+    const Eleven = union(enum) {
+        const T = gui.UnionDataHelper(@This());
+
+        eleven: [1]u8,
+        twelve: enum { thirteen, fourteen, fifteen },
+        thirteen: void,
+
+        pub const default_eleven: [1]u8 = [_]u8{'A'};
+        pub const default_twelve: help.FieldType(@This(), "twelve") = .thirteen;
+        pub const default_thirteen = {};
+
+        pub const ModeData = union(T(type)) {
+            eleven: T(.eleven),
+            twelve: T(.twelve),
+            thirteen: T(.thirteen),
+        };
+    };
     const PointlessButtons = struct {
         const T = gui.StructDataHelper(@This());
 
         one: enum { two, three, four, five, six } = .two,
         seven: enum { eight, nine } = .eight,
+        ten: Eleven = .{ .eleven = Eleven.default_eleven },
 
         pub const ModeData = struct {
             one: T(.one),
             seven: T(.seven),
+            ten: T(.ten),
         };
     };
     const Poll = struct {
