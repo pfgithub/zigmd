@@ -297,20 +297,25 @@ pub const Button = struct {
         btn.text.deinit();
     }
 
+    const ButtonReturnState = struct {
+        click: bool,
+        active: bool,
+    };
     pub fn render(
         btn: *Button,
         settings: struct {
             text: []const u8,
             font: *win.Font,
             active: bool = false,
+            forceUp: bool = false,
             style: Style,
         },
         window: *win.Window,
         ev: *ImEvent,
         pos: win.Rect,
-    ) !bool {
+    ) !ButtonReturnState {
         const style = settings.style;
-        var result: bool = false;
+        var clickedThisFrame: bool = false;
 
         if (ev.mouseDown and win.Rect.containsPoint(pos, ev.cursor)) {
             ev.takeMouseDown();
@@ -320,15 +325,16 @@ pub const Button = struct {
         if (btn.clickStarted and ev.mouseUp) {
             btn.clickStarted = false;
             if (hover) {
-                result = true;
+                clickedThisFrame = true;
             }
         }
-        const hoveringAny = hover and (btn.clickStarted or result or !ev.click);
+        const hoveringAny = hover and (btn.clickStarted or clickedThisFrame or !ev.click);
         if (hoveringAny) window.cursor = .pointer;
-        const bumpy = !btn.clickStarted;
+
+        const down = btn.clickStarted;
 
         const bumpHeight = 4;
-        btn.bumpOffset.set(ev, if (bumpy) if (settings.active) @as(i64, 2) else @as(i64, 4) else 0, timing.EaseIn, .negative);
+        btn.bumpOffset.set(ev, if (down) 0 else if (settings.active and !settings.forceUp) @as(i64, 2) else @as(i64, 4), timing.EaseIn, .negative);
         const bumpOffset = btn.bumpOffset.get(ev);
 
         const buttonPos: win.Rect = pos.addHeight(-bumpHeight).down(bumpHeight - bumpOffset);
@@ -373,7 +379,7 @@ pub const Button = struct {
             );
         }
 
-        return result;
+        return ButtonReturnState{ .click = clickedThisFrame, .active = btn.clickStarted };
     }
 };
 
@@ -471,7 +477,7 @@ fn StructEditor(comptime Struct: type) type {
                         area,
                     );
 
-                    if (try iteminfo.toggleButton.render(
+                    if ((try iteminfo.toggleButton.render(
                         .{
                             .text = if (iteminfo.visible) "v" else ">",
                             .font = style.fonts.monospace,
@@ -481,7 +487,7 @@ fn StructEditor(comptime Struct: type) type {
                         window,
                         ev,
                         area.right(textSizeRect.w + textGap).position(.{ .w = 20, .h = 20 }, .left, .vcenter),
-                    )) {
+                    )).click) {
                         iteminfo.visible = !iteminfo.visible;
                         ev.rerender();
                     }
@@ -627,6 +633,7 @@ fn EnumEditor(comptime Enum: type) type {
     return struct {
         const Editor = @This();
         buttonData: [typeInfo.fields.len]Button,
+        consideringChange: ?Enum = null,
         pub const isInline = true;
         pub fn init() Editor {
             return .{
@@ -661,12 +668,14 @@ fn EnumEditor(comptime Enum: type) type {
             );
             inline for (typeInfo.fields) |field, i| {
                 const choicePos = pos.rightCut((choiceWidth + gap) * @intCast(i64, i)).width(choiceWidth).height(lineHeight);
+                const thisTag = @field(Enum, field.name);
 
                 var btn = &editor.buttonData[i];
-                var clicked = try btn.render(
+                var btnRes = try btn.render(
                     .{
                         .text = getName(Enum, field.name),
-                        .active = value.* == @field(Enum, field.name),
+                        .active = value.* == thisTag,
+                        .forceUp = value.* == thisTag and editor.consideringChange != null,
                         .font = style.fonts.standard,
                         .style = style,
                     },
@@ -674,8 +683,15 @@ fn EnumEditor(comptime Enum: type) type {
                     ev,
                     choicePos,
                 );
-                if (clicked) {
+                if (btnRes.click) {
                     value.* = @field(Enum, field.name);
+                    ev.rerender();
+                }
+                if (btnRes.active and (editor.consideringChange == null or (editor.consideringChange != null and editor.consideringChange.? != thisTag))) {
+                    editor.consideringChange = thisTag;
+                    ev.rerender();
+                } else if (!btnRes.active and editor.consideringChange != null and editor.consideringChange.? == thisTag) {
+                    editor.consideringChange = null;
                     ev.rerender();
                 }
             }
