@@ -769,7 +769,7 @@ pub const App = struct {
         }
 
         const paddingDown = 10;
-        const pos: win.Rect = fullArea.addWidth(-20).rightCut(20).addHeight(-paddingDown).downCut(paddingDown).downCut(-app.scrollY);
+        const pos: win.Rect = fullArea.addWidth(-40).rightCut(20).addHeight(-paddingDown * 2).downCut(paddingDown).downCut(-app.scrollY);
 
         const style = app.style;
 
