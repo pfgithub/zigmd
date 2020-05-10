@@ -899,6 +899,59 @@ pub fn UnsupportedEditor(comptime Ignore: type) type {
     };
 }
 
+pub fn BoolEditor(comptime Bool: type) type {
+    return struct {
+        const Editor = @This();
+        id: u64,
+        rightOffset: PosInterpolation,
+        clicking: bool = false,
+        pub const isInline = true;
+        pub fn init(ev: *ImEvent) Editor {
+            return .{
+                .id = ev.newID(),
+                .rightOffset = PosInterpolation.init(100),
+            };
+        }
+        pub fn deinit(editor: *Editor) void {}
+        pub fn render(
+            editor: *Editor,
+            value: *Bool,
+            style: Style,
+            ev: *ImEvent,
+            pos: win.TopRect,
+        ) !Height {
+            const window = ev.window;
+            const area = pos.height(lineHeight);
+            const switchPos = area.position(.{ .w = 50, .h = 20 }, .left, .vcenter);
+
+            const hover = switchPos.containsPoint(ev.cursor);
+            if (hover) {
+                if (ev.mouseDown) {
+                    editor.clicking = true;
+                }
+            }
+            if (ev.mouseUp) {
+                editor.clicking = false;
+                if (hover) {
+                    value.* = !value.*;
+                    ev.rerender();
+                }
+            }
+
+            try win.renderRect(window, win.Color.hex(0x000000), switchPos.downCut(4));
+            try win.renderRect(window, win.Color.hex(0x111111), switchPos.downCut(8));
+
+            editor.rightOffset.set(ev, if (value.*) 0 else switchPos.w - 20, timing.EaseInOut, .forward);
+            const rightOffset = editor.rightOffset.get(ev);
+
+            try win.renderRect(window, win.Color.hex(0x777777), switchPos.addHeight(-4).width(20).right(rightOffset));
+            try win.renderRect(window, win.Color.hex(0x555555), switchPos.downCut(switchPos.h - 4).width(20).right(rightOffset));
+
+            return Height{ .h = area.h };
+        }
+    };
+}
+
 pub const EditorHeader = struct {
     pub const isInline: bool = undefined;
     pub fn init(ev: *ImEvent) EditorHeader {
@@ -911,7 +964,7 @@ pub const EditorHeader = struct {
         style: Style,
         ev: *ImEvent,
         pos: win.TopRect,
-    ) header_check.atleastOneError(Height) {
+    ) header_check.types.atleastOneError(Height) {
         return undefined;
     }
 };
@@ -927,6 +980,7 @@ pub fn DataEditor(comptime Data: type) type {
         .Union => UnionEditor(Data),
         .Enum => EnumEditor(Data),
 
+        .Bool => BoolEditor(Data),
         .Array => ArrayEditor(Data),
         .Void => VoidEditor(Data),
 

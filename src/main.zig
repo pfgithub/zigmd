@@ -1062,12 +1062,14 @@ pub fn main() !void {
         one: enum { two, three, four, five, six } = .two,
         seven: enum { eight, nine } = .eight,
         ten: Eleven = .{ .eleven = Eleven.default_eleven },
+        toggleSwitch: bool = false,
 
         pub const ModeData = struct {
             actionDemo: T(.actionDemo),
             one: T(.one),
             seven: T(.seven),
             ten: T(.ten),
+            toggleSwitch: T(.toggleSwitch),
         };
     };
     const Poll = struct {
