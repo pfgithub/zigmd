@@ -476,6 +476,9 @@ fn StructEditor(comptime Struct: type) type {
             var currentPos = pos;
             var trueHeight: i64 = 0;
 
+            var valu = false;
+            if (valu) return error.WorkaroundCompilerBug;
+
             inline for (typeInfo.fields) |field, i| {
                 const ItemType = @TypeOf(@field(editor.data, field.name).editor);
                 var iteminfo = &@field(editor.data, field.name);
@@ -547,7 +550,7 @@ fn StructEditor(comptime Struct: type) type {
                 }
             }
 
-            return Height{ .h = currentPos.y - pos.y - gap + trueHeight };
+            return Height{ .h = std.math.max(currentPos.y - pos.y - gap + trueHeight, 0) };
         }
     };
 }
@@ -571,15 +574,15 @@ fn UnionEditor(comptime Union: type) type {
     const Enum = typeInfo.tag_type orelse @compileError("Can only edit tagged unions");
     const enumInfo = @typeInfo(Enum).Enum;
 
-    if (!@hasDecl(Union, "ModeData")) @compileError("Any unions to be edited require a pub const ModeData = union(Tag) {...everything: gui.UnionPart(type), pub const default_...everything = defaultValue;}. This is because zig does not currently have @Type for unions.");
-    const modeDataInfo = @typeInfo(Union.ModeData).Union;
+    const ModeData = if (@hasDecl(Union, "ModeData")) Union.ModeData else if (@hasDecl(Union, "ModeData2")) Union.ModeData2 else @compileError("Any unions to be edited require a pub const ModeData = union(Tag) {...everything: gui.UnionPart(type), pub const default_...everything = defaultValue;}. This is because zig does not currently have @Type for unions.");
+    const modeDataInfo = @typeInfo(ModeData).Union;
     const MdiEnum = modeDataInfo.tag_type orelse @compileError("ModeData must be a tagged union too!");
     if (Enum != MdiEnum) @compileError("ModeData tag must be outer union tag. Eg union(enum) {const Tag = @TagType(@This()); pub const ModeData = union(Tag){ ... };}");
 
     return struct {
         const Editor = @This();
         enumEditor: DataEditor(Enum),
-        selectedUnionEditor: ?struct { choice: Enum, editor: Union.ModeData },
+        selectedUnionEditor: ?struct { choice: Enum, editor: ModeData },
         deselectedUnionData: [typeInfo.fields.len]Union, // storage for if you enter some data and select a different union choice so when you go back, your data is still there
         choiceHeight: PosInterpolation,
         pub const isInline = false;
@@ -589,8 +592,13 @@ fn UnionEditor(comptime Union: type) type {
                 .deselectedUnionData = blk: {
                     var res: [typeInfo.fields.len]Union = undefined;
                     inline for (typeInfo.fields) |field, i| {
-                        if (!@hasDecl(Union, "default_" ++ field.name)) @compileError("Missing default_" ++ field.name ++ ". All union choices to be edited require an accompanying pub const default_ value.");
-                        res[i] = @unionInit(Union, field.name, @field(Union, "default_" ++ field.name));
+                        const defaultValue = if (@hasDecl(Union, "default_" ++ field.name))
+                            @field(Union, "default_" ++ field.name)
+                        else if (help.FieldType(Union, field.name) == void)
+                            ({})
+                        else
+                            @compileError("Missing default_" ++ field.name ++ ". All union choices to be edited require an accompanying pub const default_ value.");
+                        res[i] = @unionInit(Union, field.name, defaultValue);
                     }
                     break :blk res;
                 },
@@ -631,7 +639,7 @@ fn UnionEditor(comptime Union: type) type {
             if (editor.selectedUnionEditor == null) {
                 editor.selectedUnionEditor = .{
                     .choice = activeTag,
-                    .editor = help.unionCallReturnsThis(Union.ModeData, "init", activeTag, .{}),
+                    .editor = help.unionCallReturnsThis(ModeData, "init", activeTag, .{}),
                 };
             }
             const sue = &editor.selectedUnionEditor.?;
@@ -645,7 +653,7 @@ fn UnionEditor(comptime Union: type) type {
                     //
                     var addY = (try @call(
                         callOptions,
-                        help.FieldType(Union.ModeData, field.name).render,
+                        help.FieldType(ModeData, field.name).render,
                         .{ &@field(sue.editor, field.name), &@field(value, field.name), style, ev, cpos },
                     )).h;
                     if (addY > 0) addY += seperatorGap;
@@ -816,24 +824,57 @@ pub fn ArrayEditor(comptime RawData: type) type {
 
 const WorkaroundError = error{CompilerBugWorkaround};
 
-const VoidEditor = struct {
-    const Editor = @This();
-    pub const isInline = true;
-    pub fn init() Editor {
-        return .{};
-    }
-    pub fn deinit(editor: *Editor) void {}
-    pub fn render(
-        editor: *Editor,
-        value: *void,
-        style: Style,
-        ev: *ImEvent,
-        pos: win.TopRect,
-    ) WorkaroundError!Height {
-        const window = ev.window;
-        return Height{ .h = 0 };
-    }
-};
+pub fn VoidEditor(comptime Ignore: type) type {
+    return struct {
+        const Editor = @This();
+        pub const isInline = true;
+        pub fn init() Editor {
+            return .{};
+        }
+        pub fn deinit(editor: *Editor) void {}
+        pub fn render(
+            editor: *Editor,
+            value: *Ignore,
+            style: Style,
+            ev: *ImEvent,
+            pos: win.TopRect,
+        ) WorkaroundError!Height {
+            const window = ev.window;
+            return Height{ .h = 0 };
+        }
+    };
+}
+
+pub fn UnsupportedEditor(comptime Ignore: type) type {
+    return struct {
+        const Editor = @This();
+        text: Text,
+        pub const isInline = true;
+        pub fn init() Editor {
+            return .{ .text = Text.init() };
+        }
+        pub fn deinit(editor: *Editor) void {
+            editor.text.deinit();
+        }
+        pub fn render(
+            editor: *Editor,
+            value: *Ignore,
+            style: Style,
+            ev: *ImEvent,
+            pos: win.TopRect,
+        ) !Height {
+            const window = ev.window;
+            const size = pos.height(lineHeight);
+            _ = try editor.text.render(.{
+                .text = "Unsupported Editor Type: " ++ @typeName(Ignore),
+                .font = style.fonts.standard,
+                .color = style.colors.errorc,
+                .halign = .left,
+            }, ev, size);
+            return Height{ .h = size.h };
+        }
+    };
+}
 // unioneditor is more difficult
 // tabs at the top
 // needs to keep data for each tab if you switch tabs and switch back
@@ -846,9 +887,9 @@ pub fn DataEditor(comptime Data: type) type {
         .Enum => EnumEditor(Data),
 
         .Array => ArrayEditor(Data),
-        .Void => VoidEditor,
+        .Void => VoidEditor(Data),
 
-        else => @compileError("unsupported editor type: " ++ @tagName(@as(@TagType(@TypeOf(typeInfo)), typeInfo))),
+        else => UnsupportedEditor(Data),
     };
 }
 

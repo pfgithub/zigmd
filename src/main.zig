@@ -21,10 +21,17 @@ pub const ActionMode = enum {
     contextAware, // typing * inserts \*, formatting is hidden
 };
 pub const Regex = struct {
+    const T = gui.StructDataHelper(@This());
     body: []const u8,
     flags: []const u8,
+    pub const ModeData = struct {
+        body: T(.body),
+        flags: T(.flags),
+    };
 };
 pub const CharacterStop = union(enum) {
+    const Q = gui.UnionDataHelper(@This());
+
     byte: void,
     codepoint: void,
     character: void,
@@ -32,26 +39,76 @@ pub const CharacterStop = union(enum) {
     line: void,
     regex: Regex,
     contextAware: void,
+
+    pub const default_regex = Regex{ .body = "N", .flags = "N" };
+
+    pub const ModeData = union(Q(type)) {
+        byte: Q(.byte),
+        codepoint: Q(.codepoint),
+        character: Q(.character),
+        word: Q(.word),
+        line: Q(.line),
+        regex: Q(.regex),
+        contextAware: Q(.contextAware),
+    };
 };
 pub const LineStop = union(enum) {
+    const Q = gui.UnionDataHelper(@This());
+
     screen: void,
     file: void,
+
+    pub const ModeData = union(Q(type)) {
+        body: Q(.body),
+        flags: Q(.flags),
+    };
 };
 
 pub const Action = union(enum) {
+    const Q = gui.UnionDataHelper(@This());
+
+    none: None,
     insert: Insert,
     delete: Delete,
     moveCursorLR: MoveCursorLR,
     save: Save,
 
+    pub const default_none = None{};
+    pub const default_insert = Insert{ .direction = .right, .mode = .raw, .text = "N" };
+    pub const default_delete = Delete{ .direction = .left, .stop = .codepoint };
+    pub const default_moveCursorLR = MoveCursorLR{ .direction = .right, .stop = .codepoint };
+    pub const default_save = Save{};
+
+    pub const ModeData2 = union(Q(type)) {
+        none: Q(.none),
+        insert: Q(.insert),
+        delete: Q(.delete),
+        moveCursorLR: Q(.moveCursorLR),
+        save: Q(.save),
+    };
+
     pub fn apply(value: Action, app: *App) void {
         return help.unionCallThis("apply", value, .{app});
     }
 
+    pub const None = struct {
+        const T = gui.StructDataHelper(@This());
+        pub const ModeData = struct {};
+
+        pub fn apply(none: None, app: *App) void {}
+    };
     pub const Insert = struct {
+        const T = gui.StructDataHelper(@This());
+
         direction: Direction,
         mode: ActionMode,
         text: []const u8,
+
+        pub const ModeData = struct {
+            direction: T(.direction),
+            mode: T(.mode),
+            text: T(.text),
+        };
 
         pub fn apply(insert: Insert, app: *App) void {
             app.text.insertSlice(app.cursorLocation, insert.text) catch
@@ -75,8 +132,15 @@ pub const Action = union(enum) {
         }
     };
     pub const Delete = struct {
+        const T = gui.StructDataHelper(@This());
+
         direction: Direction,
         stop: CharacterStop,
+
+        pub const ModeData = struct {
+            direction: T(.direction),
+            stop: T(.stop),
+        };
 
         pub fn apply(delete: Delete, app: *App) void {
             const stopPos = app.findStop(delete.stop, delete.direction);
@@ -111,8 +175,15 @@ pub const Action = union(enum) {
         }
     };
     pub const MoveCursorLR = struct {
+        const T = gui.StructDataHelper(@This());
+
         direction: Direction,
         stop: CharacterStop,
+
+        pub const ModeData = struct {
+            direction: T(.direction),
+            stop: T(.stop),
+        };
 
         pub fn apply(moveCursorLR: MoveCursorLR, app: *App) void {
             const stopPos = app.findStop(moveCursorLR.stop, moveCursorLR.direction);
@@ -120,10 +191,21 @@ pub const Action = union(enum) {
         }
     };
     pub const MoveCursorUD = struct {
+        const T = gui.StructDataHelper(@This());
+
         direction: enum { up, down },
         mode: LineStop,
+
+        pub const ModeData = struct {
+            direction: T(.direction),
+            mode: T(.mode),
+        };
     };
     pub const Save = struct {
+        const T = gui.StructDataHelper(@This());
+
+        pub const ModeData = struct {};
+
         pub fn apply(save: Save, app: *App) void {
             app.saveFile();
         }
@@ -958,11 +1040,13 @@ pub fn main() !void {
     const PointlessButtons = struct {
         const T = gui.StructDataHelper(@This());
 
+        actionDemo: Action = Action{ .none = Action.default_none },
         one: enum { two, three, four, five, six } = .two,
         seven: enum { eight, nine } = .eight,
         ten: Eleven = .{ .eleven = Eleven.default_eleven },
 
         pub const ModeData = struct {
+            actionDemo: T(.actionDemo),
             one: T(.one),
             seven: T(.seven),
             ten: T(.ten),
