@@ -56,7 +56,7 @@ pub const ImEvent = struct {
     keyDown: ?win.Key = undefined,
     key: KeyArr = KeyArr.initDefault(false),
     keyUp: ?win.Key = undefined,
-    textInput: ?*const win.Event.TextInput = undefined,
+    textInput: ?win.Event.TextInput = undefined,
     time: u64 = undefined,
     animationEnabled: bool = false,
     scrollDelta: win.Point = undefined, // unfortunately, sdl scrolling is really bad. numbers are completely random and useless, and it only scrolls by whole ticks. this is one of the places raylib is better.
@@ -100,7 +100,7 @@ pub const ImEvent = struct {
                 _ = imev.key.set(keyev.key, false);
                 imev.keyUp = keyev.key;
             },
-            .textInput => |*textin| {
+            .textInput => |textin| {
                 imev.textInput = textin;
             },
             .mouseWheel => |wheel| {
