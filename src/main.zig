@@ -990,6 +990,8 @@ pub fn main() !void {
     };
     var imedtr = gui.DataEditor(UpdateMode).init();
     defer imedtr.deinit();
+    var imedtr2 = gui.DataEditor(UpdateMode).init();
+    defer imedtr2.deinit();
     var updateMode: UpdateMode = .{
         .update = .{ .poll = Update.default_poll },
         .another = .choice1,
@@ -1076,14 +1078,25 @@ pub fn main() !void {
                 },
                 .gui => {
                     _ = try imedtr.render(
-                        &updateMode, // should this update in the return value instead of updating the item directly?
+                        &updateMode,
                         style,
                         &window,
                         &imev,
                         .{
                             .x = 40,
                             .y = yTop + gui.seperatorGap,
-                            .w = windowSize.w - 80,
+                            .w = @divFloor(windowSize.w, 2) - 80 - 5,
+                        },
+                    );
+                    _ = try imedtr2.render(
+                        &updateMode,
+                        style,
+                        &window,
+                        &imev,
+                        .{
+                            .x = 40 + @divFloor(windowSize.w, 2) + 10,
+                            .y = yTop + gui.seperatorGap,
+                            .w = @divFloor(windowSize.w, 2) - 80 - 5,
                         },
                     );
                 },
