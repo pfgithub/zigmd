@@ -1,11 +1,6 @@
 const std = @import("std");
 const help = @import("../helpers.zig");
 
-pub const WindowSize = struct {
-    w: i64,
-    h: i64,
-};
-
 pub const Color = struct {
     r: u8,
     g: u8,
@@ -103,6 +98,12 @@ pub const Point = struct {
 pub const WH = struct {
     w: i64,
     h: i64,
+    pub fn position(wh: WH, pt: Point) Rect {
+        return .{ .x = pt.x, .y = pt.y, .w = wh.w, .h = wh.h };
+    }
+    pub fn xy(wh: WH, x: i64, y: i64) Rect {
+        return wh.position(.{ .x = x, .y = y });
+    }
 };
 pub const HAlign = enum { left, hcenter, right };
 pub const VAlign = enum { top, vcenter, bottom };
@@ -115,10 +116,16 @@ pub const Rect = struct {
         return point.x >= rect.x and point.x <= rect.x + rect.w and
             point.y >= rect.y and point.y <= rect.y + rect.h;
     }
+    pub fn centerX(rect: Rect) i64 {
+        return rect.x + @divFloor(rect.w, 2);
+    }
+    pub fn centerY(rect: Rect) i64 {
+        return rect.y + @divFloor(rect.h, 2);
+    }
     pub fn center(rect: Rect) Point {
         return .{
-            .x = rect.x + @divFloor(rect.w, 2),
-            .y = rect.y + @divFloor(rect.h, 2),
+            .x = rect.centerX(),
+            .y = rect.centerY(),
         };
     }
     pub fn position(rect: Rect, item: WH, halign: HAlign, valign: VAlign) Rect {
@@ -185,11 +192,17 @@ pub const Rect = struct {
     pub fn setY2(rect: Rect, y2: i64) Rect {
         return rect.height(y2 - rect.y);
     }
+    pub fn noHeight(rect: Rect) TopRect {
+        return .{ .x = rect.x, .y = rect.y, .w = rect.w };
+    }
 };
 pub const TopRect = struct {
     x: i64,
     y: i64,
     w: i64,
+    pub fn centerX(rect: TopRect) i64 {
+        return rect.x + @divFloor(rect.w, 2);
+    }
     pub fn right(rect: TopRect, distance: i64) TopRect {
         return .{ .x = rect.x + distance, .y = rect.y, .w = rect.w };
     }
@@ -210,5 +223,8 @@ pub const TopRect = struct {
     }
     pub fn height(rect: TopRect, h: i64) Rect {
         return .{ .x = rect.x, .y = rect.y, .w = rect.w, .h = h };
+    }
+    pub fn setY2(rect: TopRect, y2: i64) Rect {
+        return rect.height(y2 - rect.y);
     }
 };

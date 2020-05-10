@@ -1060,45 +1060,19 @@ pub fn main() !void {
 
             var windowSize = try window.getSize();
 
-            var yTop: i64 = 10;
+            var currentPos: win.TopRect = windowSize.xy(0, 0).noHeight().down(5);
 
-            var displayModeOffset = try displayedtr.render(&displayMode, style, &window, &imev, .{ .w = windowSize.w, .x = 0, .y = yTop });
-            yTop += displayModeOffset.h;
-
-            var size: win.Rect = .{
-                .x = 0,
-                .y = yTop,
-                .w = windowSize.w,
-                .h = windowSize.h - yTop,
-            };
+            currentPos.y += (try displayedtr.render(&displayMode, style, &window, &imev, currentPos)).h;
 
             switch (displayMode) {
                 .editor => {
-                    try app.render(&window, imev, size);
+                    try app.render(&window, imev, currentPos.setY2(windowSize.h));
                 },
                 .gui => {
-                    _ = try imedtr.render(
-                        &updateMode,
-                        style,
-                        &window,
-                        &imev,
-                        .{
-                            .x = 40,
-                            .y = yTop + gui.seperatorGap,
-                            .w = @divFloor(windowSize.w, 2) - 80 - 5,
-                        },
-                    );
-                    _ = try imedtr2.render(
-                        &updateMode,
-                        style,
-                        &window,
-                        &imev,
-                        .{
-                            .x = 40 + @divFloor(windowSize.w, 2) + 10,
-                            .y = yTop + gui.seperatorGap,
-                            .w = @divFloor(windowSize.w, 2) - 80 - 5,
-                        },
-                    );
+                    currentPos.y += gui.seperatorGap;
+                    const cx = currentPos.centerX();
+                    _ = try imedtr.render(&updateMode, style, &window, &imev, currentPos.right(40).setX2(cx - 20));
+                    _ = try imedtr2.render(&updateMode, style, &window, &imev, currentPos.rightCut(cx + 20));
                 },
             }
         }

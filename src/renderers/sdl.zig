@@ -269,11 +269,11 @@ pub const Window = struct {
             c.SDL_SetCursor(cursor);
         }
     }
-    pub fn getSize(window: *Window) !WindowSize {
+    pub fn getSize(window: *Window) !WH {
         var screenWidth: c_int = undefined;
         var screenHeight: c_int = undefined;
         if (c.SDL_GetRendererOutputSize(window.sdlRenderer, &screenWidth, &screenHeight) < 0) return sdlError();
-        return WindowSize{
+        return WH{
             .w = @intCast(i64, screenWidth), // should never fail
             .h = @intCast(i64, screenHeight),
         };
