@@ -694,43 +694,28 @@ pub const App = struct {
 
         var alloc = &arena.allocator;
 
-        if (imev.keyDown) |kd| switch (kd) {
-            .Left => {
-                const action: Action = .{
+        if (imev.keyDown) |kd| blk: {
+            const action: Action = switch (kd) {
+                .Left => .{
                     .moveCursorLR = .{ .direction = .left, .stop = .codepoint },
-                };
-                action.apply(app);
-            },
-            .Right => {
-                const action: Action = .{
+                },
+                .Right => .{
                     .moveCursorLR = .{ .direction = .right, .stop = .codepoint },
-                };
-                action.apply(app);
-            },
-            .Backspace => {
-                const action: Action = .{
+                },
+                .Backspace => .{
                     .delete = .{ .direction = .left, .stop = .codepoint },
-                };
-                action.apply(app);
-            },
-            .Return => {
-                const action: Action = .{
+                },
+                .Return => .{
                     .insert = .{ .direction = .left, .mode = .raw, .text = "\n" },
-                };
-                action.apply(app);
-            },
-            .Delete => {
-                const action: Action = .{
+                },
+                .Delete => .{
                     .delete = .{ .direction = .right, .stop = .codepoint },
-                };
-                action.apply(app);
-            },
-            .Escape => {
-                const action: Action = .{ .save = .{} };
-                action.apply(app);
-            },
-            else => {},
-        };
+                },
+                .Escape => .{ .save = .{} },
+                else => break :blk,
+            };
+            action.apply(app);
+        }
         if (imev.textInput) |textin| {
             const action: Action = .{
                 .insert = .{
