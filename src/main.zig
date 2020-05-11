@@ -1132,6 +1132,7 @@ pub fn main() !void {
             guiDisplay: T(.guiDisplay),
             showRenderCount: T(.showRenderCount),
             showPerformance: T(.showPerformance),
+            resizePin: T(.resizePin),
 
             pointlessButtons: T(.pointlessButtons),
             textField: T(.textField),
