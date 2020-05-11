@@ -768,10 +768,6 @@ pub const App = struct {
     fn render(app: *App, imev: *gui.ImEvent, showPerformance: bool, fullArea: win.Rect) !void {
         var timer = if (showPerformance) try std.time.Timer.start() else undefined;
 
-        try app.textRenderCache.clean();
-
-        if (showPerformance) std.debug.warn("{} : Text Rendercache Clean\n", .{timer.lap()});
-
         const window = imev.window;
 
         if (fullArea.containsPoint(imev.cursor)) {
@@ -866,6 +862,11 @@ pub const App = struct {
         // ==== rendering ====
 
         if (!imev.render) return;
+
+        // this isn't necessary right now
+        // also it wastes time making and deleting things when you scroll (showing and hiding texts so they get deleted and recreated)
+        // try app.textRenderCache.clean();
+        // if (showPerformance) std.debug.warn("{} : Text Rendercache Clean\n", .{timer.lap()});
 
         try window.pushClipRect(fullArea);
         defer window.popClipRect();
