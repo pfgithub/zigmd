@@ -975,7 +975,7 @@ pub const App = struct {
                 null,
                 window,
             );
-            defer text.deinit();
+            defer text.deinit(); // on mac, this deinit seems to cause renders to stop working. is it supposed to be deinited after the frame ends? no idea.
             if (std.builtin.os.tag != .macosx)
                 try text.render(window, .{
                     .x = fullArea.x + fullArea.w - text.size.w,
