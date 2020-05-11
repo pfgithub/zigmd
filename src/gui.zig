@@ -292,7 +292,7 @@ pub fn Interpolation(comptime Kind: type) type {
         }
         pub fn get(cinterp: Interp, imev: *ImEvent) Kind {
             const dat = cinterp.value.started; // only call get after value has been set at least once
-            if (!imev.animationEnabled) return dat.target;
+            if (!imev.animationEnabled) return cinterp.final();
             const timeOffset = @intToFloat(f64, imev.time - dat.startTime) / @intToFloat(f64, cinterp.transitionDuration);
             const target = cinterp.final();
 
