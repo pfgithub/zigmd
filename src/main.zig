@@ -588,7 +588,7 @@ pub const App = struct {
         // const initialText = "Test! **Bold**.";
         return App{
             .scrollY = 0,
-            .scrollYAnim = gui.PosInterpolation.init(100),
+            .scrollYAnim = gui.PosInterpolation.init(200),
             .alloc = alloc,
             .style = style,
             .cursorLocation = 0,
