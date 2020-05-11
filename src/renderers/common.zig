@@ -170,7 +170,7 @@ pub const Rect = struct {
         return .{ .x = rect.x + distance, .y = rect.y, .w = rect.w, .h = rect.h };
     }
     pub fn rightCut(rect: Rect, distance: i64) Rect {
-        return rect.right(distance).addHeight(-distance);
+        return rect.right(distance).addWidth(-distance);
     }
     pub fn down(rect: Rect, distance: i64) Rect {
         return .{ .x = rect.x, .y = rect.y + distance, .w = rect.w, .h = rect.h };
@@ -183,6 +183,10 @@ pub const Rect = struct {
     }
     pub fn addWidth(rect: Rect, newWidth: i64) Rect {
         return rect.width(rect.w + newWidth);
+    }
+    pub fn setX1(rect: Rect, x1: i64) Rect {
+        const newWidth = rect.w + (rect.x - x1);
+        return .{ .x = x1, .y = rect.y, .w = newWidth, .h = rect.h };
     }
     pub fn setX2(rect: Rect, x2: i64) Rect {
         return rect.width(x2 - rect.x);

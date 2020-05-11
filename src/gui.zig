@@ -926,7 +926,7 @@ pub fn BoolEditor(comptime Bool: type) type {
         const Editor = @This();
         id: u64,
         rightOffset: PosInterpolation,
-        clicking: union(enum) { no: void, yes: struct { moved: bool } },
+        clicking: union(enum) { no: void, yes: struct { start: usize, moved: bool } },
         buttonColor: ColorInterpolation,
         buttonShadowColor: ColorInterpolation,
         buttonPressLevel: PosInterpolation,
@@ -970,6 +970,7 @@ pub fn BoolEditor(comptime Bool: type) type {
                     editor.clicking = .{
                         .yes = .{
                             .moved = !switchButtonArea.containsPoint(ev.cursor),
+                            .start = ev.time,
                         },
                     };
                 }
@@ -1008,14 +1009,24 @@ pub fn BoolEditor(comptime Bool: type) type {
             try win.renderRect(window, win.Color.hex(0x0a0b0f), switchPos.downCut(8));
 
             const visualRightOffset = editor.rightOffset.get(ev);
-            editor.buttonPressLevel.set(ev, if (editor.clicking == .yes) 4 else if (value.*) @as(i64, 0) else 0, timing.EaseIn, .negative);
+            editor.buttonPressLevel.set(ev, if (editor.clicking == .yes and ev.time - editor.clicking.yes.start > 100) 4 else if (value.*) @as(i64, 0) else 0, timing.EaseIn, .negative);
             const resh = editor.buttonPressLevel.get(ev);
 
             editor.buttonColor.set(ev, (if (hoveringThis) style.gui.button.hover else style.gui.button.base).of(value.*), timing.Linear, .forward);
             editor.buttonShadowColor.set(ev, style.gui.button.shadow.of(value.*), timing.Linear, .forward);
 
-            try win.renderRect(window, editor.buttonColor.get(ev), switchPos.addHeight(-4).down(resh).width(knobSize.w).right(visualRightOffset));
-            try win.renderRect(window, editor.buttonShadowColor.get(ev), switchPos.downCut(switchPos.h - 4 + resh).width(knobSize.w).right(visualRightOffset));
+            var finalSwitchPos = switchPos.width(knobSize.w).right(visualRightOffset);
+
+            if (visualRightOffset < @divFloor(switchPos.w, 2) - knobSize.w / 2) {
+                finalSwitchPos = finalSwitchPos.setX1(switchPos.x);
+            } else if (false) {
+                finalSwitchPos.w = switchPos.w;
+            } else {
+                finalSwitchPos = finalSwitchPos.setX2(switchPos.x + switchPos.w);
+            }
+
+            try win.renderRect(window, editor.buttonColor.get(ev), finalSwitchPos.down(resh).addHeight(-4));
+            try win.renderRect(window, editor.buttonShadowColor.get(ev), finalSwitchPos.downCut(switchPos.h - 4 + resh));
 
             return Height{ .h = area.h };
         }
