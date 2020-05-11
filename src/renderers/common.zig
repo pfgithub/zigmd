@@ -188,7 +188,7 @@ pub const Rect = struct {
         return .{ .x = x, .y = rect.y, .w = rect.w, .h = rect.h };
     }
     pub fn setX1(rect: Rect, x1: i64) Rect {
-        const newWidth = rect.w + (rect.x - x1); // compiler bug workaround
+        const newWidth = rect.w + (rect.x - x1); // #3234 workaround
         return .{ .x = x1, .y = rect.y, .w = newWidth, .h = rect.h };
     }
     pub fn setX2(rect: Rect, x2: i64) Rect {
