@@ -949,14 +949,22 @@ pub fn BoolEditor(comptime Bool: type) type {
             ev: *ImEvent,
             pos: win.TopRect,
         ) !Height {
+            // todo update this to have some scaling stuff
+            // holds left line while < 0.5, transitions over to right line past 0.5
+            // right now this switch feels not clicky enough and weirdly smooth
             const window = ev.window;
             const area = pos.height(lineHeight);
-            const switchPos = area.position(.{ .w = 50, .h = 20 }, .left, .vcenter);
+            const knobSize = win.WH{ .w = 20, .h = 20 };
+            const switchPos = area.position(
+                .{ .w = knobSize.w * 2, .h = knobSize.h },
+                .left,
+                .vcenter,
+            );
 
             const hover = switchPos.containsPoint(ev.cursor);
             const hoveringThis = (hover and !ev.click) or (hover and editor.clicking == .yes);
-            var rightOffset = if (!value.*) 0 else switchPos.w - 20;
-            const switchButtonArea = switchPos.width(25).right(if (value.*) 25 else 0);
+            var rightOffset = if (!value.*) 0 else switchPos.w - knobSize.w;
+            const switchButtonArea = switchPos.width(@divFloor(switchPos.w, 2)).right(if (value.*) @divFloor(switchPos.w, 2) else 0);
             if (hover) {
                 if (ev.mouseDown) {
                     editor.clicking = .{
@@ -971,8 +979,8 @@ pub fn BoolEditor(comptime Bool: type) type {
                 if (!clk.moved and ev.mouseDelta.x != 0)
                     clk.moved = true;
                 if (clk.moved) {
-                    rightOffset = ev.cursor.x - 10 - switchPos.x;
-                    rightOffset = std.math.max(std.math.min(rightOffset, switchPos.w - 20), 0);
+                    rightOffset = ev.cursor.x - (knobSize.w / 2) - switchPos.x;
+                    rightOffset = std.math.max(std.math.min(rightOffset, switchPos.w - knobSize.w), 0);
                 }
                 if (clk.moved)
                     editor.rightOffset.teleport(ev, rightOffset, timing.EaseInOut, .forward)
@@ -984,7 +992,7 @@ pub fn BoolEditor(comptime Bool: type) type {
                     editor.clicking = .no;
                     if (hover and !moved) {
                         value.* = !value.*;
-                    } else if (rightOffset < @divFloor(switchPos.w, 2) - 10) {
+                    } else if (rightOffset < @divFloor(switchPos.w, 2) - knobSize.w / 2) {
                         value.* = false;
                     } else {
                         value.* = true;
@@ -1006,8 +1014,8 @@ pub fn BoolEditor(comptime Bool: type) type {
             editor.buttonColor.set(ev, (if (hoveringThis) style.gui.button.hover else style.gui.button.base).of(value.*), timing.Linear, .forward);
             editor.buttonShadowColor.set(ev, style.gui.button.shadow.of(value.*), timing.Linear, .forward);
 
-            try win.renderRect(window, editor.buttonColor.get(ev), switchPos.addHeight(-4).down(resh).width(20).right(visualRightOffset));
-            try win.renderRect(window, editor.buttonShadowColor.get(ev), switchPos.downCut(switchPos.h - 4 + resh).width(20).right(visualRightOffset));
+            try win.renderRect(window, editor.buttonColor.get(ev), switchPos.addHeight(-4).down(resh).width(knobSize.w).right(visualRightOffset));
+            try win.renderRect(window, editor.buttonShadowColor.get(ev), switchPos.downCut(switchPos.h - 4 + resh).width(knobSize.w).right(visualRightOffset));
 
             return Height{ .h = area.h };
         }
