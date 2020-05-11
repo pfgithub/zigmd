@@ -707,7 +707,6 @@ pub const App = struct {
             );
         }
         try app.textInfo.?.commit();
-        app.textChanged = false;
     }
 
     fn getStyle(app: *App, renderStyle: parser.RenderStyle) TextHLStyleReal {
@@ -785,6 +784,8 @@ pub const App = struct {
 
         const pos = fullArea.noHeight().addWidth(-40).rightCut(20).down(10 + -scrollY);
 
+        const startCursorLocation = app.cursorLocation;
+
         const style = app.style;
 
         var arena = std.heap.ArenaAllocator.init(app.alloc);
@@ -858,6 +859,11 @@ pub const App = struct {
         }
 
         if (showPerformance) std.debug.warn("{} : Scroll and Click\n", .{timer.lap()});
+
+        if (app.textChanged or app.cursorLocation != startCursorLocation)
+            app.cursorBlinkTime = imev.time;
+
+        app.textChanged = false;
 
         // ==== rendering ====
 
