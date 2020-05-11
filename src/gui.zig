@@ -1005,8 +1005,9 @@ pub fn BoolEditor(comptime Bool: type) type {
 
                 if (ev.mouseUp) {
                     const moved = clk.moved;
+                    const clkstart = clk.start;
                     editor.clicking = .no;
-                    if (hover and !moved) {
+                    if (hover and (!moved or ev.time - clkstart < 100)) {
                         value.* = !value.*;
                     } else if (rightOffset < @divFloor(switchPos.w, 2) - knobSize.w / 2) {
                         value.* = false;
