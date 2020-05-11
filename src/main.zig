@@ -998,7 +998,7 @@ pub fn main() !void {
             .inlineCode = win.Color.hex(0x8fbcbb),
 
             .background = win.Color.hex(0x2e3440),
-            .window = win.Color.hex(0x11141a),
+            .window = win.Color.hex(0x161a21),
             .codeBackground = win.Color.hex(0x21252f),
             .linebg = win.Color.hex(0x3f4757),
 

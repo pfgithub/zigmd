@@ -990,8 +990,8 @@ pub fn BoolEditor(comptime Bool: type) type {
                 editor.rightOffset.set(ev, rightOffset, timing.EaseInOut, .forward);
             }
 
-            try win.renderRect(window, win.Color.hex(0x101010), switchPos.downCut(4));
-            try win.renderRect(window, win.Color.hex(0x020202), switchPos.downCut(8));
+            try win.renderRect(window, win.Color.hex(0x13151c), switchPos.downCut(4));
+            try win.renderRect(window, win.Color.hex(0x0a0b0f), switchPos.downCut(8));
 
             const visualRightOffset = editor.rightOffset.get(ev);
             editor.buttonPressLevel.set(ev, if (editor.clicking == .yes) 4 else if (value.*) @as(i64, 0) else 0, timing.EaseIn, .negative);
@@ -1037,7 +1037,7 @@ pub fn DataEditor(comptime Data: type) type {
         .Enum => EnumEditor(Data),
 
         .Bool => BoolEditor(Data),
-        .Array => ArrayEditor(Data),
+        // .Array => ArrayEditor(Data),
         .Void => VoidEditor(Data),
 
         else => UnsupportedEditor(Data),
