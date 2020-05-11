@@ -1122,6 +1122,7 @@ pub fn main() !void {
         guiDisplay: enum { single, double } = .single,
         showRenderCount: bool = false,
         showPerformance: bool = false,
+        resizePin: enum { top, center, bottom } = .top, // when resizing the window, the location of what part of the text should be preserved on screen?
 
         pointlessButtons: PointlessButtons = PointlessButtons{},
         textField: [100]u8 = [_]u8{0} ** 100,
