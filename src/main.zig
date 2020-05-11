@@ -976,10 +976,11 @@ pub const App = struct {
                 window,
             );
             defer text.deinit();
-            try text.render(window, .{
-                .x = fullArea.x + fullArea.w - text.size.w,
-                .y = fullArea.y + fullArea.h - text.size.h,
-            });
+            if (std.builtin.os.tag != .macosx)
+                try text.render(window, .{
+                    .x = fullArea.x + fullArea.w - text.size.w,
+                    .y = fullArea.y + fullArea.h - text.size.h,
+                });
         } else {
             // render cursor at position 0
         }
