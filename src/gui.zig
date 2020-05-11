@@ -934,7 +934,7 @@ pub fn BoolEditor(comptime Bool: type) type {
         pub fn init(ev: *ImEvent) Editor {
             return .{
                 .id = ev.newID(),
-                .rightOffset = PosInterpolation.init(100),
+                .rightOffset = PosInterpolation.init(200),
                 .buttonColor = ColorInterpolation.init(100),
                 .buttonShadowColor = ColorInterpolation.init(100),
                 .buttonPressLevel = PosInterpolation.init(100),
@@ -1018,11 +1018,10 @@ pub fn BoolEditor(comptime Bool: type) type {
             var finalSwitchPos = switchPos.width(knobSize.w).right(visualRightOffset);
 
             if (visualRightOffset < @divFloor(switchPos.w, 2) - knobSize.w / 2) {
-                finalSwitchPos = finalSwitchPos.setX1(switchPos.x);
-            } else if (false) {
-                finalSwitchPos.w = switchPos.w;
+                finalSwitchPos = finalSwitchPos.setX(switchPos.x).addWidth(visualRightOffset * 2);
             } else {
-                finalSwitchPos = finalSwitchPos.setX2(switchPos.x + switchPos.w);
+                const finalWidth = (20 - visualRightOffset) * 2 + knobSize.w;
+                finalSwitchPos = finalSwitchPos.setX2(switchPos.x + switchPos.w).setX1(switchPos.x + switchPos.w - finalWidth);
             }
 
             try win.renderRect(window, editor.buttonColor.get(ev), finalSwitchPos.down(resh).addHeight(-4));
