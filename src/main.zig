@@ -765,8 +765,13 @@ pub const App = struct {
         };
     }
 
-    fn render(app: *App, imev: *gui.ImEvent, fullArea: win.Rect) !void {
+    fn render(app: *App, imev: *gui.ImEvent, showPerformance: bool, fullArea: win.Rect) !void {
+        var timer = if (showPerformance) try std.time.Timer.start() else undefined;
+
         try app.textRenderCache.clean();
+
+        if (showPerformance) std.debug.warn("{} : Text Render\n", .{timer.lap()});
+
         const window = imev.window;
 
         if (fullArea.containsPoint(imev.cursor)) {
@@ -824,12 +829,18 @@ pub const App = struct {
             action.insert.apply(app);
         }
 
-        app.tree.reparse(app.text.items);
+        if (showPerformance) std.debug.warn("{} : Input\n", .{timer.lap()});
+
+        if (app.textChanged) app.tree.reparse(app.text.items);
         app.tree.lock();
         defer app.tree.unlock();
 
+        if (showPerformance) std.debug.warn("{} : Reparse\n", .{timer.lap()});
+
         try app.remeasureText(pos.w);
         const textInfo = app.textInfo.?;
+
+        if (showPerformance) std.debug.warn("{} : Remeasure\n", .{timer.lap()});
 
         const lastLine = textInfo.lines.items[textInfo.lines.items.len - 1];
         const maxScrollY = lastLine.yTop + lastLine.height - 20;
@@ -849,6 +860,8 @@ pub const App = struct {
                     app.cursorLocation = cp.index + 1;
             }
         }
+
+        if (showPerformance) std.debug.warn("{} : Scroll and Click\n", .{timer.lap()});
 
         // ==== rendering ====
 
@@ -961,6 +974,8 @@ pub const App = struct {
         } else {
             // render cursor at position 0
         }
+
+        if (showPerformance) std.debug.warn("{} : All Render\n", .{timer.lap()});
     }
 };
 
@@ -1103,6 +1118,7 @@ pub fn main() !void {
         update: Update = .{ .poll = Update.default_poll },
         guiDisplay: enum { single, double } = .single,
         showRenderCount: bool = false,
+        showPerformance: bool = false,
 
         pointlessButtons: PointlessButtons = PointlessButtons{},
         textField: [100]u8 = [_]u8{0} ** 100,
@@ -1111,6 +1127,7 @@ pub fn main() !void {
             update: T(.update),
             guiDisplay: T(.guiDisplay),
             showRenderCount: T(.showRenderCount),
+            showPerformance: T(.showPerformance),
 
             pointlessButtons: T(.pointlessButtons),
             textField: T(.textField),
@@ -1183,7 +1200,7 @@ pub fn main() !void {
 
             switch (displayMode) {
                 .editor => {
-                    try app.render(&imev, currentPos.setY2(windowSize.h));
+                    try app.render(&imev, updateMode.showPerformance, currentPos.setY2(windowSize.h));
                 },
                 .gui => {
                     currentPos.y += gui.seperatorGap;
