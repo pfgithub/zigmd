@@ -1152,7 +1152,7 @@ pub fn main() !void {
     defer imedtr2.deinit();
     var updateMode: UpdateMode = .{};
 
-    var appV = try App.init(alloc, &style, "tests/b.md", &imev);
+    var appV = try App.init(alloc, &style, "tests/medium sized file.md", &imev);
     defer appV.deinit();
     var app = &appV;
 
