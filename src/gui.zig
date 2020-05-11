@@ -66,6 +66,7 @@ pub const ImEvent = struct {
     animationEnabled: bool = false,
     scrollDelta: win.Point = undefined, // unfortunately, sdl scrolling is really bad. numbers are completely random and useless, and it only scrolls by whole ticks. this is one of the places raylib is better.
     window: *win.Window = undefined,
+    render: bool = false,
     const KeyArr = help.EnumArray(win.Key, bool);
 
     pub fn newID(imev: *ImEvent) u64 {
@@ -214,11 +215,12 @@ pub const Text = struct {
             .w = text.text.size.w,
             .h = text.text.size.h,
         }, settings.halign, settings.valign).overlap(pos);
-        try text.text.render(window, .{
-            .x = textSizeRect.x,
-            .y = textSizeRect.y,
-        });
-        return textSizeRect;
+        if (ev.render)
+            try text.text.render(window, .{
+                .x = textSizeRect.x,
+                .y = textSizeRect.y,
+            });
+        return textSizeRect; // if this didn't return its size, it wouldn't be necessary to do anything here except on the last frame
     }
 };
 
@@ -369,6 +371,10 @@ pub const Button = struct {
                 clickedThisFrame = true;
             }
         }
+
+        // no user interaction below this line
+        if (!ev.render) return ButtonReturnState{ .click = clickedThisFrame, .active = btn.clickStarted };
+
         const hoveringAny = hover and (btn.clickStarted or clickedThisFrame or !ev.click);
         if (hoveringAny) window.cursor = .pointer;
 

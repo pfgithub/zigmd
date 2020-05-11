@@ -770,7 +770,7 @@ pub const App = struct {
 
         try app.textRenderCache.clean();
 
-        if (showPerformance) std.debug.warn("{} : Text Render\n", .{timer.lap()});
+        if (showPerformance) std.debug.warn("{} : Text Rendercache Clean\n", .{timer.lap()});
 
         const window = imev.window;
 
@@ -864,6 +864,8 @@ pub const App = struct {
         if (showPerformance) std.debug.warn("{} : Scroll and Click\n", .{timer.lap()});
 
         // ==== rendering ====
+
+        if (!imev.render) return;
 
         try window.pushClipRect(fullArea);
         defer window.popClipRect();
@@ -1161,7 +1163,7 @@ pub fn main() !void {
 
     var renderCount: u64 = 0;
     while (true) {
-        if (event == .empty) {
+        if (event == .empty and !imev.internal.rerender and !imev.render) {
             event = switch (updateMode.update) {
                 .wait => try window.waitEvent(),
                 .poll => try window.pollEvent(),
@@ -1182,46 +1184,51 @@ pub fn main() !void {
             else => false,
         };
 
-        imev.rerender();
-        while (imev.internal.rerender) {
-            imev.apply(event, &window);
-            renderCount += 1;
-            event = .empty;
+        imev.apply(event, &window);
+        renderCount += 1;
+        event = .empty;
 
-            window.cursor = .default;
+        window.cursor = .default;
+        if (imev.render) try window.clear(style.colors.window);
 
-            try window.clear(style.colors.window);
+        var windowSize = try window.getSize();
 
-            var windowSize = try window.getSize();
+        var currentPos: win.TopRect = windowSize.xy(0, 0).noHeight().down(5);
 
-            var currentPos: win.TopRect = windowSize.xy(0, 0).noHeight().down(5);
+        currentPos.y += (try displayedtr.render(&displayMode, style, &imev, currentPos)).h;
 
-            currentPos.y += (try displayedtr.render(&displayMode, style, &imev, currentPos)).h;
-
-            switch (displayMode) {
-                .editor => {
-                    try app.render(&imev, updateMode.showPerformance, currentPos.setY2(windowSize.h));
-                },
-                .gui => {
-                    currentPos.y += gui.seperatorGap;
-                    const guiPos = currentPos.addWidth(-40).rightCut(40);
-                    switch (updateMode.guiDisplay) {
-                        .double => {
-                            const cx = currentPos.centerX();
-                            _ = try imedtr.render(&updateMode, style, &imev, guiPos.setX2(cx - 20));
-                            _ = try imedtr2.render(&updateMode, style, &imev, guiPos.rightCut(cx + 20));
-                        },
-                        .single => {
-                            _ = try imedtr.render(&updateMode, style, &imev, guiPos);
-                        },
-                    }
-                },
-            }
+        switch (displayMode) {
+            .editor => {
+                try app.render(&imev, updateMode.showPerformance, currentPos.setY2(windowSize.h));
+            },
+            .gui => {
+                currentPos.y += gui.seperatorGap;
+                const guiPos = currentPos.addWidth(-40).rightCut(40);
+                switch (updateMode.guiDisplay) {
+                    .double => {
+                        const cx = currentPos.centerX();
+                        _ = try imedtr.render(&updateMode, style, &imev, guiPos.setX2(cx - 20));
+                        _ = try imedtr2.render(&updateMode, style, &imev, guiPos.rightCut(cx + 20));
+                    },
+                    .single => {
+                        _ = try imedtr.render(&updateMode, style, &imev, guiPos);
+                    },
+                }
+            },
         }
         // ===
 
+        // if (imev.internal.rerender) continue; // new events should not be pushed after a requested rerender. // is this necessary? is there any reason not to push new events after a rerender?
         event = try window.pollEvent();
-        if (event != .empty) continue;
+        if (event != .empty or imev.internal.rerender) continue;
+
+        // do final render
+        if (!imev.render) {
+            imev.render = true;
+            continue;
+        }
+        imev.render = false;
+
         if (updateMode.showRenderCount) {
             const msg = try std.fmt.allocPrint0(alloc, "{}", .{renderCount});
             defer alloc.free(msg);
