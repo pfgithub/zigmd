@@ -3,13 +3,13 @@ const std = @import("std");
 // these might be in the standard library already but I don't know how to describe what they do well enough to ask.
 // nice to have things
 
-fn interpolateInt(a: var, b: @TypeOf(a), progress: f64, comptime signedType: type) @TypeOf(a) {
-    const SS = signedType;
+fn interpolateInt(a: var, b: @TypeOf(a), progress: f64) @TypeOf(a) {
     const OO = @TypeOf(a);
-    return @intCast(OO, @intCast(SS, a) - @floatToInt(
-        i9,
-        @intToFloat(f64, @intCast(SS, a) - @intCast(SS, b)) * progress,
-    ));
+
+    const floa = @intToFloat(f64, a);
+    const flob = @intToFloat(f64, b);
+
+    return @floatToInt(OO, floa + (flob - floa) * progress);
 }
 
 /// interpolate between two values. clamps to edges.
@@ -19,9 +19,9 @@ pub fn interpolate(a: var, b: @TypeOf(a), progress: f64) @TypeOf(a) {
     if (progress > 1) return b;
 
     switch (Type) {
-        u8 => return interpolateInt(a, b, progress, i9),
-        i64 => return interpolateInt(a, b, progress, i64),
-        u64 => return interpolateInt(a, b, progress, i64),
+        u8 => return interpolateInt(a, b, progress),
+        i64 => return interpolateInt(a, b, progress),
+        u64 => return interpolateInt(a, b, progress),
         else => {},
     }
     switch (@typeInfo(Type)) {
@@ -42,6 +42,9 @@ test "interpolation" {
     std.testing.expectEqual(interpolate(@as(u8, 15), 0, 0.2), 12);
     const Kind = struct { a: u64 };
     std.testing.expectEqual(interpolate(Kind{ .a = 10 }, Kind{ .a = 8 }, 0.5), Kind{ .a = 9 });
+
+    std.testing.expectEqual(interpolate(@as(i64, 923), 1200, 0.999999875), 1199);
+    std.testing.expectEqual(interpolate(@as(i64, 923), 1200, 1.000421875), 1200);
 }
 
 fn ensureAllDefined(comptime ValuesType: type, comptime Enum: type) void {

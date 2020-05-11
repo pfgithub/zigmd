@@ -292,18 +292,33 @@ pub fn Interpolation(comptime Kind: type) type {
                 },
             };
         }
+        pub fn animationProgressLinear(cinterp: Interp, imev: *ImEvent) f64 {
+            const dat = cinterp.value.started;
+            return @intToFloat(f64, imev.time - dat.startTime) / @intToFloat(f64, cinterp.transitionDuration);
+        }
+        pub fn animationProgress(cinterp: Interp, imev: *ImEvent) f64 {
+            const dat = cinterp.value.started;
+            const timeOffset = cinterp.animationProgressLinear(imev);
+            return switch (dat.easeMode) {
+                .forward => dat.timingFunction(timeOffset),
+                .reverse => 1 - dat.timingFunction(1 - timeOffset),
+                .positive, .negative => blk: {
+                    if (!isInt) @panic(".positive is only available for integer types");
+                    const target = cinterp.final();
+                    return if (if (dat.easeMode == .positive) dat.base > target else dat.base < target)
+                        dat.timingFunction(timeOffset)
+                    else
+                        1 - dat.timingFunction(1 - timeOffset);
+                },
+            };
+        }
         pub fn get(cinterp: Interp, imev: *ImEvent) Kind {
             const dat = cinterp.value.started; // only call get after value has been set at least once
             if (!imev.animationEnabled) return cinterp.final();
-            const timeOffset = @intToFloat(f64, imev.time - dat.startTime) / @intToFloat(f64, cinterp.transitionDuration);
+            const animProgress = cinterp.animationProgress(imev);
             const target = cinterp.final();
 
-            return switch (dat.easeMode) {
-                .forward => help.interpolate(dat.base, target, dat.timingFunction(timeOffset)),
-                .reverse => help.interpolate(dat.base, target, 1 - dat.timingFunction(1 - timeOffset)),
-                .positive => if (isInt) if (dat.base > target) help.interpolate(dat.base, target, dat.timingFunction(timeOffset)) else help.interpolate(dat.base, target, 1 - dat.timingFunction(1 - timeOffset)) else @panic(".positive is only available for integer types"),
-                .negative => if (isInt) if (dat.base < target) help.interpolate(dat.base, target, dat.timingFunction(timeOffset)) else help.interpolate(dat.base, target, 1 - dat.timingFunction(1 - timeOffset)) else @panic(".negative is only available for integer types"),
-            };
+            return help.interpolate(dat.base, target, animProgress);
         }
         pub fn getOptional(cinterp: Interp, imev: *ImEvent) ?Kind {
             if (cinterp.value == .started) return cinterp.get(imev);
