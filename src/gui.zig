@@ -950,7 +950,7 @@ pub fn BoolEditor(comptime Bool: type) type {
             const hover = switchPos.containsPoint(ev.cursor);
             const hoveringThis = (hover and !ev.click) or (hover and editor.clicking == .yes);
             var rightOffset = if (!value.*) 0 else switchPos.w - 20;
-            const switchButtonArea = switchPos.width(25).right(rightOffset);
+            const switchButtonArea = switchPos.width(25).right(if (value.*) 25 else 0);
             if (hover) {
                 if (ev.mouseDown) {
                     editor.clicking = .{

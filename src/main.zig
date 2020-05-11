@@ -1075,8 +1075,8 @@ pub fn main() !void {
     const Poll = struct {
         const T = gui.StructDataHelper(@This());
 
-        reportFPS: enum { no, yes } = .no,
-        animations: enum { disabled, enabled } = .enabled,
+        reportFPS: bool = false,
+        animations: bool = true,
 
         pub const ModeData = struct {
             reportFPS: T(.reportFPS),
@@ -1102,7 +1102,7 @@ pub fn main() !void {
 
         update: Update = .{ .poll = Update.default_poll },
         guiDisplay: enum { single, double } = .single,
-        showRenderCount: enum { no, yes } = .no,
+        showRenderCount: bool = false,
 
         pointlessButtons: PointlessButtons = PointlessButtons{},
         textField: [100]u8 = [_]u8{0} ** 100,
@@ -1155,13 +1155,13 @@ pub fn main() !void {
             else => {},
         }
 
-        if (updateMode.update == .poll and updateMode.update.poll.reportFPS == .yes) {
+        if (updateMode.update == .poll and updateMode.update.poll.reportFPS) {
             // todo report fps
         }
 
         // === RENDER
         imev.animationEnabled = switch (updateMode.update) {
-            .poll => |p| p.animations == .enabled,
+            .poll => |p| p.animations,
             else => false,
         };
 
@@ -1205,7 +1205,7 @@ pub fn main() !void {
 
         event = try window.pollEvent();
         if (event != .empty) continue;
-        if (updateMode.showRenderCount == .yes) {
+        if (updateMode.showRenderCount) {
             const msg = try std.fmt.allocPrint0(alloc, "{}", .{renderCount});
             defer alloc.free(msg);
             var renderText = try win.Text.init(style.fonts.standard, style.gui.text, msg, null, &window);
