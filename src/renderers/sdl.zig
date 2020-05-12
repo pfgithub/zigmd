@@ -170,6 +170,14 @@ fn eventFromSDL(event: c.SDL_Event) Event {
                 .y = event.wheel.y * 50,
             },
         },
+        c.SDL_WINDOWEVENT => switch (event.window.event) {
+            c.SDL_WINDOWEVENT_FOCUS_GAINED => Event{ .windowFocus = .{} },
+            c.SDL_WINDOWEVENT_FOCUS_LOST => Event{ .windowBlur = .{} },
+            c.SDL_WINDOWEVENT_RESIZED => Event{
+                .resize = .{ .w = event.window.data1, .h = event.window.data2 },
+            },
+            else => Event{ .unknown = .{ .type = event.window.event } },
+        },
         else => Event{ .unknown = .{ .type = event.type } },
     };
 }

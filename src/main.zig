@@ -1191,27 +1191,32 @@ pub fn main() !void {
     defer displayedtr.deinit();
 
     var event: win.Event = .empty;
+    var windowInFocus: bool = true;
+    var evc: u64 = 0;
 
     var renderCount: u64 = 0;
     while (true) {
         if (event == .empty and !imev.internal.rerender and !imev.render) {
-            event = switch (updateMode.update) {
+            event = if (windowInFocus) switch (updateMode.update) {
                 .wait => try window.waitEvent(),
                 .poll => try window.pollEvent(),
-            };
+            } else try window.waitEvent();
         }
+        evc += 1;
         switch (event) {
             .quit => return,
+            .windowFocus => windowInFocus = true,
+            .windowBlur => windowInFocus = false,
             else => {},
         }
 
-        if (updateMode.update == .poll and updateMode.update.poll.reportFPS) {
+        if (windowInFocus and updateMode.update == .poll and updateMode.update.poll.reportFPS) {
             // todo report fps
         }
 
         // === RENDER
         imev.animationEnabled = switch (updateMode.update) {
-            .poll => |p| p.animations,
+            .poll => |p| if (windowInFocus) p.animations else false,
             else => false,
         };
 

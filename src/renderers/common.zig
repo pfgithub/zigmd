@@ -59,6 +59,9 @@ pub const Event = union(enum) {
     mouseMotion: MouseMotion,
     textInput: TextInput,
     mouseWheel: MouseWheel,
+    windowFocus: FocusChange,
+    windowBlur: FocusChange,
+    resize: Resize,
     empty: Empty,
     pub const Unknown = struct {
         type: u32,
@@ -80,6 +83,8 @@ pub const Event = union(enum) {
         x: i64, // number of pixels to scroll
         y: i64,
     };
+    pub const Resize = WH;
+    pub const FocusChange = struct {};
     pub const Empty = void;
     pub const Type = @TagType(@This());
 };
