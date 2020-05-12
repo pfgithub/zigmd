@@ -709,6 +709,11 @@ pub const App = struct {
         {} else return;
         app.prevWidth = width;
 
+        // TODO: only update the lines that need to be changed
+        // take given edit positions, search back until the first true line break (= the node class says so), reparse that line until the next true line break
+        // we can keep our own edit data to know what needs changing, and find each line, trash the data, parse again. also, character positions will now be stored in the lines instead of globally so that we don't have to do lots of inserts in the middle. lines will still be an arraylist though, which will obviously be a problem in the future.
+        // if the width changes, that is the worst case. everything has to be remeasured. it is probably possible to optimize it so that things out of screen are not remeasured but flagged as wrong so when they need to be seen they are remeasured
+
         var cursor = parser.TreeCursor.init(app.tree.root());
         defer cursor.deinit();
 
