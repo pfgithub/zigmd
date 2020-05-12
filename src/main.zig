@@ -1010,6 +1010,176 @@ pub const App = struct {
         if (showPerformance) std.debug.warn("{} : All Render\n", .{timer.lap()});
     }
 };
+const Eleven = union(enum) {
+    const T = gui.UnionDataHelper(@This());
+
+    eleven: [1]u8,
+    twelve: enum { thirteen, fourteen, fifteen },
+    thirteen: void,
+
+    pub const default_eleven: [1]u8 = [_]u8{'A'};
+    pub const default_twelve: help.FieldType(@This(), "twelve") = .thirteen;
+    pub const default_thirteen = {};
+
+    pub const ModeData = union(T(type)) {
+        eleven: T(.eleven),
+        twelve: T(.twelve),
+        thirteen: T(.thirteen),
+    };
+};
+const PointlessButtons = struct {
+    const T = gui.StructDataHelper(@This());
+
+    actionDemo: Action = Action{ .none = Action.default_none },
+    one: enum { two, three, four, five, six } = .two,
+    seven: enum { eight, nine } = .eight,
+    ten: Eleven = .{ .eleven = Eleven.default_eleven },
+    toggleSwitch: bool = false,
+
+    pub const ModeData = struct {
+        actionDemo: T(.actionDemo),
+        one: T(.one),
+        seven: T(.seven),
+        ten: T(.ten),
+        toggleSwitch: T(.toggleSwitch),
+    };
+};
+const Poll = struct {
+    const T = gui.StructDataHelper(@This());
+
+    reportFPS: bool = false,
+    animations: bool = true,
+
+    pub const ModeData = struct {
+        reportFPS: T(.reportFPS),
+        animations: T(.animations),
+    };
+};
+const Update = union(enum) {
+    const T = gui.UnionDataHelper(@This());
+    wait: void,
+    poll: Poll,
+    pub const default_wait = {};
+    pub const default_poll = Poll{};
+
+    pub const ModeData = union(T(type)) {
+        wait: T(.wait),
+        poll: T(.poll),
+    };
+};
+const UpdateMode = struct {
+    const T = gui.StructDataHelper(@This());
+
+    // todo move title_... and other things these to DisplayDetails or something
+
+    update: Update = .{ .poll = Update.default_poll },
+    guiDisplay: enum { single, double } = .single,
+    showRenderCount: bool = false,
+    showPerformance: bool = false,
+    resizePin: enum { top, center, bottom } = .top, // when resizing the window, the location of what part of the text should be preserved on screen?
+
+    pointlessButtons: PointlessButtons = PointlessButtons{},
+    textField: [100]u8 = [_]u8{0} ** 100,
+
+    pub const ModeData = struct {
+        update: T(.update),
+        guiDisplay: T(.guiDisplay),
+        showRenderCount: T(.showRenderCount),
+        showPerformance: T(.showPerformance),
+        resizePin: T(.resizePin),
+
+        pointlessButtons: T(.pointlessButtons),
+        textField: T(.textField),
+    };
+};
+
+const DisplayMode = enum {
+    editor,
+    gui,
+    pub const title_editor = "Editor";
+    pub const title_gui = "GUI Demo";
+};
+
+pub const MainPage = struct {
+    // this should not take a style argument
+    // style should be passed in on each render
+    // for now I am leaving it because App uses a style arg and it's a bit annoying to change
+    // all init methods will probably end up with an allocator + error return in the future though. maybe.
+    fn init(alloc: *std.mem.Allocator, imev: *gui.ImEvent, style: *gui.Style) !MainPage {
+        const imedtr = gui.DataEditor(UpdateMode).init(imev);
+        const imedtr2 = gui.DataEditor(UpdateMode).init(imev);
+
+        const app = try App.init(alloc, style, "tests/medium sized file.md", imev);
+
+        const displayedtr = gui.DataEditor(DisplayMode).init(imev);
+
+        return MainPage{
+            .id = imev.newID(),
+            .imedtr = imedtr,
+            .imedtr2 = imedtr2,
+            .app = app,
+            .displayedtr = displayedtr,
+        };
+    }
+    pub fn deinit(page: *MainPage) void {
+        defer page.imedtr.deinit();
+        defer page.imedtr2.deinit();
+        defer page.app.deinit();
+        defer page.displayedtr.deinit();
+    }
+
+    id: u64,
+
+    imedtr: gui.DataEditor(UpdateMode),
+    imedtr2: gui.DataEditor(UpdateMode),
+    app: App,
+    displayedtr: gui.DataEditor(DisplayMode),
+
+    updateMode: UpdateMode = UpdateMode{},
+    displayMode: DisplayMode = .editor,
+
+    fn render(page: *MainPage, imev: *gui.ImEvent, style: gui.Style, pos: win.Rect) !void {
+        var currentPos: win.TopRect = pos.noHeight().down(5);
+
+        var imedtr = &page.imedtr;
+        var imedtr2 = &page.imedtr2;
+        var app = &page.app;
+        var displayedtr = &page.displayedtr;
+
+        currentPos.y += (try displayedtr.render(&page.displayMode, style, imev, currentPos)).h;
+
+        switch (page.displayMode) {
+            .editor => {
+                try app.render(imev, page.updateMode.showPerformance, currentPos.setY2(pos.h));
+            },
+            .gui => {
+                currentPos.y += gui.seperatorGap;
+                const guiPos = currentPos.addWidth(-40).rightCut(40);
+                switch (page.updateMode.guiDisplay) {
+                    .double => {
+                        const cx = currentPos.centerX();
+                        _ = try imedtr.render(&page.updateMode, style, imev, guiPos.setX2(cx - 20));
+                        _ = try imedtr2.render(&page.updateMode, style, imev, guiPos.rightCut(cx + 20));
+                    },
+                    .single => {
+                        _ = try imedtr.render(&page.updateMode, style, imev, guiPos);
+                    },
+                }
+            },
+        }
+    }
+};
+// const id = imev.getID(MainPage);
+// imev.getData(id, DataType, comptime defaultValue)
+// "react-style" single function components
+// would be nicer to use because they don't require explicit init/deinit
+// it has the downside that stored data has to be allocated and ids have to and unrefreshed ids could have their state data deleted
+// also any loops require annoying explicit id setting stuff so data doesn't get given to the wrong renderer
+// also many other issues
+// but in lots of ways it's nicer
+// oh, initialization is a bit annoying to do right
+// imev.getData(id, DataType, fn() {return someValue}  ) and that's with anon fn init syntax.
+// react chooses to go the anti-performance route and recreates the initial value every time unless you memoize it
 
 pub fn main() !void {
     const alloc = std.heap.c_allocator;
@@ -1089,120 +1259,19 @@ pub fn main() !void {
     // if in foreground, loop pollevent
     // if in background, waitevent
 
-    const Eleven = union(enum) {
-        const T = gui.UnionDataHelper(@This());
-
-        eleven: [1]u8,
-        twelve: enum { thirteen, fourteen, fifteen },
-        thirteen: void,
-
-        pub const default_eleven: [1]u8 = [_]u8{'A'};
-        pub const default_twelve: help.FieldType(@This(), "twelve") = .thirteen;
-        pub const default_thirteen = {};
-
-        pub const ModeData = union(T(type)) {
-            eleven: T(.eleven),
-            twelve: T(.twelve),
-            thirteen: T(.thirteen),
-        };
-    };
-    const PointlessButtons = struct {
-        const T = gui.StructDataHelper(@This());
-
-        actionDemo: Action = Action{ .none = Action.default_none },
-        one: enum { two, three, four, five, six } = .two,
-        seven: enum { eight, nine } = .eight,
-        ten: Eleven = .{ .eleven = Eleven.default_eleven },
-        toggleSwitch: bool = false,
-
-        pub const ModeData = struct {
-            actionDemo: T(.actionDemo),
-            one: T(.one),
-            seven: T(.seven),
-            ten: T(.ten),
-            toggleSwitch: T(.toggleSwitch),
-        };
-    };
-    const Poll = struct {
-        const T = gui.StructDataHelper(@This());
-
-        reportFPS: bool = false,
-        animations: bool = true,
-
-        pub const ModeData = struct {
-            reportFPS: T(.reportFPS),
-            animations: T(.animations),
-        };
-    };
-    const Update = union(enum) {
-        const T = gui.UnionDataHelper(@This());
-        wait: void,
-        poll: Poll,
-        pub const default_wait = {};
-        pub const default_poll = Poll{};
-
-        pub const ModeData = union(T(type)) {
-            wait: T(.wait),
-            poll: T(.poll),
-        };
-    };
-    const UpdateMode = struct {
-        const T = gui.StructDataHelper(@This());
-
-        // todo move title_... and other things these to DisplayDetails or something
-
-        update: Update = .{ .poll = Update.default_poll },
-        guiDisplay: enum { single, double } = .single,
-        showRenderCount: bool = false,
-        showPerformance: bool = false,
-        resizePin: enum { top, center, bottom } = .top, // when resizing the window, the location of what part of the text should be preserved on screen?
-
-        pointlessButtons: PointlessButtons = PointlessButtons{},
-        textField: [100]u8 = [_]u8{0} ** 100,
-
-        pub const ModeData = struct {
-            update: T(.update),
-            guiDisplay: T(.guiDisplay),
-            showRenderCount: T(.showRenderCount),
-            showPerformance: T(.showPerformance),
-            resizePin: T(.resizePin),
-
-            pointlessButtons: T(.pointlessButtons),
-            textField: T(.textField),
-        };
-    };
-
-    const DisplayMode = enum {
-        editor,
-        gui,
-        pub const title_editor = "Editor";
-        pub const title_gui = "GUI Demo";
-    };
-
     var imev: gui.ImEvent = .{};
-
-    var imedtr = gui.DataEditor(UpdateMode).init(&imev);
-    defer imedtr.deinit();
-    var imedtr2 = gui.DataEditor(UpdateMode).init(&imev);
-    defer imedtr2.deinit();
-    var updateMode: UpdateMode = .{};
-
-    var appV = try App.init(alloc, &style, "tests/medium sized file.md", &imev);
-    defer appV.deinit();
-    var app = &appV;
-
-    var displayMode: DisplayMode = .editor;
-    var displayedtr = gui.DataEditor(DisplayMode).init(&imev);
-    defer displayedtr.deinit();
 
     var event: win.Event = .empty;
     var windowInFocus: bool = true;
     var evc: u64 = 0;
 
+    var mainPage = try MainPage.init(alloc, &imev, &style);
+    defer mainPage.deinit();
+
     var renderCount: u64 = 0;
     while (true) {
         if (event == .empty and !imev.internal.rerender and !imev.render) {
-            event = if (windowInFocus) switch (updateMode.update) {
+            event = if (windowInFocus) switch (mainPage.updateMode.update) {
                 .wait => try window.waitEvent(),
                 .poll => try window.pollEvent(),
             } else try window.waitEvent();
@@ -1215,12 +1284,12 @@ pub fn main() !void {
             else => {},
         }
 
-        if (windowInFocus and updateMode.update == .poll and updateMode.update.poll.reportFPS) {
+        if (windowInFocus and mainPage.updateMode.update == .poll and mainPage.updateMode.update.poll.reportFPS) {
             // todo report fps
         }
 
         // === RENDER
-        imev.animationEnabled = switch (updateMode.update) {
+        imev.animationEnabled = switch (mainPage.updateMode.update) {
             .poll => |p| if (windowInFocus) p.animations else false,
             else => false,
         };
@@ -1233,31 +1302,9 @@ pub fn main() !void {
         if (imev.render) try window.clear(style.colors.window);
 
         var windowSize = try window.getSize();
-
-        var currentPos: win.TopRect = windowSize.xy(0, 0).noHeight().down(5);
-
-        currentPos.y += (try displayedtr.render(&displayMode, style, &imev, currentPos)).h;
-
-        switch (displayMode) {
-            .editor => {
-                try app.render(&imev, updateMode.showPerformance, currentPos.setY2(windowSize.h));
-            },
-            .gui => {
-                currentPos.y += gui.seperatorGap;
-                const guiPos = currentPos.addWidth(-40).rightCut(40);
-                switch (updateMode.guiDisplay) {
-                    .double => {
-                        const cx = currentPos.centerX();
-                        _ = try imedtr.render(&updateMode, style, &imev, guiPos.setX2(cx - 20));
-                        _ = try imedtr2.render(&updateMode, style, &imev, guiPos.rightCut(cx + 20));
-                    },
-                    .single => {
-                        _ = try imedtr.render(&updateMode, style, &imev, guiPos);
-                    },
-                }
-            },
-        }
         // ===
+
+        try mainPage.render(&imev, style, windowSize.xy(0, 0));
 
         // if (imev.internal.rerender) continue; // new events should not be pushed after a requested rerender. // is this necessary? is there any reason not to push new events after a rerender?
         event = try window.pollEvent();
@@ -1270,7 +1317,7 @@ pub fn main() !void {
         }
         imev.render = false;
 
-        if (updateMode.showRenderCount) {
+        if (mainPage.updateMode.showRenderCount) {
             const msg = try std.fmt.allocPrint0(alloc, "{}", .{renderCount});
             defer alloc.free(msg);
             var renderText = try win.Text.init(style.fonts.standard, style.gui.text, msg, null, &window);
