@@ -548,13 +548,26 @@ pub const TextRenderData = struct {
 };
 pub const TextRenderCache = Cache(TextRenderInfo, TextRenderData);
 
+const CursorPoint = struct {
+    byte: usize,
+    rowCol: parser.RowCol,
+};
 pub const App = struct {
     scrollY: i64,
     scrollYAnim: gui.PosInterpolation,
     alloc: *std.mem.Allocator,
     style: *const gui.Style,
+
     cursorLocation: usize,
     cursorRowCol: parser.RowCol,
+
+    // in the future, this might become std.ArrayList(cursorSelection)
+    // but that seems needlessly complicated for now
+    selection: struct {
+        start: CursorPoint, // selection start
+        end: CursorPoint,
+        center: CursorPoint, // where the cursor is
+    },
     text: std.ArrayList(u8),
     readOnly: bool,
     filename: []const u8,
@@ -585,7 +598,6 @@ pub const App = struct {
         var tree = try parser.Tree.init(textList.items);
         errdefer tree.deinit();
 
-        // const initialText = "Test! **Bold**.";
         return App{
             .scrollY = 0,
             .scrollYAnim = gui.PosInterpolation.init(200),
@@ -593,6 +605,11 @@ pub const App = struct {
             .style = style,
             .cursorLocation = 0,
             .cursorRowCol = .{ .row = 0, .col = 0 },
+            .selection = .{
+                .start = .{ .byte = 0, .rowCol = .{ .row = 0, .col = 0 } },
+                .end = .{ .byte = 0, .rowCol = .{ .row = 0, .col = 0 } },
+                .center = .{ .byte = 0, .rowCol = .{ .row = 0, .col = 0 } },
+            },
             .text = textList,
             .readOnly = readOnly,
             .filename = filename,
