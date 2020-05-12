@@ -183,6 +183,7 @@ pub const Window = struct {
     clippingRectangles: std.ArrayList(Rect),
     previousCursor: Cursor,
     allCursors: AllCursors,
+    lastFrame: u64,
     const AllCursors = help.EnumArray(Cursor, *c.SDL_Cursor);
 
     pub fn init(alloc: *std.mem.Allocator) !Window {
@@ -201,9 +202,9 @@ pub const Window = struct {
         if (renderer == null) return sdlError();
         errdefer c.SDL_DestroyRenderer(renderer);
 
-        if (c.SDL_GL_SetSwapInterval(1) != 0) {
-            std.debug.warn("VSync Error: {}\n", .{sdlError()});
-        }
+        // if (c.SDL_GL_SetSwapInterval(1) != 0) {
+        //     std.debug.warn("VSync Error: {}\n", .{sdlError()});
+        // }
 
         var clippingRectangles = std.ArrayList(Rect).init(alloc);
         errdefer clippingRectanges.deinit();
@@ -219,6 +220,7 @@ pub const Window = struct {
                 .pointer = c.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_HAND).?,
                 .ibeam = c.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_IBEAM).?,
             }),
+            .lastFrame = 0,
         };
     }
     pub fn deinit(window: *Window) void {
@@ -272,12 +274,19 @@ pub const Window = struct {
         if (c.SDL_RenderClear(window.sdlRenderer) < 0) return sdlError();
     }
     pub fn present(window: *Window) void {
-        c.SDL_RenderPresent(window.sdlRenderer);
         if (window.cursor != window.previousCursor) {
             window.previousCursor = window.cursor;
             var cursor = window.allCursors.get(window.cursor);
             c.SDL_SetCursor(cursor);
         }
+        c.SDL_RenderPresent(window.sdlRenderer);
+
+        const ctime = time();
+        const diff = ctime - window.lastFrame;
+        if (diff < 4) {
+            c.SDL_Delay(@intCast(u32, 4 - diff));
+        }
+        window.lastFrame = time();
     }
     pub fn getSize(window: *Window) !WH {
         var screenWidth: c_int = undefined;
