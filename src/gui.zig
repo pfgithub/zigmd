@@ -1021,7 +1021,7 @@ pub fn BoolEditor(comptime Bool: type) type {
                 editor.rightOffset.set(ev, rightOffset, timing.EaseInOut, .forward);
             }
 
-            try win.renderRect(window, win.Color.hex(0x13151c), switchPos.downCut(4));
+            try win.renderRect(window, win.Color.hex(0x101117), switchPos.downCut(4));
             try win.renderRect(window, win.Color.hex(0x0a0b0f), switchPos.downCut(8));
 
             const visualRightOffset = editor.rightOffset.get(ev);
