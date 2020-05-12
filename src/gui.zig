@@ -34,6 +34,10 @@ pub const Style = struct {
             hover: Active,
             shadow: Active,
         },
+        hole: struct {
+            floor: win.Color,
+            wall: win.Color,
+        },
     },
     fonts: struct {
         standard: *win.Font,
@@ -1021,8 +1025,8 @@ pub fn BoolEditor(comptime Bool: type) type {
                 editor.rightOffset.set(ev, rightOffset, timing.EaseInOut, .forward);
             }
 
-            try win.renderRect(window, win.Color.hex(0x101117), switchPos.downCut(4));
-            try win.renderRect(window, win.Color.hex(0x0a0b0f), switchPos.downCut(8));
+            try win.renderRect(window, style.gui.hole.wall, switchPos.downCut(4).height(4));
+            try win.renderRect(window, style.gui.hole.floor, switchPos.downCut(8));
 
             const visualRightOffset = editor.rightOffset.get(ev);
             editor.buttonPressLevel.set(ev, if (editor.clicking == .yes and ev.time - editor.clicking.yes.start > 100) 4 else if (value.*) @as(i64, 0) else 0, timing.EaseIn, .negative);

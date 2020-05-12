@@ -1045,6 +1045,10 @@ pub fn main() !void {
                     .active = win.Color.hex(0x142927),
                 },
             },
+            .hole = .{
+                .floor = win.Color.hex(0x0a0b0f),
+                .wall = win.Color.hex(0x101117),
+            },
         },
         .fonts = .{
             .standard = &standardFont,
