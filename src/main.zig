@@ -700,6 +700,8 @@ pub const App = struct {
         };
     }
 
+    /// measure a single line. do not mesaure if the line has not changed.
+    fn measureLine(app: *App, width: i64) !void {}
     fn remeasureText(app: *App, width: i64) !void {
         // this logic took me way too long to figure out, that's why there is an empty if branch instead of if(!(...)) return
         if (app.textChanged or
@@ -712,7 +714,7 @@ pub const App = struct {
         // TODO: only update the lines that need to be changed
         // take given edit positions, search back until the first true line break (= the node class says so), reparse that line until the next true line break
         // we can keep our own edit data to know what needs changing, and find each line, trash the data, parse again. also, character positions will now be stored in the lines instead of globally so that we don't have to do lots of inserts in the middle. lines will still be an arraylist though, which will obviously be a problem in the future.
-        // if the width changes, that is the worst case. everything has to be remeasured. it is probably possible to optimize it so that things out of screen are not remeasured but flagged as wrong so when they need to be seen they are remeasured
+        // if the width changes, that is the worst case. everything has to be remeasured. it is probably possible to optimize it so that things out of screen are not remeasured but flagged as wrong so when they need to be seen they are remeasured (or eg if the cursor needs to move up/down or something)
 
         var cursor = parser.TreeCursor.init(app.tree.root());
         defer cursor.deinit();
