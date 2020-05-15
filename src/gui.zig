@@ -708,8 +708,6 @@ fn UnionEditor(comptime Union: type) type {
             const callOptions: std.builtin.CallOptions = .{};
             inline for (typeInfo.fields) |field| {
                 if (@enumToInt(activeTag) == field.enum_field.?.value) {
-                    // if(activeTag != originalTag)
-                    //
                     var addY = (try @call(
                         callOptions,
                         help.FieldType(ModeData, field.name).render,
@@ -815,6 +813,20 @@ fn EnumEditor(comptime Enum: type) type {
                 }
             } else {
                 // render dropdown menu
+                // ev.pushOverlay(&editor.dropdownMenu, DropdownMenu.render);
+                // pushOverlay allocates a temporary value for args that is deleted
+                // after the function is called
+                // how to get results back from the overlay? it only gets called
+                // after all the normal stuff is rendered
+
+                // if(activeTag != originalTag)
+                //
+                // pushOverlay? how to get results back then? frame delay? that introduces a frame delay for every overlay
+                // maybe just frame delay if it returns? that significantly limits what can be done but might work
+                // overlayReturn = editor.dropdownMenu.returnValue;
+                // if(overlayReturn) { menu is closed }
+                // else try imev.pushOverlay(.{}); // allocates some memory and puts it into a void*. maybe comptime stores a set of mappings from type => argtype to make sure the type is correct?
+                // if(editor.showDropdown)
                 var btnRes = try editor.dropdownMenuShow.render(.{
                     .text = tagNameTerminated(value.*, &[_]u8{ ' ', 'v', 0 }),
                     .font = style.fonts.standard,
@@ -832,6 +844,12 @@ fn EnumEditor(comptime Enum: type) type {
 
             return Height{ .h = lineHeight };
         }
+    };
+}
+
+pub fn Dropdown(comptime Choices: []const []const u8) type {
+    return struct {
+        const Editor = @This();
     };
 }
 
