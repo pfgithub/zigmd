@@ -172,6 +172,18 @@ pub const Node = struct {
         if (c.ts_node_is_null(result)) return null;
         return Node.wrap(result);
     }
+    fn next(n: Node) ?Node {
+        if (n.firstChild()) |d| return d;
+        var curr = n;
+        while (true) {
+            if (n.nextSibling()) |nxts| return nxts;
+            if (curr.parent()) |nv|
+                curr = nv
+            else
+                return null;
+        }
+        unreachable;
+    }
 };
 
 pub const TreeCursor = struct {

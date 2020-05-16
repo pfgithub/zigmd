@@ -712,7 +712,15 @@ pub const App = struct {
                     var node = parser.getNodeAtPosition(i, &cursor); // this is an issue because it means findnode cannot be used after text has been edited
                     var pos = node.position();
                     if (pos.to > i) return pos.to;
-                    @panic("todo get next node");
+
+                    var nxt = node;
+                    while (nxt.next()) |envy| {
+                        nxt = envy;
+                        var nxtp = nxt.position();
+                        if (nxtp.from > i) return nxtp.from;
+                        if (nxtp.to > i) return nxtp.to;
+                    }
+                    return app.text.items.len;
                 },
             },
             else => {
