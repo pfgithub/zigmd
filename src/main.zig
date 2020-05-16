@@ -38,7 +38,9 @@ pub const CharacterStop = union(enum) {
     word: void,
     line: void,
     regex: Regex,
-    contextAware: void,
+
+    lowestLevelNode: void, // context aware move one node right, maximum depth
+    node: void, // context aware move one node right. eg might select from (to the end of)
 
     pub const default_regex = Regex{ .body = "N", .flags = "N" };
 
@@ -49,7 +51,9 @@ pub const CharacterStop = union(enum) {
         word: Q(.word),
         line: Q(.line),
         regex: Q(.regex),
-        contextAware: Q(.contextAware),
+
+        lowestLevelNode: Q(.lowestLevelNode),
+        node: Q(.node),
     };
 };
 pub const LineStop = union(enum) {
@@ -694,6 +698,23 @@ pub const App = struct {
                     break :blk i;
                 },
             },
+            .lowestLevelNode => switch (direction) {
+                .left => @panic("niy"),
+                .right => blk: {
+                    var i = app.cursorLocation;
+                    // find last node ending <= i
+                    // move one node right, go to max depth
+                    // if node start == this start, return node end
+                    // else return node start
+                    if (app.textChanged) unreachable;
+                    var cursor = parser.TreeCursor.init(app.tree.root());
+                    defer cursor.deinit();
+                    var node = parser.getNodeAtPosition(i, &cursor); // this is an issue because it means findnode cannot be used after text has been edited
+                    var pos = node.position();
+                    if (pos.to > i) return pos.to;
+                    @panic("todo get next node");
+                },
+            },
             else => {
                 std.debug.panic("not implemented", .{});
             },
@@ -823,7 +844,7 @@ pub const App = struct {
                     .moveCursorLR = .{ .direction = .left, .stop = .codepoint },
                 },
                 .Right => .{
-                    .moveCursorLR = .{ .direction = .right, .stop = .codepoint },
+                    .moveCursorLR = .{ .direction = .right, .stop = .lowestLevelNode },
                 },
                 .Backspace => .{
                     .delete = .{ .direction = .left, .stop = .codepoint },
