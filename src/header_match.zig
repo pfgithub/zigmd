@@ -17,6 +17,12 @@ test "seen" {
         if (memo.seen(u8)) unreachable;
         if (memo.seen(u16)) unreachable;
         if (!memo.seen(u8)) unreachable;
+        const StructA = struct {};
+        const StructB = struct {};
+        if (memo.seen(StructA)) unreachable;
+        if (memo.seen(StructB)) unreachable;
+        if (!memo.seen(StructA)) unreachable;
+        if (!memo.seen(StructB)) unreachable;
     }
 }
 
