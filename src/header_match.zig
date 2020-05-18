@@ -591,3 +591,20 @@ test "" {
         },
     }), "a: Struct > [custom]: Fn > one: Int >: Types differ. Expected: u64, Got: u32.");
 }
+test "shallowest path" {
+    comptime expectEqual(testingImplements(struct {
+        pub const A = struct {
+            b: B,
+        };
+        pub const B = struct {
+            num: i64,
+        };
+    }, struct {
+        pub const A = struct {
+            b: B,
+        };
+        pub const B = struct {
+            num: u64,
+        };
+    }), "decl B: Struct > num: Int >: Types differ. Expected: i64, Got: u64.");
+}
