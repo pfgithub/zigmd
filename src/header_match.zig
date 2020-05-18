@@ -53,28 +53,90 @@ pub const ImplErr = struct {
 };
 
 const Memo = struct {
+    const LaterDat = struct { Type: type };
     list: []const type = &[_]type{},
+    later: []const LaterDat = &[_]LaterDat{},
+
+    /// Check if a given type has been processed before. If not, mark it as processed.
     pub fn seen(comptime memo: *Memo, comptime Type: type) bool {
+        for (memo.later) |Later| {
+            if (Later.Type == Type) return true;
+        }
         for (memo.list) |KnownType| {
-            if (Type == KnownType) return true;
+            if (KnownType == Type) return true;
         }
         memo.list = memo.list ++ [_]type{Type};
         return false;
     }
+
+    /// Note that a type will be processed in the future
+    pub fn soon(comptime memo: *Memo, comptime Type: type) void {
+        memo.later = memo.later ++ [_]LaterDat{LaterDat{ .Type = Type }};
+    }
+
+    /// Process a future type now
+    pub fn now(comptime memo: *Memo, comptime Type: type) void {
+        var newList: []const LaterDat = &[_]LaterDat{};
+        var unseen = true;
+        for (memo.later) |planned| {
+            if (unseen and planned.Type == Type) {
+                unseen = false;
+                continue;
+            }
+            newList = newList ++ [_]LaterDat{planned};
+        }
+        memo.later = newList;
+        if (unseen) @compileError("Cannot now something that is not soon");
+    }
 };
+
+const uhoh = @compileError("Fail!");
 
 test "seen" {
     comptime {
         var memo: Memo = .{};
-        if (memo.seen(u8)) unreachable;
-        if (memo.seen(u16)) unreachable;
-        if (!memo.seen(u8)) unreachable;
+        if (memo.seen(u8)) uhoh;
+        if (memo.seen(u16)) uhoh;
+        if (!memo.seen(u8)) uhoh;
         const StructA = struct {};
         const StructB = struct {};
-        if (memo.seen(StructA)) unreachable;
-        if (memo.seen(StructB)) unreachable;
-        if (!memo.seen(StructA)) unreachable;
-        if (!memo.seen(StructB)) unreachable;
+        if (memo.seen(StructA)) uhoh;
+        if (memo.seen(StructB)) uhoh;
+        if (!memo.seen(StructA)) uhoh;
+        if (!memo.seen(StructB)) uhoh;
+    }
+}
+
+test "seen soon" {
+    comptime {
+        var memo: Memo = .{};
+
+        const Demo = struct {
+            const A = struct {
+                const BType = B;
+            };
+            const B = struct {};
+        };
+
+        memo.soon(Demo.A);
+        memo.soon(Demo.B);
+
+        memo.now(Demo.A);
+        if (memo.seen(Demo.A) != false) uhoh;
+        if (memo.seen(Demo.A) != true) uhoh;
+        if (memo.seen(Demo.B) != true) uhoh;
+
+        {
+            memo.soon(Demo.B);
+            if (memo.seen(Demo.B) != true) uhoh;
+            memo.now(Demo.B);
+            if (memo.seen(Demo.B) != true) uhoh;
+        }
+
+        memo.now(Demo.B);
+        if (memo.seen(Demo.A) != true) uhoh;
+        if (memo.seen(Demo.B) != false) uhoh;
+        if (memo.seen(Demo.B) != true) uhoh;
     }
 }
 
