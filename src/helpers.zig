@@ -225,6 +225,63 @@ pub fn FieldType(comptime Container: type, comptime fieldName: []const u8) type 
     unreachable;
 }
 
+pub fn Function(comptime Args: var, comptime Return: type) type {
+    return struct {
+        data: usize,
+        call: fn (thisArg: usize, args: Args) Return,
+    };
+}
+fn FunctionReturn(comptime Type: type) type {
+    const fnData = @typeInfo(@TypeOf(Type.call)).Fn;
+    if (fnData.is_generic) @compileLog("Generic functions are not allowed");
+    const Args = blk: {
+        var Args: []const type = &[_]type{};
+        inline for (fnData.args) |arg| {
+            Args = Args ++ [_]type{arg.arg_type.?};
+        }
+        break :blk Args;
+    };
+    const ReturnType = fnData.return_type.?;
+    return struct {
+        pub const All = Function(Args, ReturnType);
+        pub const Args = Args;
+        pub const ReturnType = ReturnType;
+    };
+}
+pub fn function(data: var) FunctionReturn(@typeInfo(@TypeOf(data)).Pointer.child).All {
+    const Type = @typeInfo(@TypeOf(data)).Pointer.child;
+    comptime if (@TypeOf(data) != *const Type) unreachable;
+    const FnReturn = FunctionReturn(Type);
+    const CallFn = struct {
+        pub fn call(thisArg: FnReturn.All, args: var) FnReturn.Return {
+            return @call(data.call, .{@intToPtr(@TypeOf(data), thisArg.data)} ++ args);
+        }
+    }.call;
+    @compileLog(FnReturn.All);
+    return .{
+        .data = @ptrToInt(data),
+        .call = &CallFn,
+    };
+}
+test "function" {
+    // oops Unreachable at /deps/zig/src/analyze.cpp:5922 in type_requires_comptime. This is a bug in the Zig compiler.
+    // zig compiler bug + something is wrong in my code
+    if (false) {
+        const Position = struct { x: i64, y: i64 };
+        const testFn: Function(.{ f64, Position }, f32) = function(&struct {
+            number: f64,
+            pub fn call(data: *@This(), someValue: f64, argOne: Position) f32 {
+                return @floatCast(f32, data.number + someValue + @intToFloat(f64, argOne.x) + @intToFloat(f64, argOne.y));
+            }
+        }{ .number = 35.6 });
+        // function call is only supported within the lifetime of the data pointer
+        // should it have an optional deinit method?
+        std.testing.expectEqual(testFn.call(.{ 25, .{ .x = 56, .y = 25 } }), 25.6);
+        std.testing.expectEqual(testFn.call(.{ 666, .{ .x = 12, .y = 4 } }), 25.6);
+        // unfortunately there is no varargs or way to comptime set custom fn args so this has to be a .{array}
+    }
+}
+
 test "enum array" {
     const Enum = enum { One, Two, Three };
     const EnumArr = EnumArray(Enum, bool);
