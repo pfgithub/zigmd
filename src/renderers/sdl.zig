@@ -3,27 +3,27 @@ const std = @import("std");
 const help = @import("../helpers.zig");
 pub usingnamespace @import("./common.zig");
 
+const ER = RenderingError;
+const ERF = RenderingError || FontLoadError;
+
 test "implements header" {
     comptime {
+        @setEvalBranchQuota(10000000);
         const match = @import("../header_match.zig");
-        const header = @import("../header.zig");
-        match.implements(header, win, "sdl");
+        const header = @import("./header.zig");
+        match.conformsTo(header, @This());
+        // match.is(win, header)?
     }
 }
 
-const RenderingError = error{
-    SDLError,
-    TTFError,
-};
-
 fn sdlError() RenderingError {
     _ = c.printf("SDL Method Failed: %s\n", c.SDL_GetError());
-    return RenderingError.SDLError;
+    return RenderingError.Unrecoverable;
 }
 
 fn ttfError() RenderingError {
     _ = c.printf("TTF Method Failed: %s\n", c.TTF_GetError());
-    return RenderingError.TTFError;
+    return RenderingError.Unrecoverable;
 }
 
 pub const FontLoader = struct {
@@ -40,14 +40,14 @@ pub const FontLoader = struct {
         loader: *const FontLoader,
         name: []const u8,
         fontSize: u16,
-    ) !Font {
+    ) ERF!Font {
         return Font.loadFromName(loader, name, fontSize);
     }
 };
 
 pub const Font = struct {
     sdlFont: *c.TTF_Font,
-    pub fn init(ttfPath: []const u8, size: u16) !Font {
+    pub fn init(ttfPath: []const u8, size: u16) ER!Font {
         var font = c.TTF_OpenFont(ttfPath.ptr, size);
         if (font == null) return ttfError();
         errdefer c.TTF_CloseFont(font);
@@ -63,7 +63,7 @@ pub const Font = struct {
         loader: *const FontLoader,
         name: []const u8,
         fontSize: u16,
-    ) !Font {
+    ) ERF!Font {
         var config = loader.config;
         var pattern = c.FcNameParse(name.ptr).?;
         defer c.FcPatternDestroy(pattern);
@@ -74,14 +74,14 @@ pub const Font = struct {
             .u = .{ .i = fontSize },
         };
         if (c.FcPatternAdd(pattern, c.FC_SIZE, v, c.FcTrue) == c.FcFalse)
-            return error.FontConfigError;
+            return ER.Unrecoverable;
 
         if (c.FcConfigSubstitute(
             config,
             pattern,
             @intToEnum(c.FcMatchKind, c.FcMatchPattern),
         ) == c.FcFalse)
-            return error.OutOfMemory;
+            return ER.Unrecoverable;
         c.FcDefaultSubstitute(pattern);
 
         var result: c.FcResult = undefined;
@@ -95,7 +95,7 @@ pub const Font = struct {
                 return resFont;
             }
         }
-        return error.NotFound;
+        return ERF.FontNotFound;
     }
 };
 
@@ -194,7 +194,7 @@ pub const Window = struct {
     lastFrame: u64,
     const AllCursors = help.EnumArray(Cursor, *c.SDL_Cursor);
 
-    pub fn init(alloc: *std.mem.Allocator) !Window {
+    pub fn init(alloc: *std.mem.Allocator) ER!Window {
         var window = c.SDL_CreateWindow(
             "hello_sdl2",
             c.SDL_WINDOWPOS_UNDEFINED,
@@ -243,13 +243,14 @@ pub const Window = struct {
     }
 
     /// defer popClipRect
-    pub fn pushClipRect(window: *Window, rect: Rect) !void {
+    pub fn pushClipRect(window: *Window, rect: Rect) ER!void {
         const resRect = if (window.clippingRectangles.items.len >= 1)
             rect.overlap(window.clippingRectangles.items[window.clippingRectangles.items.len - 1])
         else
             rect;
 
-        try window.clippingRectangles.append(resRect);
+        // oom can't be handled very well if the entire rendering library will implode on oom
+        window.clippingRectangles.append(resRect) catch return ER.Unrecoverable;
         errdefer _ = window.clippingRectangles.pop();
         if (c.SDL_RenderSetClipRect(window.sdlRenderer, &rectToSDL(resRect)) != 0)
             return sdlError();
@@ -266,18 +267,18 @@ pub const Window = struct {
             c.SDL_RenderSetClipRect(window.sdlRenderer, null);
     }
 
-    pub fn waitEvent(window: *Window) !Event {
+    pub fn waitEvent(window: *Window) ER!Event {
         var event: c.SDL_Event = undefined;
         if (c.SDL_WaitEvent(&event) != 1) return sdlError();
         return eventFromSDL(event);
     }
-    pub fn pollEvent(window: *Window) !Event {
+    pub fn pollEvent(window: *Window) Event {
         var event: c.SDL_Event = undefined;
         if (c.SDL_PollEvent(&event) == 0) return Event.empty;
         return eventFromSDL(event);
     }
 
-    pub fn clear(window: *Window, color: Color) !void {
+    pub fn clear(window: *Window, color: Color) ER!void {
         if (c.SDL_SetRenderDrawColor(window.sdlRenderer, color.r, color.g, color.b, color.a) != 0) return sdlError();
         if (c.SDL_RenderClear(window.sdlRenderer) < 0) return sdlError();
     }
@@ -296,7 +297,7 @@ pub const Window = struct {
         }
         window.lastFrame = time();
     }
-    pub fn getSize(window: *Window) !WH {
+    pub fn getSize(window: *Window) ER!WH {
         var screenWidth: c_int = undefined;
         var screenHeight: c_int = undefined;
         if (c.SDL_GetRendererOutputSize(window.sdlRenderer, &screenWidth, &screenHeight) < 0) return sdlError();
@@ -313,7 +314,7 @@ pub const Text = struct {
     pub fn measure(
         font: *const Font,
         text: []const u8,
-    ) !TextSize {
+    ) ER!TextSize {
         var w: c_int = undefined;
         var h: c_int = undefined;
         if (c.TTF_SizeUTF8(font.sdlFont, text.ptr, &w, &h) < 0) return ttfError();
@@ -325,7 +326,7 @@ pub const Text = struct {
         text: []const u8, // 0-terminated
         size: ?TextSize,
         window: *const Window,
-    ) !Text {
+    ) ER!Text {
         var surface = c.TTF_RenderUTF8_Blended(
             font.sdlFont,
             text.ptr,
@@ -348,7 +349,7 @@ pub const Text = struct {
     pub fn deinit(text: *Text) void {
         c.SDL_DestroyTexture(text.texture);
     }
-    pub fn render(text: *Text, window: *const Window, pos: Point) !void {
+    pub fn render(text: *Text, window: *const Window, pos: Point) ER!void {
         var rect = c.SDL_Rect{
             .x = @intCast(c_int, pos.x),
             .y = @intCast(c_int, pos.y),
@@ -372,7 +373,7 @@ fn rectToSDL(rect: Rect) c.SDL_Rect {
         .h = @intCast(c_int, rect.h),
     };
 }
-pub fn renderRect(window: *const Window, color: Color, rect: Rect) !void {
+pub fn renderRect(window: *const Window, color: Color, rect: Rect) ER!void {
     if (rect.w == 0 or rect.h == 0) return;
     var sdlRect = rectToSDL(rect);
     if (c.SDL_SetRenderDrawColor(window.sdlRenderer, color.r, color.g, color.b, color.a) != 0) return sdlError();

@@ -26,8 +26,8 @@ test "seen" {
     }
 }
 
-pub fn userImplements(comptime Header: type, comptime Implementation: type) void {
-    if (testingImplements(Header, Implementation)) |err| @compileError(err);
+pub fn conformsTo(comptime Header: type, comptime Implementation: type) void {
+    if (testingImplements(Header, Implementation)) |err| @compileError("Does not conform.\n " ++ err);
 }
 fn testingImplements(comptime Header: type, comptime Implementation: type) ?[]const u8 {
     var memo: Memo = .{};
@@ -84,7 +84,7 @@ fn implements(
     if (headerTag != implementationTag)
         return (context ++ " >: Implementation has incorrect type (expected " ++ @tagName(headerTag) ++ ", got " ++ @tagName(implementationTag) ++ ")");
 
-    const namedContext: []const u8 = context ++ ": " ++ @tagName(headerTag);
+    const namedContext: []const u8 = context ++ ": " ++ @tagName(headerTag) ++ "\n  ";
 
     switch (header) {
         .Struct => if (structImplements(Header, Implementation, namedContext, memo)) |err|
@@ -96,8 +96,92 @@ fn implements(
         },
         .Fn => if (fnImplements(Header, Implementation, namedContext, memo)) |err|
             return err,
+        .Pointer => if (pointerImplements(Header, Implementation, namedContext, memo)) |err|
+            return err,
+        .ErrorUnion => if (errorUnionImplements(Header, Implementation, namedContext, memo)) |err|
+            return err,
+        .ErrorSet => if (errorSetImplements(Header, Implementation, namedContext, memo)) |err|
+            return err,
         else => return (namedContext ++ " >: Not supported yet: " ++ @tagName(headerTag)),
     }
+    return null;
+}
+
+fn errorSetImplements(
+    comptime Header: type,
+    comptime Implementation: type,
+    comptime context: []const u8,
+    comptime memo: *Memo,
+) ?[]const u8 {
+    const header = @typeInfo(Header).ErrorSet orelse
+        return context ++ " > ? TODO investigate";
+    const impl = @typeInfo(Implementation).ErrorSet orelse
+        return context ++ " > impl? TODO investigate";
+
+    if (header.len == 0 and impl.len == 0)
+        return context ++ " > Empty error sets are not supported due to potential compiler bugs. Make sure the implementation has at least one error.";
+    // this is bad for explicit catches
+    // if (header.len != impl.len)
+    //     return context ++ " > Error sets differ";
+    // for (header) |errv| {
+    //     for (impl) |errc| blk: {
+    //         if (errv.value == errc.value) break :blk;
+    //     } else return context ++ " > Implementation missing error " ++ errv.name;
+    // }
+    if (Header != Implementation) {
+        for (header) |errv| {
+            for (impl) |errc| {
+                if (errv.value == errc.value) break;
+            } else return context ++ "> Implementation missing error `" ++ errv.name ++ "`";
+        }
+        for (impl) |errv| {
+            for (header) |errc| {
+                if (errv.value == errc.value) break;
+            } else return context ++ "> Implementation has extra error `" ++ errv.name ++ "`";
+        }
+        // ok, error sets are the same.
+    }
+
+    return null;
+}
+fn errorUnionImplements(
+    comptime Header: type,
+    comptime Implementation: type,
+    comptime context: []const u8,
+    comptime memo: *Memo,
+) ?[]const u8 {
+    // these cannot be passed as args because of a compiler bug
+    const header = @typeInfo(Header).ErrorUnion;
+    const impl = @typeInfo(Implementation).ErrorUnion;
+
+    if (implements(header.error_set, impl.error_set, context ++ " > ErrorSet!", memo)) |err|
+        return err;
+    if (implements(header.error_set, impl.error_set, context ++ " > !Payload", memo)) |err|
+        return err;
+
+    return null;
+}
+
+fn pointerImplements(
+    comptime Header: type,
+    comptime Implementation: type,
+    comptime context: []const u8,
+    comptime memo: *Memo,
+) ?[]const u8 {
+    // these cannot be passed as args because of a compiler bug
+    const header = @typeInfo(Header).Pointer;
+    const impl = @typeInfo(Implementation).Pointer;
+
+    if (header.is_volatile) return (context ++ " >: Pointer volatility is not supported yet.");
+    if (impl.is_volatile) return (context ++ " >: Expected not volatile.");
+    // ignoring sentinel for now, it looks complicated
+    if (header.is_const != impl.is_const) return (context ++ " >: Expected constness {}, got {}.");
+    // if (header.alignment != impl.alignment) return (context ++ " >: Expected align({}), got align({})."); // does not appear to be useful
+    if (header.is_allowzero != impl.is_allowzero) return (context ++ " >: Expected allowzero {}, got {}.");
+
+    if (implements(header.child, impl.child, context ++ " > .*", memo)) |err|
+        return err;
+
     return null;
 }
 
@@ -187,7 +271,7 @@ fn structImplements(
         }
     }
     for (implementation.decls) |decl| {
-        if (!@hasDecl(Header, decl.name))
+        if (!@hasDecl(Header, decl.name) and decl.is_pub)
             return (context ++ " >: Header has extra disallowed declaration `pub " ++ decl.name ++ "`");
     }
 

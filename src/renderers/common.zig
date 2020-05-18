@@ -1,6 +1,9 @@
 const std = @import("std");
 const help = @import("../helpers.zig");
 
+pub const RenderingError = error{Unrecoverable};
+pub const FontLoadError = error{FontNotFound};
+
 pub const Color = struct {
     r: u8,
     g: u8,

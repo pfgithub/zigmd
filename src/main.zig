@@ -1304,7 +1304,7 @@ pub fn main() !void {
         if (event == .empty and !imev.internal.rerender and !imev.render) {
             event = if (windowInFocus) switch (mainPage.updateMode.update) {
                 .wait => try window.waitEvent(),
-                .poll => try window.pollEvent(),
+                .poll => window.pollEvent(),
             } else try window.waitEvent();
         }
         evc += 1;
@@ -1338,7 +1338,7 @@ pub fn main() !void {
         try mainPage.render(&imev, style, windowSize.xy(0, 0));
 
         // if (imev.internal.rerender) continue; // new events should not be pushed after a requested rerender. // is this necessary? is there any reason not to push new events after a rerender?
-        event = try window.pollEvent();
+        event = window.pollEvent();
         if (event != .empty or imev.internal.rerender) continue;
 
         // do final render
