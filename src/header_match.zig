@@ -1,5 +1,53 @@
 const std = @import("std");
 
+// some todos:
+// mark all types that will be seen in the future
+// eg if there is A and B and B refs A,
+// mark both A and B as to be seen
+// go through A, this skips the B check
+// unmark B
+// go through B
+
+pub const ImplCtx = struct {
+    const Segment = struct {
+        sourceType: ?type,
+        name: []const u8,
+        // flagCustom: bool,
+    };
+
+    segments: []const Segment = &[_]Segment{},
+
+    pub fn join(comptime ctx: ImplCtx, comptime other: ImplCtx) ImplErr {
+        var res = ctx;
+        for (other.ctx.segments) |segment| {
+            res = res.addSeg(segment);
+        }
+        return res;
+    }
+
+    pub fn addSeg(comptime ctx: ImplCtx, comptime segment: Segment) ImplCtx {
+        return .{
+            .segments = ctx.segments ++ [_]Segment{segment},
+        };
+    }
+    pub fn add(comptime ctx: ImplCtx, comptime name: []const u8, comptime srcTyp: ?type) ImplCtx {
+        return ctx.addSeg(Segment{
+            .sourceType = srcTyp,
+            .name = name,
+        });
+    }
+    pub fn err(comptime ctx: ImplCtx, comptime msg: []const u8) ImplErr {
+        return .{
+            .ctx = ctx,
+            .err = msg,
+        };
+    }
+};
+pub const ImplErr = struct {
+    ctx: ImplCtx,
+    err: []const u8,
+};
+
 const Memo = struct {
     list: []const type = &[_]type{},
     pub fn seen(comptime memo: *Memo, comptime Type: type) bool {
@@ -29,18 +77,31 @@ test "seen" {
 pub fn conformsTo(comptime Header: type, comptime Implementation: type) void {
     if (testingImplements(Header, Implementation)) |err| @compileError("Does not conform.\n " ++ err);
 }
-fn testingImplements(comptime Header: type, comptime Implementation: type) ?[]const u8 {
+fn testingImplements(comptime Header: type, comptime Implementation: type) ?ImplErr {
     var memo: Memo = .{};
-    return implements(Header, Implementation, "base", &memo);
+    return implements(Header, Implementation, ImplCtx{}, &memo);
 }
 
-fn expectEqual(comptime b: ?[]const u8, comptime a: ?[]const u8) void {
-    if (b == null) {
-        if (a == null)
+fn testingFormatError(comptime br: ImplErr) []const u8 {
+    var result: []const u8 = "";
+    for (br.ctx.segments) |seg| {
+        if (result.len != 0) result = result ++ " > ";
+        const tag = if (seg.sourceType) |st| @tagName(@as(@TagType(@TypeOf(@typeInfo(st))), @typeInfo(st))) else "?";
+        result = result ++ seg.name ++ ": " ++ tag;
+    }
+    if (result.len != 0) result = result ++ " >: ";
+    result = result ++ br.err;
+    return result;
+}
+
+fn expectEqual(comptime brv: ?ImplErr, comptime a: ?[]const u8) void {
+    const b: ?[]const u8 = if (brv) |br| testingFormatError(br) else null;
+    if (a == null) {
+        if (b == null)
             return;
         @compileError("Expected null, got `" ++ b.? ++ "`");
-    } else if (a == null)
-        @compileError("Expected `" ++ b.? ++ "`, got null");
+    } else if (b == null)
+        @compileError("Expected `" ++ a.? ++ "`, got null");
     if (!std.mem.eql(u8, a.?, b.?))
         @compileError("Expected `" ++ a.? ++ "`, got `" ++ b.? ++ "`");
 }
@@ -55,9 +116,9 @@ fn memoHeaderImpl(
 fn implements(
     comptime Header: type,
     comptime Implementation: type,
-    comptime context: []const u8,
+    comptime context: ImplCtx,
     comptime memo: *Memo,
-) ?[]const u8 {
+) ?ImplErr {
     if (Header == Implementation) return null;
     if (memo.seen(memoHeaderImpl(Header, Implementation)))
         return null;
@@ -66,32 +127,38 @@ fn implements(
     const implementation = @typeInfo(Implementation);
 
     if ((header == .Struct or header == .Union or header == .Enum) and @hasDecl(Header, "__custom_type_compare")) {
-        const namedContext = context ++ "[custom]";
+        const namedContext = context.add("[custom]", Header.__SOURCE_LOCATION);
         const compare = struct {
-            fn a(comptime H: type, comptime I: type) ?[]const u8 {
-                return implements(H, I, "", memo);
+            fn a(comptime H: type, comptime I: type, comptime j: ImplCtx) ?ImplErr {
+                return implements(H, I, j, memo);
             }
         }.a;
-        if (Header.__custom_type_compare(Implementation, compare)) |err|
-            return context ++
-                "[custom]" ++
-                if (err[0] == ' ' or err[0] == ':') " > custom" ++ err else " >: " ++ err;
+        if (Header.__custom_type_compare(
+            Implementation,
+            compare,
+            namedContext,
+        )) |err|
+            return err;
         return null;
     }
 
     const headerTag = @as(@TagType(@TypeOf(header)), header);
     const implementationTag = @as(@TagType(@TypeOf(implementation)), implementation);
     if (headerTag != implementationTag)
-        return (context ++ " >: Implementation has incorrect type (expected " ++ @tagName(headerTag) ++ ", got " ++ @tagName(implementationTag) ++ ")");
+        return context.err(
+            "Implementation has incorrect type (expected " ++ @tagName(headerTag) ++ ", got " ++ @tagName(implementationTag) ++ ")",
+        );
 
-    const namedContext: []const u8 = context ++ ": " ++ @tagName(headerTag) ++ "\n  ";
+    const namedContext = context;
 
     switch (header) {
         .Struct => if (structImplements(Header, Implementation, namedContext, memo)) |err|
             return err,
         .Int, .Float, .Bool => {
             if (Header != Implementation) {
-                return (namedContext ++ " >: Types differ. Expected: " ++ @typeName(Header) ++ ", Got: " ++ @typeName(Implementation) ++ ".");
+                return namedContext.err(
+                    "Types differ. Expected: " ++ @typeName(Header) ++ ", Got: " ++ @typeName(Implementation) ++ ".",
+                );
             }
         },
         .Fn => if (fnImplements(Header, Implementation, namedContext, memo)) |err|
@@ -102,7 +169,7 @@ fn implements(
             return err,
         .ErrorSet => if (errorSetImplements(Header, Implementation, namedContext, memo)) |err|
             return err,
-        else => return (namedContext ++ " >: Not supported yet: " ++ @tagName(headerTag)),
+        else => return namedContext.err("Not supported yet: " ++ @tagName(headerTag)),
     }
     return null;
 }
@@ -110,34 +177,27 @@ fn implements(
 fn errorSetImplements(
     comptime Header: type,
     comptime Implementation: type,
-    comptime context: []const u8,
+    context: ImplCtx,
     comptime memo: *Memo,
-) ?[]const u8 {
+) ?ImplErr {
     const header = @typeInfo(Header).ErrorSet orelse
-        return context ++ " > ? TODO investigate";
+        return context.err("? TODO investigate");
     const impl = @typeInfo(Implementation).ErrorSet orelse
-        return context ++ " > impl? TODO investigate";
+        return context.err("TODO investigate");
 
     if (header.len == 0 and impl.len == 0)
-        return context ++ " > Empty error sets are not supported due to potential compiler bugs. Make sure the implementation has at least one error.";
-    // this is bad for explicit catches
-    // if (header.len != impl.len)
-    //     return context ++ " > Error sets differ";
-    // for (header) |errv| {
-    //     for (impl) |errc| blk: {
-    //         if (errv.value == errc.value) break :blk;
-    //     } else return context ++ " > Implementation missing error " ++ errv.name;
-    // }
+        return context.err("Empty error sets are not supported due to potential compiler bugs. Make sure the implementation has at least one error.");
+
     if (Header != Implementation) {
         for (header) |errv| {
             for (impl) |errc| {
                 if (errv.value == errc.value) break;
-            } else return context ++ "> Implementation missing error `" ++ errv.name ++ "`";
+            } else return context.err("Implementation missing error `" ++ errv.name ++ "`");
         }
         for (impl) |errv| {
             for (header) |errc| {
                 if (errv.value == errc.value) break;
-            } else return context ++ "> Implementation has extra error `" ++ errv.name ++ "`";
+            } else return context.err("> Implementation has extra error `" ++ errv.name ++ "`");
         }
         // ok, error sets are the same.
     }
@@ -147,16 +207,16 @@ fn errorSetImplements(
 fn errorUnionImplements(
     comptime Header: type,
     comptime Implementation: type,
-    comptime context: []const u8,
+    context: ImplCtx,
     comptime memo: *Memo,
-) ?[]const u8 {
+) ?ImplErr {
     // these cannot be passed as args because of a compiler bug
     const header = @typeInfo(Header).ErrorUnion;
     const impl = @typeInfo(Implementation).ErrorUnion;
 
-    if (implements(header.error_set, impl.error_set, context ++ " > ErrorSet!", memo)) |err|
+    if (implements(header.error_set, impl.error_set, context.add("ErrorSet!..", header.error_set), memo)) |err|
         return err;
-    if (implements(header.error_set, impl.error_set, context ++ " > !Payload", memo)) |err|
+    if (implements(header.payload, impl.payload, context.add("..!Payload", header.payload), memo)) |err|
         return err;
 
     return null;
@@ -165,21 +225,22 @@ fn errorUnionImplements(
 fn pointerImplements(
     comptime Header: type,
     comptime Implementation: type,
-    comptime context: []const u8,
+    context: ImplCtx,
     comptime memo: *Memo,
-) ?[]const u8 {
+) ?ImplErr {
     // these cannot be passed as args because of a compiler bug
     const header = @typeInfo(Header).Pointer;
     const impl = @typeInfo(Implementation).Pointer;
 
-    if (header.is_volatile) return (context ++ " >: Pointer volatility is not supported yet.");
-    if (impl.is_volatile) return (context ++ " >: Expected not volatile.");
+    const namedCtx = context.add(".*", header.child);
+    if (header.is_volatile) return namedCtx.add("Pointer volatility is not supported yet.");
+    if (impl.is_volatile) return namedCtx.err("Expected not volatile.");
     // ignoring sentinel for now, it looks complicated
-    if (header.is_const != impl.is_const) return (context ++ " >: Expected constness {}, got {}.");
-    // if (header.alignment != impl.alignment) return (context ++ " >: Expected align({}), got align({})."); // does not appear to be useful
-    if (header.is_allowzero != impl.is_allowzero) return (context ++ " >: Expected allowzero {}, got {}.");
+    if (header.is_const != impl.is_const) return namedCtx.err("Expected constness {}, got {}.");
+    // if (header.alignment != impl.alignment) return context.err("Expected align({}), got align({})."); // does not appear to be useful
+    if (header.is_allowzero != impl.is_allowzero) return namedCtx.err("Expected allowzero {}, got {}.");
 
-    if (implements(header.child, impl.child, context ++ " > .*", memo)) |err|
+    if (implements(header.child, impl.child, namedCtx, memo)) |err|
         return err;
 
     return null;
@@ -188,28 +249,28 @@ fn pointerImplements(
 fn fnImplements(
     comptime Header: type,
     comptime Implementation: type,
-    comptime context: []const u8,
+    context: ImplCtx,
     comptime memo: *Memo,
-) ?[]const u8 {
+) ?ImplErr {
     const header = @typeInfo(Header).Fn;
     const impl = @typeInfo(Implementation).Fn;
 
-    if (header.is_generic) return (context ++ " >: Generic functions are not supported yet.");
-    if (header.is_var_args) return (context ++ " >: VarArgs functions are not supported yet.");
-    if (impl.is_generic) return (context ++ " >: Expected non-generic, got generic");
-    if (impl.is_var_args) return (context ++ " >: Expected non-varargs, got varargs.");
-    if (header.calling_convention != impl.calling_convention) return (context ++ " >: Wrong calling convention.");
+    if (header.is_generic) return context.err("Generic functions are not supported yet.");
+    if (header.is_var_args) return context.err("VarArgs functions are not supported yet.");
+    if (impl.is_generic) return context.err("Expected non-generic, got generic");
+    if (impl.is_var_args) return context.err("Expected non-varargs, got varargs.");
+    if (header.calling_convention != impl.calling_convention) return context.err("Wrong calling convention.");
 
-    if (implements(header.return_type.?, impl.return_type.?, context ++ " > return", memo)) |err|
+    if (implements(header.return_type.?, impl.return_type.?, context.add("return", header.return_type.?), memo)) |err|
         return err;
 
-    if (header.args.len != impl.args.len) return (context ++ " >: Expected {} arguments, got {}.");
+    if (header.args.len != impl.args.len) return context.err("Expected {} arguments, got {}.");
     for (header.args) |headerarg, i| {
         const implarg = impl.args[i];
 
         var buf = [_]u8{0} ** 100;
-        const res = std.fmt.bufPrint(&buf, " > args[{}]", .{i}) catch @compileError("buffer out of space");
-        const argContext = context ++ res;
+        const res = std.fmt.bufPrint(&buf, "args[{}]", .{i}) catch @compileError("buffer out of space");
+        const argContext = context.add(res, headerarg.arg_type);
 
         if (headerarg.is_generic) return (argContext ++ " >: Generic args are not supported yet.");
         if (implarg.is_generic) return (argContext ++ " >: Expected non-generic, got generic.");
@@ -223,20 +284,23 @@ fn fnImplements(
 fn structImplements(
     comptime Header: type,
     comptime Implementation: type,
-    comptime context: []const u8,
+    context: ImplCtx,
     comptime memo: *Memo,
-) ?[]const u8 {
+) ?ImplErr {
     const header = @typeInfo(Header).Struct;
     const implementation = @typeInfo(Implementation).Struct;
 
     for (header.decls) |decl| {
         if (!decl.is_pub) continue;
 
-        const namedContext = context ++ " > decl " ++ decl.name;
+        const namedContext = context.add("decl " ++ decl.name, switch (decl.data) {
+            .Type, .Var => |typ| typ,
+            .Fn => |fndecl| fndecl.fn_type,
+        });
 
         // ensure implementation has decl
         if (!@hasDecl(Implementation, decl.name))
-            return (namedContext ++ " >: Implementation is missing declaration.");
+            return namedContext.err("Implementation is missing declaration.");
 
         // using for as a find with break and else doesn't seem to be working at comptime, so this works as an alternative
         const impldecl = blk: {
@@ -244,16 +308,16 @@ fn structImplements(
                 if (std.mem.eql(u8, decl.name, idecl.name))
                     break :blk idecl;
             }
-            return (namedContext ++ " >: Implementation is missing declaration.");
+            return namedContext.err("Implementation is missing declaration.");
         };
 
-        if (!impldecl.is_pub) return (namedContext ++ " >: Implementation declaration is private.");
+        if (!impldecl.is_pub) return namedContext.err("Implementation declaration is private.");
 
         const headerDataType = @as(@TagType(@TypeOf(decl.data)), decl.data);
         const implDataType = @as(@TagType(@TypeOf(impldecl.data)), impldecl.data);
 
         if (headerDataType != implDataType)
-            return (namedContext ++ " >: DataTypes differ. Expected: " ++ @tagName(headerDataType) ++ ", got " ++ @tagName(implDataType));
+            return namedContext.err("DataTypes differ. Expected: " ++ @tagName(headerDataType) ++ ", got " ++ @tagName(implDataType));
 
         switch (decl.data) {
             .Type => |typ| if (implements(
@@ -267,29 +331,32 @@ fn structImplements(
                 if (implements(fndecl.fn_type, fnimpl.fn_type, namedContext, memo)) |err|
                     return err;
             },
-            else => |v| return (namedContext ++ " >: Not supported yet: " ++ @tagName(headerDataType)),
+            else => |v| return namedContext.err(
+                "Not supported yet: " ++ @tagName(headerDataType),
+            ),
         }
     }
     for (implementation.decls) |decl| {
         if (!@hasDecl(Header, decl.name) and decl.is_pub)
-            return (context ++ " >: Header has extra disallowed declaration `pub " ++ decl.name ++ "`");
+            return context.err("Header has extra disallowed declaration `pub " ++ decl.name ++ "`");
     }
 
     for (header.fields) |field| {
         // ensure implementation has field
         if (!@hasField(Implementation, field.name))
-            return (context ++ " >: Implementation is missing field `" ++ field.name ++ "`");
+            return context.err("Implementation is missing field `" ++ field.name ++ "`");
         for (implementation.fields) |implfld| {
             if (!std.mem.eql(u8, field.name, implfld.name)) continue;
 
-            if (implements(field.field_type, implfld.field_type, context ++ " > " ++ field.name, memo)) |err| return err;
+            if (implements(field.field_type, implfld.field_type, context.add(field.name, field.field_type), memo)) |err| return err;
         }
     }
     return null;
 }
 
-pub fn CustomTypeCompare(comptime comparisonFn: fn (type, var) ?[]const u8) type {
+pub fn CustomTypeCompare(comptime comparisonFn: fn (type, var, ImplCtx) ?ImplErr) type {
     return struct {
+        const __SOURCE_LOCATION = @TypeOf(comparisonFn);
         const __custom_type_compare = comparisonFn;
     };
 }
@@ -300,7 +367,7 @@ test "extra declaration" {
     }, struct {
         pub const A = u64;
         pub const B = u32;
-    }), "base: Struct >: Header has extra disallowed declaration `pub B`");
+    }), "Header has extra disallowed declaration `pub B`");
 }
 
 test "extra private declaration ok" {
@@ -309,7 +376,7 @@ test "extra private declaration ok" {
     }, struct {
         pub const A = u64;
         const B = u32;
-    }), "base: Struct >: Header has extra disallowed declaration `pub B`");
+    }), null);
 }
 
 test "missing declaration" {
@@ -317,7 +384,7 @@ test "missing declaration" {
         pub const A = u64;
     }, struct {
         pub const B = u32;
-    }), "base: Struct > decl A >: Implementation is missing declaration.");
+    }), "decl A: Int >: Implementation is missing declaration.");
 }
 
 test "integer different" {
@@ -325,7 +392,7 @@ test "integer different" {
         pub const A = u64;
     }, struct {
         pub const A = u32;
-    }), "base: Struct > decl A: Int >: Types differ. Expected: u64, Got: u32.");
+    }), "decl A: Int >: Types differ. Expected: u64, Got: u32.");
 }
 
 test "integer equivalent" {
@@ -347,7 +414,7 @@ test "fields missing" {
         a: A,
         b: u32,
         private_member: f64,
-    }), "base: Struct >: Implementation is missing field `c`");
+    }), "Implementation is missing field `c`");
 }
 
 test "fields wrong type" {
@@ -360,7 +427,7 @@ test "fields wrong type" {
         a: A,
         b: u32,
         private_member: f64,
-    }), "base: Struct > b: Int >: Types differ. Expected: u64, Got: u32.");
+    }), "b: Int >: Types differ. Expected: u64, Got: u32.");
 }
 
 test "fields equivalent + extra private" {
@@ -387,7 +454,7 @@ test "fn different return values" {
         pub fn a(arg: Struct) struct { a: u64 } {
             return undefined;
         }
-    }), "base: Struct > decl a: Fn > return: Struct >: Implementation is missing field `typ`");
+    }), "decl a: Fn > return: Struct >: Implementation is missing field `typ`");
 }
 
 test "fn equivalent" {
@@ -409,7 +476,7 @@ test "fields" {
         q: u64,
     }, struct {
         q: u32,
-    }), "base: Struct > q: Int >: Types differ. Expected: u64, Got: u32.");
+    }), "q: Int >: Types differ. Expected: u64, Got: u32.");
 }
 
 test "fn different args" {
@@ -423,7 +490,7 @@ test "fn different args" {
         pub fn a(arg2: u64, arg: struct { typ: u32 }, arg3: bool) Struct {
             return undefined;
         }
-    }), "base: Struct > decl a: Fn > args[1]: Struct > typ: Int >: Types differ. Expected: u64, Got: u32.");
+    }), "decl a: Fn > args[1]: Struct > typ: Int >: Types differ. Expected: u64, Got: u32.");
 }
 
 test "basic recursion" {
@@ -455,19 +522,19 @@ test "fn this arg recursion" {
 test "" {
     comptime expectEqual(testingImplements(struct {
         a: CustomTypeCompare(struct {
-            pub fn a(comptime Other: type, comptime compare: var) ?[]const u8 {
-                return if (Other == u64) null else "Expected u64";
+            pub fn a(comptime Other: type, comptime compare: var, comptime ctx: ImplCtx) ?ImplErr {
+                return if (Other == u64) null else ctx.err("Expected u64");
             }
         }.a),
     }, struct {
         a: u32,
-    }), "base: Struct > a[custom] >: Expected u64");
+    }), "a: Struct > [custom]: Fn >: Expected u64");
 }
 test "" {
     comptime expectEqual(testingImplements(struct {
         a: CustomTypeCompare(struct {
-            pub fn a(comptime Other: type, comptime compare: var) ?[]const u8 {
-                return if (Other == u64) null else "Expected u64";
+            pub fn a(comptime Other: type, comptime compare: var, comptime ctx: ImplCtx) ?ImplErr {
+                return if (Other == u64) null else ctx.err("Expected u64");
             }
         }.a),
     }, struct {
@@ -477,8 +544,8 @@ test "" {
 test "" {
     comptime expectEqual(testingImplements(struct {
         a: CustomTypeCompare(struct {
-            pub fn a(comptime Other: type, comptime compare: var) ?[]const u8 {
-                if (compare(struct { one: u64 }, Other)) |err| return err;
+            pub fn a(comptime Other: type, comptime compare: var, comptime ctx: ImplCtx) ?ImplErr {
+                if (compare(struct { one: u64 }, Other, ctx)) |err| return err;
                 return null;
             }
         }.a),
@@ -492,8 +559,8 @@ test "" {
 test "" {
     comptime expectEqual(testingImplements(struct {
         a: CustomTypeCompare(struct {
-            pub fn a(comptime Other: type, comptime compare: var) ?[]const u8 {
-                if (compare(struct { one: u64 }, Other)) |err| return err;
+            pub fn a(comptime Other: type, comptime compare: var, comptime ctx: ImplCtx) ?ImplErr {
+                if (compare(struct { one: u64 }, Other, ctx)) |err| return err;
                 return null;
             }
         }.a),
@@ -502,5 +569,5 @@ test "" {
             one: u32,
             two: u64,
         },
-    }), "base: Struct > a[custom] > custom: Struct > one: Int >: Types differ. Expected: u64, Got: u32.");
+    }), "a: Struct > [custom]: Fn > one: Int >: Types differ. Expected: u64, Got: u32.");
 }
