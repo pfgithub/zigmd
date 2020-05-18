@@ -1,13 +1,5 @@
 const std = @import("std");
 
-// some todos:
-// mark all types that will be seen in the future
-// eg if there is A and B and B refs A,
-// mark both A and B as to be seen
-// go through A, this skips the B check
-// unmark B
-// go through B
-
 pub const ImplCtx = struct {
     const Segment = struct {
         sourceType: ?type,
@@ -672,20 +664,28 @@ test "" {
         },
     }), "a: Struct > [custom]: Fn > one: Int >: Types differ. Expected: u64, Got: u32.");
 }
-test "shallowest path" {
-    comptime expectEqual(testingImplements(struct {
-        pub const A = struct {
-            b: B,
-        };
-        pub const B = struct {
-            num: i64,
-        };
-    }, struct {
-        pub const A = struct {
-            b: B,
-        };
-        pub const B = struct {
-            num: u64,
-        };
-    }), "decl B: Struct > num: Int >: Types differ. Expected: i64, Got: u64.");
-}
+// TODO for this. instead of implements happening immediately, it should:
+// - add this call to a list
+// The main caller passes in a list and
+// - while list !empty
+// -   realCheckImplements(item)
+// oh and I guess it would have to loop and find the lowest thing to do each tick
+// this sounds overcomplicated and unnecessary
+
+// test "shallowest path" {
+//     comptime expectEqual(testingImplements(struct {
+//         pub const A = struct {
+//             b: B,
+//         };
+//         pub const B = struct {
+//             num: i64,
+//         };
+//     }, struct {
+//         pub const A = struct {
+//             b: B,
+//         };
+//         pub const B = struct {
+//             num: u64,
+//         };
+//     }), "decl B: Struct > num: Int >: Types differ. Expected: i64, Got: u64.");
+// }
