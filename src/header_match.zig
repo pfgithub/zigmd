@@ -88,6 +88,14 @@ const Memo = struct {
         memo.later = newList;
         if (unseen) @compileError("Cannot now something that is not soon");
     }
+
+    /// Ensure memo did not skip any seen things
+    pub fn done(comptime memo: *Memo) void {
+        if (memo.later.len > 0) {
+            for (memo.later) |lat| @compileLog(lat.Type);
+            @compileError("Memo has items remaining");
+        }
+    }
 };
 
 const uhoh = @compileError("Fail!");
@@ -112,19 +120,20 @@ test "seen soon" {
         var memo: Memo = .{};
 
         const Demo = struct {
-            const A = struct {
-                const BType = B;
-            };
+            const A = struct {};
             const B = struct {};
+            const C = struct {};
         };
 
         memo.soon(Demo.A);
         memo.soon(Demo.B);
+        memo.soon(Demo.C);
 
         memo.now(Demo.A);
         if (memo.seen(Demo.A) != false) uhoh;
         if (memo.seen(Demo.A) != true) uhoh;
         if (memo.seen(Demo.B) != true) uhoh;
+        if (memo.seen(Demo.C) != true) uhoh;
 
         {
             memo.soon(Demo.B);
@@ -137,6 +146,13 @@ test "seen soon" {
         if (memo.seen(Demo.A) != true) uhoh;
         if (memo.seen(Demo.B) != false) uhoh;
         if (memo.seen(Demo.B) != true) uhoh;
+        if (memo.seen(Demo.C) != true) uhoh;
+
+        memo.now(Demo.C);
+        if (memo.seen(Demo.C) != false) uhoh;
+        if (memo.seen(Demo.C) != true) uhoh;
+
+        memo.done();
     }
 }
 
@@ -163,7 +179,10 @@ pub fn conformsTo(comptime Header: type, comptime Implementation: type) void {
 }
 fn testingImplements(comptime Header: type, comptime Implementation: type) ?ImplErr {
     var memo: Memo = .{};
-    return implements(Header, Implementation, ImplCtx{}, &memo);
+    var res = implements(Header, Implementation, ImplCtx{}, &memo);
+    if (res == null)
+        memo.done();
+    return res;
 }
 
 fn testingFormatError(comptime br: ImplErr) []const u8 {
