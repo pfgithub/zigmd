@@ -1,10 +1,10 @@
-const c = @cImport({
+usingnamespace @cImport({
     @cInclude("tree_sitter/api.h");
 });
 const std = @import("std");
 
-extern fn tree_sitter_json() ?*c.TSLanguage;
-extern fn tree_sitter_markdown() ?*c.TSLanguage;
+extern fn tree_sitter_json() ?*TSLanguage;
+extern fn tree_sitter_markdown() ?*TSLanguage;
 
 pub fn main() !void {
     try testParser();
@@ -108,14 +108,14 @@ const Class = struct {
 
 pub const Position = struct { from: u64, to: u64 };
 pub const Node = struct {
-    node: c.TSNode,
-    fn wrap(rawNode: c.TSNode) Node {
+    node: TSNode,
+    fn wrap(rawNode: TSNode) Node {
         return .{ .node = rawNode };
     }
     pub fn position(n: Node) Position {
         return .{
-            .from = c.ts_node_start_byte(n.node),
-            .to = c.ts_node_end_byte(n.node),
+            .from = ts_node_start_byte(n.node),
+            .to = ts_node_end_byte(n.node),
         };
     }
     fn createClassesStructInternal(n: Node, classesStruct: *Class) void {
@@ -133,16 +133,16 @@ pub const Node = struct {
     }
     pub fn createClassesStruct(n: Node, cidx: u64) Class {
         var classes: Class = .{
-            .IS_CHAR_0 = @intCast(u32, cidx) == c.ts_node_start_byte(n.node),
+            .IS_CHAR_0 = @intCast(u32, cidx) == ts_node_start_byte(n.node),
         };
         n.createClassesStructInternal(&classes);
         return classes;
     }
     pub fn class(n: Node) []const u8 {
-        return std.mem.span(c.ts_node_type(n.node));
+        return std.mem.span(ts_node_type(n.node));
     }
     pub fn named(n: Node) bool {
-        return c.ts_node_is_named(n.node);
+        return ts_node_is_named(n.node);
     }
     pub fn printClasses(
         n: Node,
@@ -160,18 +160,18 @@ pub const Node = struct {
             try res.appendSlice(">");
     }
     pub fn firstChild(n: Node) ?Node {
-        const result = c.ts_node_parent(n.node);
-        if (c.ts_node_is_null(result)) return null;
+        const result = ts_node_parent(n.node);
+        if (ts_node_is_null(result)) return null;
         return Node.wrap(result);
     }
     pub fn nextSibling(n: Node) ?Node {
-        const result = c.ts_node_parent(n.node);
-        if (c.ts_node_is_null(result)) return null;
+        const result = ts_node_parent(n.node);
+        if (ts_node_is_null(result)) return null;
         return Node.wrap(result);
     }
     pub fn parent(n: Node) ?Node {
-        const result = c.ts_node_parent(n.node);
-        if (c.ts_node_is_null(result)) return null;
+        const result = ts_node_parent(n.node);
+        if (ts_node_is_null(result)) return null;
         return Node.wrap(result);
     }
     fn next(n: Node) ?Node {
@@ -189,23 +189,23 @@ pub const Node = struct {
 };
 
 pub const TreeCursor = struct {
-    cursor: c.TSTreeCursor,
+    cursor: TSTreeCursor,
     pub fn init(initialNode: Node) TreeCursor {
         return .{
-            .cursor = c.ts_tree_cursor_new(initialNode.node),
+            .cursor = ts_tree_cursor_new(initialNode.node),
         };
     }
     pub fn deinit(tc: *TreeCursor) void {
-        c.ts_tree_cursor_delete(&tc.cursor);
+        ts_tree_cursor_delete(&tc.cursor);
     }
     fn goFirstChild(tc: *TreeCursor) bool {
-        return c.ts_tree_cursor_goto_first_child(&tc.cursor);
+        return ts_tree_cursor_goto_first_child(&tc.cursor);
     }
     fn goNextSibling(tc: *TreeCursor) bool {
-        return c.ts_tree_cursor_goto_next_sibling(&tc.cursor);
+        return ts_tree_cursor_goto_next_sibling(&tc.cursor);
     }
     fn goParent(tc: *TreeCursor) bool {
-        return c.ts_tree_cursor_goto_parent(&tc.cursor);
+        return ts_tree_cursor_goto_parent(&tc.cursor);
     }
     fn advance(tc: *TreeCursor) bool {
         // check if there are any children
@@ -218,13 +218,13 @@ pub const TreeCursor = struct {
     }
 
     fn node(tc: *TreeCursor) Node {
-        return Node.wrap(c.ts_tree_cursor_current_node(&tc.cursor));
+        return Node.wrap(ts_tree_cursor_current_node(&tc.cursor));
     }
     fn fieldName(tc: *TreeCursor) []u8 {
-        return c.ts_tree_cursor_current_field_name(&tc.cursor);
+        return ts_tree_cursor_current_field_name(&tc.cursor);
     }
-    fn fieldID(tc: *TreeCursor) c.TSFieldId {
-        return c.ts_tree_cursor_current_field_id(&tc.cursor);
+    fn fieldID(tc: *TreeCursor) TSFieldId {
+        return ts_tree_cursor_current_field_id(&tc.cursor);
     }
 };
 
@@ -246,7 +246,7 @@ pub fn getNodeAtPosition(char: u64, cursor: *TreeCursor) Node {
 pub const RowCol = struct {
     row: u64,
     col: u64,
-    fn point(cp: RowCol) c.TSPoint {
+    fn point(cp: RowCol) TSPoint {
         return .{ .row = @intCast(u32, cp.row), .column = @intCast(u32, cp.col) };
     }
     pub fn format(
@@ -260,19 +260,19 @@ pub const RowCol = struct {
 };
 
 pub const Tree = struct {
-    parser: *c.TSParser,
-    tree: *c.TSTree,
+    parser: *TSParser,
+    tree: *TSTree,
     locked: bool,
 
     /// source code must exist for Tree's lifetime.
     pub fn init(sourceCode: []const u8) !Tree {
-        var parser = c.ts_parser_new().?;
-        errdefer c.ts_parser_delete(parser);
-        if (!c.ts_parser_set_language(parser, tree_sitter_markdown()))
+        var parser = ts_parser_new().?;
+        errdefer ts_parser_delete(parser);
+        if (!ts_parser_set_language(parser, tree_sitter_markdown()))
             return error.IncompatibleLanguageVersion;
 
-        var tree = c.ts_parser_parse_string(parser, null, sourceCode.ptr, @intCast(u32, sourceCode.len)).?;
-        errdefer c.ts_tree_delete(tree);
+        var tree = ts_parser_parse_string(parser, null, sourceCode.ptr, @intCast(u32, sourceCode.len)).?;
+        errdefer ts_tree_delete(tree);
 
         return Tree{
             .parser = parser,
@@ -281,8 +281,8 @@ pub const Tree = struct {
         };
     }
     pub fn deinit(ts: *Tree) void {
-        c.ts_tree_delete(ts.tree);
-        c.ts_parser_delete(ts.parser);
+        ts_tree_delete(ts.tree);
+        ts_parser_delete(ts.parser);
     }
     pub fn lock(ts: *Tree) void {
         if (ts.locked) unreachable;
@@ -295,17 +295,17 @@ pub const Tree = struct {
     pub fn reparse(ts: *Tree, sourceCode: []const u8) void {
         // not sure if it is necessary to reassign tree
         // this line crashes sometimes at some character counts:
-        var newTree = c.ts_parser_parse_string(
+        var newTree = ts_parser_parse_string(
             ts.parser,
             null,
             sourceCode.ptr,
             @intCast(u32, sourceCode.len),
         ).?;
-        c.ts_tree_delete(ts.tree);
+        ts_tree_delete(ts.tree);
         ts.tree = newTree;
     }
     pub fn root(ts: *Tree) Node {
-        return Node.wrap(c.ts_tree_root_node(ts.tree));
+        return Node.wrap(ts_tree_root_node(ts.tree));
     }
 
     /// Update source text FIRST!
@@ -321,7 +321,7 @@ pub const Tree = struct {
         newEnd: RowCol,
     ) void {
         if (ts.locked) unreachable;
-        c.ts_tree_edit(ts.tree, &c.TSInputEdit{
+        ts_tree_edit(ts.tree, &TSInputEdit{
             .start_byte = @intCast(u32, startByte),
             .old_end_byte = @intCast(u32, oldEndByte),
             .new_end_byte = @intCast(u32, newEndByte),
