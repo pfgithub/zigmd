@@ -1,4 +1,6 @@
-const c = @import("./c.zig");
+const c = @cImport({
+    @cInclude("tree_sitter/api.h");
+});
 const std = @import("std");
 
 extern fn tree_sitter_json() ?*c.TSLanguage;

@@ -1,4 +1,8 @@
-const c = @import("../c.zig");
+const sdl = @cImport({
+    @cInclude("SDL.h");
+    @cInclude("SDL_ttf.h");
+    @cInclude("fontconfig/fontconfig.h");
+});
 const std = @import("std");
 const help = @import("../helpers.zig");
 pub usingnamespace @import("./common.zig");
@@ -17,24 +21,24 @@ test "implements header" {
 }
 
 fn sdlError() RenderingError {
-    _ = c.printf("SDL Method Failed: %s\n", c.SDL_GetError());
+    _ = sdl.printf("SDL Method Failed: %s\n", sdl.SDL_GetError());
     return RenderingError.Unrecoverable;
 }
 
 fn ttfError() RenderingError {
-    _ = c.printf("TTF Method Failed: %s\n", c.TTF_GetError());
+    _ = sdl.printf("TTF Method Failed: %s\n", sdl.TTF_GetError());
     return RenderingError.Unrecoverable;
 }
 
 pub const FontLoader = struct {
-    config: *c.FcConfig,
+    config: *sdl.FcConfig,
     pub fn init() FontLoader {
         return .{
-            .config = c.FcInitLoadConfigAndFonts().?,
+            .config = sdl.FcInitLoadConfigAndFonts().?,
         };
     }
     pub fn deinit(loader: *FontLoader) void {
-        c.FcConfigDestroy(loader.config);
+        sdl.FcConfigDestroy(loader.config);
     }
     pub fn loadFromName(
         loader: *const FontLoader,
@@ -46,18 +50,18 @@ pub const FontLoader = struct {
 };
 
 pub const Font = struct {
-    sdlFont: *c.TTF_Font,
+    sdlFont: *sdl.TTF_Font,
     pub fn init(ttfPath: []const u8, size: u16) ER!Font {
-        var font = c.TTF_OpenFont(ttfPath.ptr, size);
+        var font = sdl.TTF_OpenFont(ttfPath.ptr, size);
         if (font == null) return ttfError();
-        errdefer c.TTF_CloseFont(font);
+        errdefer sdl.TTF_CloseFont(font);
 
         return Font{
             .sdlFont = font.?,
         };
     }
     pub fn deinit(font: *Font) void {
-        c.TTF_CloseFont(font.sdlFont);
+        sdl.TTF_CloseFont(font.sdlFont);
     }
     pub fn loadFromName(
         loader: *const FontLoader,
@@ -65,31 +69,31 @@ pub const Font = struct {
         fontSize: u16,
     ) ERF!Font {
         var config = loader.config;
-        var pattern = c.FcNameParse(name.ptr).?;
-        defer c.FcPatternDestroy(pattern);
+        var pattern = sdl.FcNameParse(name.ptr).?;
+        defer sdl.FcPatternDestroy(pattern);
 
         // font size
-        var v: c.FcValue = .{
-            .type = @intToEnum(c.FcType, c.FcTypeInteger),
+        var v: sdl.FcValue = .{
+            .type = @intToEnum(sdl.FcType, sdl.FcTypeInteger),
             .u = .{ .i = fontSize },
         };
-        if (c.FcPatternAdd(pattern, c.FC_SIZE, v, c.FcTrue) == c.FcFalse)
+        if (sdl.FcPatternAdd(pattern, sdl.FC_SIZE, v, sdl.FcTrue) == sdl.FcFalse)
             return ER.Unrecoverable;
 
-        if (c.FcConfigSubstitute(
+        if (sdl.FcConfigSubstitute(
             config,
             pattern,
-            @intToEnum(c.FcMatchKind, c.FcMatchPattern),
-        ) == c.FcFalse)
+            @intToEnum(sdl.FcMatchKind, sdl.FcMatchPattern),
+        ) == sdl.FcFalse)
             return ER.Unrecoverable;
-        c.FcDefaultSubstitute(pattern);
+        sdl.FcDefaultSubstitute(pattern);
 
-        var result: c.FcResult = undefined;
-        if (c.FcFontMatch(config, pattern, &result)) |font| {
-            defer c.FcPatternDestroy(font);
-            var file: [*c]c.FcChar8 = null;
-            if (c.FcPatternGetString(font, c.FC_FILE, 0, &file) ==
-                @intToEnum(c.FcResult, c.FcResultMatch))
+        var result: sdl.FcResult = undefined;
+        if (sdl.FcFontMatch(config, pattern, &result)) |font| {
+            defer sdl.FcPatternDestroy(font);
+            var file: [*c]sdl.FcChar8 = null;
+            if (sdl.FcPatternGetString(font, sdl.FC_FILE, 0, &file) ==
+                @intToEnum(sdl.FcResult, sdl.FcResultMatch))
             {
                 var resFont = Font.init(std.mem.span(file), fontSize);
                 return resFont;
@@ -99,11 +103,11 @@ pub const Font = struct {
     }
 };
 
-fn colorFromSDL(color: c.SDL_Color) Color {
+fn colorFromSDL(color: sdl.SDL_Color) Color {
     return Color{ .r = color.r, .g = color.g, .b = color.b, .a = color.a };
 }
-fn colorToSDL(color: Color) c.SDL_Color {
-    return c.SDL_Color{ .r = color.r, .g = color.g, .b = color.b, .a = color.a };
+fn colorToSDL(color: Color) sdl.SDL_Color {
+    return sdl.SDL_Color{ .r = color.r, .g = color.g, .b = color.b, .a = color.a };
 }
 fn keyFromSDL(sdlKey: var) Key {
     return switch (sdlKey) {
@@ -118,20 +122,20 @@ fn keyFromSDL(sdlKey: var) Key {
     };
 }
 
-fn eventFromSDL(event: c.SDL_Event) Event {
+fn eventFromSDL(event: sdl.SDL_Event) Event {
     return switch (event.type) {
-        c.SDL_QUIT => Event{ .quit = {} },
-        c.SDL_KEYDOWN => Event{
+        sdl.SDL_QUIT => Event{ .quit = {} },
+        sdl.SDL_KEYDOWN => Event{
             .keyDown = .{
                 .key = keyFromSDL(event.key.keysym.scancode),
             },
         },
-        c.SDL_KEYUP => Event{
+        sdl.SDL_KEYUP => Event{
             .keyUp = .{
                 .key = keyFromSDL(event.key.keysym.scancode),
             },
         },
-        c.SDL_MOUSEBUTTONDOWN => Event{
+        sdl.SDL_MOUSEBUTTONDOWN => Event{
             .mouseDown = .{
                 .pos = .{
                     .x = event.button.x,
@@ -139,7 +143,7 @@ fn eventFromSDL(event: c.SDL_Event) Event {
                 },
             },
         },
-        c.SDL_MOUSEBUTTONUP => Event{
+        sdl.SDL_MOUSEBUTTONUP => Event{
             .mouseUp = .{
                 .pos = .{
                     .x = event.button.x,
@@ -147,7 +151,7 @@ fn eventFromSDL(event: c.SDL_Event) Event {
                 },
             },
         },
-        c.SDL_MOUSEMOTION => Event{
+        sdl.SDL_MOUSEMOTION => Event{
             .mouseMotion = .{
                 .pos = .{
                     .x = event.motion.x,
@@ -155,14 +159,14 @@ fn eventFromSDL(event: c.SDL_Event) Event {
                 },
             },
         },
-        c.SDL_TEXTINPUT => blk: {
+        sdl.SDL_TEXTINPUT => blk: {
             var text: [100]u8 = undefined;
             std.mem.copy(u8, &text, &event.text.text);
             break :blk Event{
-                .textInput = .{ .text = text, .length = @intCast(u32, c.strlen(&event.text.text)) },
+                .textInput = .{ .text = text, .length = @intCast(u32, sdl.strlen(&event.text.text)) },
             };
         },
-        c.SDL_MOUSEWHEEL => Event{
+        sdl.SDL_MOUSEWHEEL => Event{
             // if these are backwards, try checking event.direction. maybe it will do something.
             .mouseWheel = .{
                 // convert random number to number of pixels to scroll
@@ -170,10 +174,10 @@ fn eventFromSDL(event: c.SDL_Event) Event {
                 .y = event.wheel.y * 50,
             },
         },
-        c.SDL_WINDOWEVENT => switch (event.window.event) {
-            c.SDL_WINDOWEVENT_FOCUS_GAINED => Event{ .windowFocus = .{} },
-            c.SDL_WINDOWEVENT_FOCUS_LOST => Event{ .windowBlur = .{} },
-            c.SDL_WINDOWEVENT_RESIZED => Event{
+        sdl.SDL_WINDOWEVENT => switch (event.window.event) {
+            sdl.SDL_WINDOWEVENT_FOCUS_GAINED => Event{ .windowFocus = .{} },
+            sdl.SDL_WINDOWEVENT_FOCUS_LOST => Event{ .windowBlur = .{} },
+            sdl.SDL_WINDOWEVENT_RESIZED => Event{
                 .resize = .{ .w = event.window.data1, .h = event.window.data2 },
             },
             else => Event{ .unknown = .{ .type = event.window.event } },
@@ -186,31 +190,31 @@ pub const Window = struct {
     // public
     cursor: Cursor,
 
-    sdlWindow: *c.SDL_Window,
-    sdlRenderer: *c.SDL_Renderer,
+    sdlWindow: *sdl.SDL_Window,
+    sdlRenderer: *sdl.SDL_Renderer,
     clippingRectangles: std.ArrayList(Rect),
     previousCursor: Cursor,
     allCursors: AllCursors,
     lastFrame: u64,
-    const AllCursors = help.EnumArray(Cursor, *c.SDL_Cursor);
+    const AllCursors = help.EnumArray(Cursor, *sdl.SDL_Cursor);
 
     pub fn init(alloc: *std.mem.Allocator) ER!Window {
-        var window = c.SDL_CreateWindow(
+        var window = sdl.SDL_CreateWindow(
             "hello_sdl2",
-            c.SDL_WINDOWPOS_UNDEFINED,
-            c.SDL_WINDOWPOS_UNDEFINED,
+            sdl.SDL_WINDOWPOS_UNDEFINED,
+            sdl.SDL_WINDOWPOS_UNDEFINED,
             640,
             480,
-            c.SDL_WINDOW_SHOWN | c.SDL_WINDOW_RESIZABLE,
+            sdl.SDL_WINDOW_SHOWN | sdl.SDL_WINDOW_RESIZABLE,
         );
         if (window == null) return sdlError();
-        errdefer c.SDL_DestroyWindow(window);
+        errdefer sdl.SDL_DestroyWindow(window);
 
-        var renderer = c.SDL_CreateRenderer(window, -1, c.SDL_RENDERER_ACCELERATED);
+        var renderer = sdl.SDL_CreateRenderer(window, -1, sdl.SDL_RENDERER_ACCELERATED);
         if (renderer == null) return sdlError();
-        errdefer c.SDL_DestroyRenderer(renderer);
+        errdefer sdl.SDL_DestroyRenderer(renderer);
 
-        // if (c.SDL_GL_SetSwapInterval(1) != 0) {
+        // if (sdl.SDL_GL_SetSwapInterval(1) != 0) {
         //     std.debug.warn("VSync Error: {}\n", .{sdlError()});
         // }
 
@@ -224,21 +228,21 @@ pub const Window = struct {
             .cursor = .default,
             .previousCursor = .ibeam,
             .allCursors = AllCursors.init(.{
-                .default = c.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_ARROW).?,
-                .pointer = c.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_HAND).?,
-                .ibeam = c.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_IBEAM).?,
+                .default = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_ARROW).?,
+                .pointer = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_HAND).?,
+                .ibeam = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_IBEAM).?,
             }),
             .lastFrame = 0,
         };
     }
     pub fn deinit(window: *Window) void {
         for (window.allCursors.data) |cursor| {
-            c.SDL_FreeCursor(cursor);
+            sdl.SDL_FreeCursor(cursor);
             // why does this even exsit
         }
 
-        c.SDL_DestroyRenderer(window.sdlRenderer);
-        c.SDL_DestroyWindow(window.sdlWindow);
+        sdl.SDL_DestroyRenderer(window.sdlRenderer);
+        sdl.SDL_DestroyWindow(window.sdlWindow);
         window.clippingRectangles.deinit();
     }
 
@@ -252,55 +256,55 @@ pub const Window = struct {
         // oom can't be handled very well if the entire rendering library will implode on oom
         window.clippingRectangles.append(resRect) catch return ER.Unrecoverable;
         errdefer _ = window.clippingRectangles.pop();
-        if (c.SDL_RenderSetClipRect(window.sdlRenderer, &rectToSDL(resRect)) != 0)
+        if (sdl.SDL_RenderSetClipRect(window.sdlRenderer, &rectToSDL(resRect)) != 0)
             return sdlError();
     }
     pub fn popClipRect(window: *Window) void {
         _ = window.clippingRectangles.pop();
 
         _ = if (window.clippingRectangles.items.len >= 1)
-            c.SDL_RenderSetClipRect(
+            sdl.SDL_RenderSetClipRect(
                 window.sdlRenderer,
                 &rectToSDL(window.clippingRectangles.pop()),
             )
         else
-            c.SDL_RenderSetClipRect(window.sdlRenderer, null);
+            sdl.SDL_RenderSetClipRect(window.sdlRenderer, null);
     }
 
     pub fn waitEvent(window: *Window) ER!Event {
-        var event: c.SDL_Event = undefined;
-        if (c.SDL_WaitEvent(&event) != 1) return sdlError();
+        var event: sdl.SDL_Event = undefined;
+        if (sdl.SDL_WaitEvent(&event) != 1) return sdlError();
         return eventFromSDL(event);
     }
     pub fn pollEvent(window: *Window) Event {
-        var event: c.SDL_Event = undefined;
-        if (c.SDL_PollEvent(&event) == 0) return Event.empty;
+        var event: sdl.SDL_Event = undefined;
+        if (sdl.SDL_PollEvent(&event) == 0) return Event.empty;
         return eventFromSDL(event);
     }
 
     pub fn clear(window: *Window, color: Color) ER!void {
-        if (c.SDL_SetRenderDrawColor(window.sdlRenderer, color.r, color.g, color.b, color.a) != 0) return sdlError();
-        if (c.SDL_RenderClear(window.sdlRenderer) < 0) return sdlError();
+        if (sdl.SDL_SetRenderDrawColor(window.sdlRenderer, color.r, color.g, color.b, color.a) != 0) return sdlError();
+        if (sdl.SDL_RenderClear(window.sdlRenderer) < 0) return sdlError();
     }
     pub fn present(window: *Window) void {
         if (window.cursor != window.previousCursor) {
             window.previousCursor = window.cursor;
             var cursor = window.allCursors.get(window.cursor);
-            c.SDL_SetCursor(cursor);
+            sdl.SDL_SetCursor(cursor);
         }
-        c.SDL_RenderPresent(window.sdlRenderer);
+        sdl.SDL_RenderPresent(window.sdlRenderer);
 
         const ctime = time();
         const diff = ctime - window.lastFrame;
         if (diff < 4) {
-            c.SDL_Delay(@intCast(u32, 4 - diff));
+            sdl.SDL_Delay(@intCast(u32, 4 - diff));
         }
         window.lastFrame = time();
     }
     pub fn getSize(window: *Window) ER!WH {
         var screenWidth: c_int = undefined;
         var screenHeight: c_int = undefined;
-        if (c.SDL_GetRendererOutputSize(window.sdlRenderer, &screenWidth, &screenHeight) < 0) return sdlError();
+        if (sdl.SDL_GetRendererOutputSize(window.sdlRenderer, &screenWidth, &screenHeight) < 0) return sdlError();
         return WH{
             .w = @intCast(i64, screenWidth), // should never fail
             .h = @intCast(i64, screenHeight),
@@ -309,7 +313,7 @@ pub const Window = struct {
 };
 
 pub const Text = struct {
-    texture: *c.SDL_Texture,
+    texture: *sdl.SDL_Texture,
     size: TextSize,
     pub fn measure(
         font: *const Font,
@@ -317,7 +321,7 @@ pub const Text = struct {
     ) ER!TextSize {
         var w: c_int = undefined;
         var h: c_int = undefined;
-        if (c.TTF_SizeUTF8(font.sdlFont, text.ptr, &w, &h) < 0) return ttfError();
+        if (sdl.TTF_SizeUTF8(font.sdlFont, text.ptr, &w, &h) < 0) return ttfError();
         return TextSize{ .w = @intCast(i64, w), .h = @intCast(i64, h) };
     }
     pub fn init(
@@ -327,19 +331,19 @@ pub const Text = struct {
         size: ?TextSize,
         window: *const Window,
     ) ER!Text {
-        var surface = c.TTF_RenderUTF8_Blended(
+        var surface = sdl.TTF_RenderUTF8_Blended(
             font.sdlFont,
             text.ptr,
             colorToSDL(color),
         );
         if (surface == null) return sdlError();
-        defer c.SDL_FreeSurface(surface);
-        var texture = c.SDL_CreateTextureFromSurface(
+        defer sdl.SDL_FreeSurface(surface);
+        var texture = sdl.SDL_CreateTextureFromSurface(
             window.sdlRenderer,
             surface,
         );
         if (texture == null) return sdlError();
-        errdefer c.SDL_DestroyTexture(texture);
+        errdefer sdl.SDL_DestroyTexture(texture);
 
         return Text{
             .texture = texture.?,
@@ -347,16 +351,16 @@ pub const Text = struct {
         };
     }
     pub fn deinit(text: *Text) void {
-        c.SDL_DestroyTexture(text.texture);
+        sdl.SDL_DestroyTexture(text.texture);
     }
     pub fn render(text: *Text, window: *const Window, pos: Point) ER!void {
-        var rect = c.SDL_Rect{
+        var rect = sdl.SDL_Rect{
             .x = @intCast(c_int, pos.x),
             .y = @intCast(c_int, pos.y),
             .w = @intCast(c_int, text.size.w),
             .h = @intCast(c_int, text.size.h),
         };
-        if (c.SDL_RenderCopy(
+        if (sdl.SDL_RenderCopy(
             window.sdlRenderer,
             text.texture,
             null,
@@ -365,8 +369,8 @@ pub const Text = struct {
     }
 };
 
-fn rectToSDL(rect: Rect) c.SDL_Rect {
-    return c.SDL_Rect{
+fn rectToSDL(rect: Rect) sdl.SDL_Rect {
+    return sdl.SDL_Rect{
         .x = @intCast(c_int, rect.x),
         .y = @intCast(c_int, rect.y),
         .w = @intCast(c_int, rect.w),
@@ -376,25 +380,25 @@ fn rectToSDL(rect: Rect) c.SDL_Rect {
 pub fn renderRect(window: *const Window, color: Color, rect: Rect) ER!void {
     if (rect.w == 0 or rect.h == 0) return;
     var sdlRect = rectToSDL(rect);
-    if (c.SDL_SetRenderDrawColor(window.sdlRenderer, color.r, color.g, color.b, color.a) != 0) return sdlError();
-    if (c.SDL_RenderFillRect(window.sdlRenderer, &sdlRect) != 0) return sdlError();
+    if (sdl.SDL_SetRenderDrawColor(window.sdlRenderer, color.r, color.g, color.b, color.a) != 0) return sdlError();
+    if (sdl.SDL_RenderFillRect(window.sdlRenderer, &sdlRect) != 0) return sdlError();
 }
 
 pub fn init() RenderingError!void {
-    if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) return sdlError();
-    errdefer c.SDL_Quit();
+    if (sdl.SDL_Init(sdl.SDL_INIT_VIDEO) < 0) return sdlError();
+    errdefer sdl.SDL_Quit();
 
-    if (c.TTF_Init() < 0) return sdlError();
-    errdefer c.TTF_Quit();
+    if (sdl.TTF_Init() < 0) return sdlError();
+    errdefer sdl.TTF_Quit();
 
-    c.SDL_StartTextInput(); // todo
+    sdl.SDL_StartTextInput(); // todo
 }
 
 pub fn deinit() void {
-    c.TTF_Quit();
-    c.SDL_Quit();
+    sdl.TTF_Quit();
+    sdl.SDL_Quit();
 }
 
 pub fn time() u64 {
-    return c.SDL_GetTicks();
+    return sdl.SDL_GetTicks();
 }
