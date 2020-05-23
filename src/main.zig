@@ -221,7 +221,10 @@ const LineDrawCall = struct {
     textLength: u8,
     font: *const win.Font,
     color: win.Color,
-    bg: ?win.Color, // to allow for rounded corners, backgrounds should probably kept in a sperate BackgroundDrawCall per-line. unfortunately, that means more text measurement because of how text measurement works, so not yet.
+    bg: ?win.Color,
+    // to allow for rounded corners, backgrounds should probably kept in a sperate
+    // BackgroundDrawCall per-line. unfortunately, that means more text measurement
+    // because of how text measurement works, so not yet.
     measure: struct { w: i64, h: i64 },
     x: i64, // y is chosen based on line top, line height, and text baseline
     fn differentStyle(ldc: *LineDrawCall, hlStyle: TextHLStyleReal) bool {
@@ -371,7 +374,9 @@ const TextInfo = struct {
             try ti.addRenderedCharacter(byte, hlStyle);
             _ = ti.characterPositions.pop();
         }
-        try ti.appendCharacterPositionMeasure(0); // uh oh, this means clicking doesn't work properly. it should take the start x position and subtract from the x end position but default to 0 if it goes backwards
+        try ti.appendCharacterPositionMeasure(0);
+        // uh oh, this means clicking doesn't work properly. it should take the start
+        // x position and subtract from the x end position but default to 0 if it goes backwards
     }
     fn addCharacter(ti: *TextInfo, char: u8, charIndex: u64, app: *App) !void {
         var index = ti.characterPositions.items.len;
@@ -394,7 +399,9 @@ const TextInfo = struct {
                 }
             },
             else => if (char == '\n')
-                try ti.addNewlineCharacter() // how does this work with bg styles? make a drawCall from current pos to eol for the style?
+                try ti.addNewlineCharacter()
+                // how does this work with bg styles?
+                // make a drawCall from current pos to eol for the style?
             else
                 try ti.addRenderedCharacter(char, style),
         }
@@ -709,7 +716,8 @@ pub const App = struct {
                     if (app.textChanged) unreachable;
                     var cursor = parser.TreeCursor.init(app.tree.root());
                     defer cursor.deinit();
-                    var node = parser.getNodeAtPosition(i, &cursor); // this is an issue because it means findnode cannot be used after text has been edited
+                    var node = parser.getNodeAtPosition(i, &cursor);
+                    // this is an issue because it means findnode cannot be used after text has been edited
                     var pos = node.position();
                     if (pos.to > i) return pos.to;
 
@@ -732,7 +740,6 @@ pub const App = struct {
     /// measure a single line. do not mesaure if the line has not changed.
     fn measureLine(app: *App, width: i64) !void {}
     fn remeasureText(app: *App, width: i64) !void {
-        // this logic took me way too long to figure out, that's why there is an empty if branch instead of if(!(...)) return
         if (app.textChanged or
             app.textInfo == null or
             app.prevWidth == null or
@@ -741,9 +748,17 @@ pub const App = struct {
         app.prevWidth = width;
 
         // TODO: only update the lines that need to be changed
-        // take given edit positions, search back until the first true line break (= the node class says so), reparse that line until the next true line break
-        // we can keep our own edit data to know what needs changing, and find each line, trash the data, parse again. also, character positions will now be stored in the lines instead of globally so that we don't have to do lots of inserts in the middle. lines will still be an arraylist though, which will obviously be a problem in the future.
-        // if the width changes, that is the worst case. everything has to be remeasured. it is probably possible to optimize it so that things out of screen are not remeasured but flagged as wrong so when they need to be seen they are remeasured (or eg if the cursor needs to move up/down or something)
+        // take given edit positions, search back until the first true line break
+        // (= the node class says so), reparse that line until the next true line break
+        // we can keep our own edit data to know what needs changing, and find each line,
+        // trash the data, parse again. also, character positions will now be stored in
+        // the lines instead of globally so that we don't have to do lots of inserts in
+        // the middle. lines will still be an arraylist though, which will obviously be
+        // a problem in the future.
+        // if the width changes, that is the worst case. everything has to be remeasured.
+        // it is probably possible to optimize it so that things out of screen are not
+        // remeasured but flagged as wrong so when they need to be seen they are
+        // remeasured (or eg if the cursor needs to move up/down or something)
 
         var cursor = parser.TreeCursor.init(app.tree.root());
         defer cursor.deinit();
@@ -923,7 +938,8 @@ pub const App = struct {
         if (!imev.render) return;
 
         // this isn't necessary right now
-        // also it wastes time making and deleting things when you scroll (showing and hiding texts so they get deleted and recreated)
+        // also it wastes time making and deleting things when you scroll
+        // (showing and hiding texts so they get deleted and recreated)
         // try app.textRenderCache.clean();
         // if (showPerformance) std.debug.warn("{} : Text Rendercache Clean\n", .{timer.lap()});
 
@@ -1028,7 +1044,9 @@ pub const App = struct {
                 null,
                 window,
             );
-            defer text.deinit(); // on mac, this deinit seems to cause renders to stop working. is it supposed to be deinited after the frame ends? no idea.
+            defer text.deinit();
+            // on mac, this deinit seems to cause renders to stop working.
+            // is it supposed to be deinited after the frame ends? no idea.
             if (std.builtin.os.tag != .macosx)
                 try text.render(window, .{
                     .x = fullArea.x + fullArea.w - text.size.w,
@@ -1107,7 +1125,8 @@ const UpdateMode = struct {
     guiDisplay: enum { single, double } = .single,
     showRenderCount: bool = false,
     showPerformance: bool = false,
-    resizePin: enum { top, center, bottom } = .top, // when resizing the window, the location of what part of the text should be preserved on screen?
+    resizePin: enum { top, center, bottom } = .top,
+    // when resizing the window, the location of what part of the text should be preserved on screen?
 
     pointlessButtons: PointlessButtons = PointlessButtons{},
     textField: [100]u8 = [_]u8{0} ** 100,
@@ -1337,7 +1356,9 @@ pub fn main() !void {
 
         try mainPage.render(&imev, style, windowSize.xy(0, 0));
 
-        // if (imev.internal.rerender) continue; // new events should not be pushed after a requested rerender. // is this necessary? is there any reason not to push new events after a rerender?
+        // if (imev.internal.rerender) continue;
+        // new events should not be pushed after a requested rerender.
+        // is this necessary? is there any reason not to push new events after a rerender?
         event = window.pollEvent();
         if (event != .empty or imev.internal.rerender) continue;
 
