@@ -1146,9 +1146,13 @@ const UpdateMode = struct {
 const DisplayMode = enum {
     editor,
     gui,
+    window,
     pub const title_editor = "Editor";
     pub const title_gui = "GUI Demo";
+    pub const title_window = "Window Demo";
 };
+
+const WindowDemo = @import("window_demo.zig").WindowDemo;
 
 pub const MainPage = struct {
     // this should not take a style argument
@@ -1163,12 +1167,16 @@ pub const MainPage = struct {
 
         const displayedtr = gui.DataEditor(DisplayMode).init(imev);
 
+        // gui.autoInit(self)?
+        const windowDemo = WindowDemo.init(imev, alloc);
+
         return MainPage{
             .id = imev.newID(),
             .imedtr = imedtr,
             .imedtr2 = imedtr2,
             .app = app,
             .displayedtr = displayedtr,
+            .windowDemo = windowDemo,
         };
     }
     pub fn deinit(page: *MainPage) void {
@@ -1184,6 +1192,7 @@ pub const MainPage = struct {
     imedtr2: gui.DataEditor(UpdateMode),
     app: App,
     displayedtr: gui.DataEditor(DisplayMode),
+    windowDemo: WindowDemo,
 
     updateMode: UpdateMode = UpdateMode{},
     displayMode: DisplayMode = .editor,
@@ -1215,6 +1224,9 @@ pub const MainPage = struct {
                         _ = try imedtr.render(&page.updateMode, style, imev, guiPos);
                     },
                 }
+            },
+            .window => {
+                try page.windowDemo.render(imev, style, currentPos.setY2(pos.h));
             },
         }
     }

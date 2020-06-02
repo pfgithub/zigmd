@@ -282,6 +282,126 @@ test "function" {
     }
 }
 
+/// the stdlib comptime hashmap is only created once and makes a "perfect hash"
+/// so this works I guess.
+///
+/// comptime "hash"map. all accesses and sets are ~~O(1)~~ O(n)
+pub fn ComptimeHashMap(comptime Key: type, comptime Value: type) type {
+    const Item = struct { key: Key, value: Value };
+    return struct {
+        const HM = @This();
+        items: []const Item,
+        pub fn init() HM {
+            return HM{
+                .items = &[_]Item{},
+            };
+        }
+        fn findIndex(comptime hm: HM, comptime key: Key) ?u64 {
+            for (hm.items) |itm, i| {
+                if (Key == []const u8) {
+                    if (std.mem.eql(u8, itm.key, key))
+                        return i;
+                } else if (itm.key == key)
+                    return i;
+            }
+            return null;
+        }
+        pub fn get(comptime hm: HM, comptime key: Key) ?Value {
+            if (hm.findIndex(key)) |indx| return hm.items[indx].value;
+            return null;
+        }
+        pub fn set(comptime hm: *HM, comptime key: Key, comptime value: Value) ?Value {
+            if (hm.findIndex(key)) |prevIndex| {
+                const prev = hm.items[prevIndex].value;
+                // hm.items[prevIndex].value = value; // did you really think it would be that easy?
+                var newItems: [hm.items.len]Item = undefined;
+                for (hm.items) |prevItem, i| {
+                    if (i == prevIndex) {
+                        newItems[i] = Item{ .key = prevItem.key, .value = value };
+                    } else {
+                        newItems[i] = prevItem;
+                    }
+                }
+                hm.items = &newItems;
+                return prev;
+            }
+            hm.items = hm.items ++ &[_]Item{Item{ .key = key, .value = value }};
+            return null;
+        }
+    };
+}
+// this can also be made using memoization and blk:
+pub const TypeIDMap = struct {
+    latestID: u64,
+    hm: ComptimeHashMap(type, u64),
+    infoStrings: []const []const u8,
+    pub fn init() TypeIDMap {
+        return .{
+            .latestID = 0,
+            .hm = ComptimeHashMap(type, u64).init(),
+            .infoStrings = &[_][]const u8{"empty"},
+        };
+    }
+    pub fn get(comptime tidm: *TypeIDMap, comptime Type: type) u64 {
+        if (tidm.hm.get(Type)) |index| return index;
+        tidm.latestID += 1;
+        if (tidm.hm.set(Type, tidm.latestID)) |_| @compileError("never");
+        tidm.infoStrings = tidm.infoStrings ++ &[_][]const u8{@typeName(Type)};
+        // @compileLog("ID", tidm.latestID, "=", Type);
+        return tidm.latestID;
+    }
+};
+/// a pointer to arbitrary data. panics if attempted to be read as the wrong type.
+pub const AnyPtr = comptime blk: {
+    var typeIDMap = TypeIDMap.init();
+    break :blk struct {
+        pointer: usize,
+        typeID: u64,
+        pub fn fromPtr(value: var) AnyPtr {
+            const ti = @typeInfo(@TypeOf(value));
+            if (ti != .Pointer) @compileError("must be *ptr");
+            if (ti.Pointer.size != .One) @compileError("must be ptr to one item");
+            if (ti.Pointer.is_const) @compileError("const not yet allowed");
+            const thisTypeID = comptime typeID(ti.Pointer.child);
+            return .{ .pointer = @ptrToInt(value), .typeID = thisTypeID };
+        }
+        pub fn readAs(any: AnyPtr, comptime RV: type) *RV {
+            const thisTypeID = comptime typeIDMap.get(RV);
+            if (any.typeID != thisTypeID)
+                std.debug.panic(
+                    "\x1b[31mError!\x1b(B\x1b[m Item is of type {}, but was read as type {}.\n",
+                    .{ typeIDMap.infoStrings[any.typeID], typeIDMap.infoStrings[thisTypeID] },
+                );
+            return @intToPtr(*RV, any.pointer);
+        }
+        pub fn typeID(comptime Type: type) u64 {
+            return comptime typeIDMap.get(Type);
+        }
+        fn typeName(any: AnyPtr) []const u8 {
+            return typeIDMap.infoStrings[any.typeID];
+        }
+    };
+};
+
+fn expectEqualStrings(str1: []const u8, str2: []const u8) void {
+    if (std.mem.eql(u8, str1, str2)) return;
+    std.debug.panic("\nExpected `{}`, got `{}`\n", .{ str1, str2 });
+}
+
+test "anyptr" {
+    var number: u32 = 25;
+    var longlonglong: u64 = 25;
+    var anyPtr = AnyPtr.fromPtr(&number);
+    std.testing.expectEqual(AnyPtr.typeID(u32), AnyPtr.typeID(u32));
+    var anyPtrLonglong = AnyPtr.fromPtr(&longlonglong);
+    std.testing.expectEqual(AnyPtr.typeID(u64), AnyPtr.typeID(u64));
+
+    // type names only work after they have been used at least once,
+    // so typeName will probably be broken most of the time.
+    expectEqualStrings("u32", anyPtr.typeName());
+    expectEqualStrings("u64", anyPtrLonglong.typeName());
+}
+
 test "enum array" {
     const Enum = enum { One, Two, Three };
     const EnumArr = EnumArray(Enum, bool);
