@@ -379,7 +379,7 @@ pub const Button = struct {
         const style = settings.style;
         var clickedThisFrame: bool = false;
 
-        if (ev.mouseDown and win.Rect.containsPoint(pos, ev.cursor)) {
+        if (ev.mouseDown and pos.containsPoint(ev.cursor)) {
             ev.takeMouseDown();
             btn.clickStarted = true;
         }

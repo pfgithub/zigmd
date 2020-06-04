@@ -157,6 +157,7 @@ pub const AutoTest = struct {
         title: []const u8,
         body: Component,
         relativePos: win.Rect,
+        dragging: bool = false,
     };
 
     pub fn init(
@@ -211,7 +212,25 @@ pub const AutoTest = struct {
 
             try win.renderRect(imev.window, style.colors.background, windowRect);
 
-            const bodyRect = windowRect.inset(1, 1, 1, 1);
+            // if(imev.mouseDown and windowRect.containsPoint(imev.cursor)) {
+            //     // bring to front
+            //     // can't do this until focus is implemented
+            // }
+
+            const titlebarRect = windowRect.height(25);
+            if (imev.mouseDown and titlebarRect.containsPoint(imev.cursor)) {
+                imev.takeMouseDown(); // temporary until real id-based focus
+                w.dragging = true;
+            }
+            if (w.dragging and imev.mouseUp) {
+                w.dragging = false;
+            }
+            if (w.dragging) {
+                w.relativePos.x += imev.mouseDelta.x;
+                w.relativePos.y += imev.mouseDelta.y;
+            }
+
+            const bodyRect = windowRect.inset(25, 1, 1, 1);
 
             try win.renderRect(imev.window, style.colors.window, bodyRect);
 
