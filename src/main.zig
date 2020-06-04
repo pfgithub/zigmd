@@ -1197,7 +1197,7 @@ pub const MainPage = struct {
     updateMode: UpdateMode = UpdateMode{},
     displayMode: DisplayMode = .editor,
 
-    fn render(page: *MainPage, imev: *gui.ImEvent, style: gui.Style, pos: win.Rect) !void {
+    fn render(page: *MainPage, imev: *gui.ImEvent, style: gui.Style, pos: win.Rect, alloc: *std.mem.Allocator) !void {
         var currentPos: win.TopRect = pos.noHeight().down(5);
 
         var imedtr = &page.imedtr;
@@ -1226,7 +1226,7 @@ pub const MainPage = struct {
                 }
             },
             .window => {
-                try page.windowDemo.render(imev, style, currentPos.setY2(pos.h));
+                try page.windowDemo.render(imev, style, currentPos.setY2(pos.h), alloc);
             },
         }
     }
@@ -1366,7 +1366,7 @@ pub fn main() !void {
         var windowSize = try window.getSize();
         // ===
 
-        try mainPage.render(&imev, style, windowSize.xy(0, 0));
+        try mainPage.render(&imev, style, windowSize.xy(0, 0), alloc);
 
         // if (imev.internal.rerender) continue;
         // new events should not be pushed after a requested rerender.
