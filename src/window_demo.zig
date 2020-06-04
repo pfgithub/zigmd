@@ -211,11 +211,11 @@ pub const AutoTest = struct {
 
             try win.renderRect(imev.window, style.colors.background, windowRect);
 
-            const bodyRect = windowRect.downCut(1).rightCut(1).addWidth(-1).addHeight(-1);
+            const bodyRect = windowRect.inset(1, 1, 1, 1);
 
             try win.renderRect(imev.window, style.colors.window, bodyRect);
 
-            w.body.render(imev, style, bodyRect, alloc);
+            w.body.render(imev, style, bodyRect.inset(4, 4, 4, 4), alloc);
             // handle mod+drag after ("capturing")
             // before = bubbling, after = capturing
         }

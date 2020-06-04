@@ -214,6 +214,9 @@ pub const Rect = struct {
     pub fn noHeight(rect: Rect) TopRect {
         return .{ .x = rect.x, .y = rect.y, .w = rect.w };
     }
+    pub fn inset(rect: Rect, top_: i64, right_: i64, bottom_: i64, left_: i64) Rect {
+        return rect.downCut(top_).rightCut(left_).addWidth(-right_).addHeight(-bottom_);
+    }
 };
 pub const TopRect = struct {
     x: i64,
