@@ -209,7 +209,13 @@ pub const AutoTest = struct {
         for (view.windows.items) |*w| {
             const windowRect = w.relativePos.down(pos.x).right(pos.y);
 
-            w.body.render(imev, style, windowRect, alloc);
+            try win.renderRect(imev.window, style.colors.background, windowRect);
+
+            const bodyRect = windowRect.downCut(1).rightCut(1).addWidth(-1).addHeight(-1);
+
+            try win.renderRect(imev.window, style.colors.window, bodyRect);
+
+            w.body.render(imev, style, bodyRect, alloc);
             // handle mod+drag after ("capturing")
             // before = bubbling, after = capturing
         }
