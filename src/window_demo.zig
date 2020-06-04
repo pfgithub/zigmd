@@ -153,6 +153,7 @@ pub const AutoTest = struct {
     windows: std.ArrayList(Window),
 
     const Window = struct {
+        id: u64,
         auto: Auto,
         title: []const u8,
         body: Component,
@@ -201,6 +202,7 @@ pub const AutoTest = struct {
             var windowTest = alloc.create(WindowTest) catch @panic("oom not handled");
             windowTest.* = WindowTest.init(imev, alloc);
             view.windows.append(.{
+                .id = imev.newID(),
                 .auto = Auto.init(alloc),
                 .title = "Title",
                 .body = .{ .body = &windowTest.windowBody },
@@ -212,14 +214,20 @@ pub const AutoTest = struct {
 
             try win.renderRect(imev.window, style.colors.background, windowRect);
 
+            // if(imev.tabindex(w.id))
+            // that would be interesting
+            // tabindex can be based on ordering
+            // if tab is pressed on a tabindex call with the current id, increment the tab
+            // what do you do if the thing tabbed is closed? where does the tabindex go?
+
             // if(imev.mouseDown and windowRect.containsPoint(imev.cursor)) {
             //     // bring to front
             //     // can't do this until focus is implemented
             // }
 
             const titlebarRect = windowRect.height(25);
-            if (imev.mouseDown and titlebarRect.containsPoint(imev.cursor)) {
-                imev.takeMouseDown(); // temporary until real id-based focus
+            const focus = imev.hover(w.id, windowRect);
+            if (focus != null and imev.click and titlebarRect.containsPoint(imev.cursor)) {
                 w.dragging = true;
             }
             if (w.dragging and imev.mouseUp) {

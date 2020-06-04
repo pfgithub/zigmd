@@ -55,6 +55,7 @@ pub const ImEvent = struct {
         click: bool = false,
         rerender: bool = undefined,
         id: u64 = 0,
+        hover: ?Hover = null,
     };
     internal: Internal = Internal{},
     click: bool = false,
@@ -76,6 +77,52 @@ pub const ImEvent = struct {
     pub fn newID(imev: *ImEvent) u64 {
         imev.internal.id += 1;
         return imev.internal.id;
+    }
+
+    pub const Hover = struct {
+        id: u64,
+        cursorFocus: bool,
+        hover: bool,
+    };
+    pub fn hover(imev: *ImEvent, id: u64, rect: win.Rect) ?Hover {
+        // ok this is wrong
+        // while clicking, hover gets set to true
+        // and then is returned before it has a chance to
+        // be set to false.
+        // there needs to be some next frame stuff happening
+        if (imev.internal.hover) |*chov| {
+            if (chov.id == id) {
+                chov.hover = rect.containsPoint(imev.cursor);
+            } else if (rect.containsPoint(imev.cursor)) {
+                chov.hover = false;
+            }
+        }
+        if (imev.click) {
+            if (imev.internal.hover) |chov| {
+                if (chov.id == id) return chov;
+                return null;
+            }
+            return null;
+        }
+        if (rect.containsPoint(imev.cursor)) {
+            if (imev.internal.hover) |chov| {
+                if (chov.id == id) {
+                    return chov;
+                }
+                if (std.meta.eql(imev.mouseDelta, win.Point{ .x = 0, .y = 0 })) {
+                    return null;
+                }
+            }
+            imev.internal.hover = .{
+                .id = id,
+                .cursorFocus = true,
+                .hover = true,
+            };
+            imev.rerender();
+            return null;
+            // next frame, will be true for the last component that called hover
+        }
+        return null;
     }
 
     pub fn apply(imev: *ImEvent, ev: win.Event, window: *win.Window) void {
@@ -133,14 +180,6 @@ pub const ImEvent = struct {
     }
     pub fn rerender(imev: *ImEvent) void {
         imev.internal.rerender = true;
-    }
-    pub fn takeMouseDown(imev: *ImEvent) void {
-        if (!imev.mouseDown) unreachable;
-        imev.mouseDown = false;
-    }
-    pub fn takeMouseUp(imev: *ImEvent) void {
-        if (!imev.mouseUp) unreachable;
-        imev.mouseUp = false;
     }
 };
 
@@ -338,7 +377,6 @@ pub const ColorInterpolation = Interpolation(win.Color);
 pub const PosInterpolation = Interpolation(i64);
 
 pub const Button = struct {
-    clickStarted: bool = false,
     id: u64,
     text: Text,
     bumpColor: ColorInterpolation,
@@ -371,46 +409,42 @@ pub const Button = struct {
             forceUp: bool = false,
             style: Style,
         },
-        ev: *ImEvent,
+        imev: *ImEvent,
         pos: win.Rect,
     ) !ButtonReturnState {
-        const window = ev.window;
+        const window = imev.window;
 
         const style = settings.style;
         var clickedThisFrame: bool = false;
 
-        if (ev.mouseDown and pos.containsPoint(ev.cursor)) {
-            ev.takeMouseDown();
-            btn.clickStarted = true;
-        }
-        const hover = pos.containsPoint(ev.cursor);
-        if (btn.clickStarted and ev.mouseUp) {
-            btn.clickStarted = false;
-            if (hover) {
-                clickedThisFrame = true;
-            }
+        const m = imev.hover(btn.id, pos);
+        const cursorFocus = if (m) |_| true else false;
+        const hover = cursorFocus and m.?.hover;
+
+        if (imev.mouseUp and cursorFocus and hover) {
+            clickedThisFrame = true;
         }
 
         // no user interaction below this line
-        if (!ev.render) return ButtonReturnState{ .click = clickedThisFrame, .active = btn.clickStarted };
+        if (!imev.render)
+            return ButtonReturnState{ .click = clickedThisFrame, .active = cursorFocus and imev.click };
 
-        const hoveringAny = hover and (btn.clickStarted or clickedThisFrame or !ev.click);
-        if (hoveringAny) window.cursor = .pointer;
+        if (hover) window.cursor = .pointer;
 
-        const down = btn.clickStarted;
+        const down = cursorFocus and imev.click;
 
         const bumpHeight = 4;
-        btn.bumpOffset.set(ev, if (down) 0 else if (settings.active and !settings.forceUp) @as(i64, 2) else @as(i64, 4), timing.EaseIn, .negative);
-        const bumpOffset = btn.bumpOffset.get(ev);
+        btn.bumpOffset.set(imev, if (down) 0 else if (settings.active and !settings.forceUp) @as(i64, 2) else @as(i64, 4), timing.EaseIn, .negative);
+        const bumpOffset = btn.bumpOffset.get(imev);
 
         const buttonPos: win.Rect = pos.addHeight(-bumpHeight).down(bumpHeight - bumpOffset);
         const bumpPos: win.Rect = pos.downCut(pos.h - bumpHeight);
 
-        btn.bumpColor.set(ev, if (settings.active)
+        btn.bumpColor.set(imev, if (settings.active)
             style.gui.button.shadow.active
         else
             style.gui.button.shadow.inactive, timing.Linear, .forward);
-        btn.topColor.set(ev, if (hoveringAny)
+        btn.topColor.set(imev, if (hover)
             if (settings.active)
                 style.gui.button.hover.active
             else
@@ -424,12 +458,12 @@ pub const Button = struct {
         {
             try win.renderRect(
                 window,
-                btn.bumpColor.get(ev),
+                btn.bumpColor.get(imev),
                 bumpPos,
             );
             try win.renderRect(
                 window,
-                btn.topColor.get(ev),
+                btn.topColor.get(imev),
                 buttonPos,
             );
 
@@ -439,12 +473,12 @@ pub const Button = struct {
                     .font = settings.font,
                     .color = style.gui.text,
                 },
-                ev,
+                imev,
                 buttonPos,
             );
         }
 
-        return ButtonReturnState{ .click = clickedThisFrame, .active = btn.clickStarted };
+        return ButtonReturnState{ .click = clickedThisFrame, .active = cursorFocus and imev.click };
     }
 };
 
