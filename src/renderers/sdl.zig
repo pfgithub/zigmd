@@ -231,6 +231,7 @@ pub const Window = struct {
                 .default = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_ARROW).?,
                 .pointer = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_HAND).?,
                 .ibeam = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_IBEAM).?,
+                .move = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_SIZEALL).?,
             }),
             .lastFrame = 0,
         };

@@ -226,8 +226,9 @@ pub const AutoTest = struct {
             // }
 
             const titlebarRect = windowRect.height(25);
-            const hc = imev.hover(w.id, windowRect);
-            if (hc.hover and imev.mouseDown) {
+            const hc = imev.hover(w.id, windowRect); // to prevent clicking through body
+            const tbhc = imev.hover(w.id + 1000000000000, titlebarRect);
+            if (tbhc.hover and imev.mouseDown) {
                 // note while imev.mouseDown is true, hc.click is still false
                 w.dragging = true;
             }
@@ -235,9 +236,9 @@ pub const AutoTest = struct {
                 w.dragging = false;
             }
             if (w.dragging) {
-                // set cursor drag
                 w.relativePos.x += imev.mouseDelta.x;
                 w.relativePos.y += imev.mouseDelta.y;
+                imev.window.cursor = .move;
             }
 
             const bodyRect = windowRect.inset(25, 1, 1, 1);
