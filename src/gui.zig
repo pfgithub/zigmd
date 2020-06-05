@@ -55,7 +55,15 @@ pub const ImEvent = struct {
         click: bool = false,
         rerender: bool = undefined,
         id: u64 = 0,
-        hover: ?Hover = null,
+
+        hoverID: u64 = 0,
+        clickID: u64 = 0,
+        next: Next = Next{},
+
+        const Next = struct {
+            hoverID: u64 = 0,
+            clickID: u64 = 0,
+        };
     };
     internal: Internal = Internal{},
     click: bool = false,
@@ -80,49 +88,26 @@ pub const ImEvent = struct {
     }
 
     pub const Hover = struct {
-        id: u64,
-        cursorFocus: bool,
+        click: bool,
         hover: bool,
     };
-    pub fn hover(imev: *ImEvent, id: u64, rect: win.Rect) ?Hover {
-        // ok this is wrong
-        // while clicking, hover gets set to true
-        // and then is returned before it has a chance to
-        // be set to false.
-        // there needs to be some next frame stuff happening
-        if (imev.internal.hover) |*chov| {
-            if (chov.id == id) {
-                chov.hover = rect.containsPoint(imev.cursor);
-            } else if (rect.containsPoint(imev.cursor)) {
-                chov.hover = false;
-            }
-        }
-        if (imev.click) {
-            if (imev.internal.hover) |chov| {
-                if (chov.id == id) return chov;
-                return null;
-            }
-            return null;
+    pub fn hover(imev: *ImEvent, id: u64, rect: win.Rect) Hover {
+        if (imev.mouseUp) {
+            imev.internal.next.clickID = 0;
         }
         if (rect.containsPoint(imev.cursor)) {
-            if (imev.internal.hover) |chov| {
-                if (chov.id == id) {
-                    return chov;
-                }
-                if (std.meta.eql(imev.mouseDelta, win.Point{ .x = 0, .y = 0 })) {
-                    return null;
-                }
+            imev.internal.next.hoverID = id;
+            if (imev.mouseDown) {
+                imev.internal.next.clickID = id;
             }
-            imev.internal.hover = .{
-                .id = id,
-                .cursorFocus = true,
-                .hover = true,
-            };
-            imev.rerender();
-            return null;
-            // next frame, will be true for the last component that called hover
         }
-        return null;
+        return .{
+            .hover = imev.internal.hoverID == id and if (imev.internal.clickID != 0)
+                imev.internal.hoverID == imev.internal.clickID
+            else
+                true,
+            .click = imev.internal.clickID == id,
+        };
     }
 
     pub fn apply(imev: *ImEvent, ev: win.Event, window: *win.Window) void {
@@ -138,6 +123,17 @@ pub const ImEvent = struct {
         imev.time = win.time();
         imev.window = window;
         imev.scrollDelta = .{ .x = 0, .y = 0 };
+
+        // is this worth it or should it be written manually? // not worth it
+        // inline for (@typeInfo(Internal.Next).Struct.fields) |field| {
+        //     @field(imev.internal, field.name) = @field(imev.internal.next, field.name);
+        //     @field(imev.internal.next, field.name) = 0;
+        // }
+
+        imev.internal.hoverID = imev.internal.next.hoverID;
+        imev.internal.next.hoverID = 0;
+
+        imev.internal.clickID = imev.internal.next.clickID;
 
         const startCursor = imev.cursor;
 
@@ -417,24 +413,25 @@ pub const Button = struct {
         const style = settings.style;
         var clickedThisFrame: bool = false;
 
-        const m = imev.hover(btn.id, pos);
-        const cursorFocus = if (m) |_| true else false;
-        const hover = cursorFocus and m.?.hover;
+        const hoverfocus = imev.hover(btn.id, pos);
+        const hover = hoverfocus.hover;
+        const click = hoverfocus.click;
 
-        if (imev.mouseUp and cursorFocus and hover) {
+        if (imev.mouseUp and hover and click) {
             clickedThisFrame = true;
         }
 
         // no user interaction below this line
         if (!imev.render)
-            return ButtonReturnState{ .click = clickedThisFrame, .active = cursorFocus and imev.click };
+            return ButtonReturnState{
+                .click = clickedThisFrame,
+                .active = click,
+            };
 
         if (hover) window.cursor = .pointer;
 
-        const down = cursorFocus and imev.click;
-
         const bumpHeight = 4;
-        btn.bumpOffset.set(imev, if (down) 0 else if (settings.active and !settings.forceUp) @as(i64, 2) else @as(i64, 4), timing.EaseIn, .negative);
+        btn.bumpOffset.set(imev, if (click) 0 else if (settings.active and !settings.forceUp) @as(i64, 2) else @as(i64, 4), timing.EaseIn, .negative);
         const bumpOffset = btn.bumpOffset.get(imev);
 
         const buttonPos: win.Rect = pos.addHeight(-bumpHeight).down(bumpHeight - bumpOffset);
@@ -478,7 +475,7 @@ pub const Button = struct {
             );
         }
 
-        return ButtonReturnState{ .click = clickedThisFrame, .active = cursorFocus and imev.click };
+        return ButtonReturnState{ .click = clickedThisFrame, .active = click };
     }
 };
 

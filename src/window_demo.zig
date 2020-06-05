@@ -226,14 +226,17 @@ pub const AutoTest = struct {
             // }
 
             const titlebarRect = windowRect.height(25);
-            const focus = imev.hover(w.id, windowRect);
-            if (focus != null and imev.click and titlebarRect.containsPoint(imev.cursor)) {
+            const hc = imev.hover(w.id, windowRect);
+            if (hc.hover and hc.click) {
+                // and hc.mouseDown? because imev.mouseDown will be false on the frame
+                // and true 1 frame later which is bad
                 w.dragging = true;
             }
             if (w.dragging and imev.mouseUp) {
                 w.dragging = false;
             }
             if (w.dragging) {
+                // set cursor drag
                 w.relativePos.x += imev.mouseDelta.x;
                 w.relativePos.y += imev.mouseDelta.y;
             }
