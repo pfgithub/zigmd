@@ -837,7 +837,8 @@ pub const App = struct {
 
         const window = imev.window;
 
-        if (fullArea.containsPoint(imev.cursor)) {
+        const hover = imev.hover(app.id, fullArea).hover;
+        if (hover) {
             window.cursor = .ibeam;
             app.scrollY += -imev.scrollDelta.y;
         }

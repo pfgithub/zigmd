@@ -227,9 +227,8 @@ pub const AutoTest = struct {
 
             const titlebarRect = windowRect.height(25);
             const hc = imev.hover(w.id, windowRect);
-            if (hc.hover and hc.click) {
-                // and hc.mouseDown? because imev.mouseDown will be false on the frame
-                // and true 1 frame later which is bad
+            if (hc.hover and imev.mouseDown) {
+                // note while imev.mouseDown is true, hc.click is still false
                 w.dragging = true;
             }
             if (w.dragging and imev.mouseUp) {

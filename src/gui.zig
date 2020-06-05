@@ -1029,7 +1029,8 @@ pub fn BoolEditor(comptime Bool: type) type {
                 .vcenter,
             );
 
-            const hover = switchPos.containsPoint(ev.cursor);
+            const hc = ev.hover(editor.id, switchPos);
+            const hover = hc.hover;
             const hoveringThis = (hover and !ev.click) or (hover and editor.clicking == .yes);
             var rightOffset = if (!value.*) 0 else switchPos.w - knobSize.w;
             const switchButtonArea = switchPos.width(@divFloor(switchPos.w, 2)).right(if (value.*) @divFloor(switchPos.w, 2) else 0);
