@@ -587,7 +587,7 @@ pub const App = struct {
     textInfo: ?TextInfo,
     prevWidth: ?i64,
     cursorBlinkTime: u64,
-    id: u64,
+    id: gui.ID,
 
     textRenderCache: TextRenderCache,
 
@@ -1187,7 +1187,7 @@ pub const MainPage = struct {
         defer page.displayedtr.deinit();
     }
 
-    id: u64,
+    id: gui.ID,
 
     imedtr: gui.DataEditor(UpdateMode),
     imedtr2: gui.DataEditor(UpdateMode),

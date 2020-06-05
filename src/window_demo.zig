@@ -99,7 +99,7 @@ pub const WindowBody = struct {
 pub const WindowTest = struct {
     windowBody: WindowBody,
 
-    id: u64,
+    id: gui.ID,
     auto: Auto,
 
     pub fn init(
@@ -144,7 +144,7 @@ pub const WindowTest = struct {
 /// but floating works for now (and is really good as a test of
 /// overlapping windows)
 pub const AutoTest = struct {
-    id: u64,
+    id: gui.ID,
     auto: Auto, // each auto call can make its own unique id
     // it would probably be possible to make some kind of comptime
     // auto that stores things without heap allocation
@@ -153,7 +153,7 @@ pub const AutoTest = struct {
     windows: std.ArrayList(Window),
 
     const Window = struct {
-        id: u64,
+        id: gui.ID,
         auto: Auto,
         title: []const u8,
         body: Component,
@@ -227,7 +227,7 @@ pub const AutoTest = struct {
 
             const titlebarRect = windowRect.height(25);
             const hc = imev.hover(w.id, windowRect); // to prevent clicking through body
-            const tbhc = imev.hover(w.id + 1000000000000, titlebarRect);
+            const tbhc = imev.hover(w.id.next(1), titlebarRect);
             if (tbhc.hover and imev.mouseDown) {
                 // note while imev.mouseDown is true, hc.click is still false
                 w.dragging = true;
@@ -253,7 +253,7 @@ pub const AutoTest = struct {
 };
 
 pub const Minesweeper = struct {
-    id: u64,
+    id: gui.ID,
 
     gameState: GameState,
 

@@ -49,12 +49,22 @@ pub const Style = struct {
     },
 };
 
+pub const ID = struct {
+    // lower half is what is updated by .newID()
+    // upper half is used by id.next(count)
+    id: u64 = 0,
+    pub fn next(id: ID, count: u32) ID {
+        if (id.id > std.math.maxInt(u32)) @panic("next used on already next id");
+        return .{ .id = id.id + std.math.maxInt(u32) * count };
+    }
+};
+
 pub const ImEvent = struct {
     const Internal = struct {
         mouseDown: bool = false,
         click: bool = false,
         rerender: bool = undefined,
-        id: u64 = 0,
+        latestAssignedID: u32 = 0,
 
         hoverID: u64 = 0,
         clickID: u64 = 0,
@@ -82,31 +92,31 @@ pub const ImEvent = struct {
     render: bool = false,
     const KeyArr = help.EnumArray(win.Key, bool);
 
-    pub fn newID(imev: *ImEvent) u64 {
-        imev.internal.id += 1;
-        return imev.internal.id;
+    pub fn newID(imev: *ImEvent) ID {
+        imev.internal.latestAssignedID += 1;
+        return .{ .id = imev.internal.latestAssignedID };
     }
 
     pub const Hover = struct {
         click: bool,
         hover: bool,
     };
-    pub fn hover(imev: *ImEvent, id: u64, rect: win.Rect) Hover {
+    pub fn hover(imev: *ImEvent, id: ID, rect: win.Rect) Hover {
         if (imev.mouseUp) {
             imev.internal.next.clickID = 0;
         }
         if (rect.containsPoint(imev.cursor)) {
-            imev.internal.next.hoverID = id;
+            imev.internal.next.hoverID = id.id;
             if (imev.mouseDown) {
-                imev.internal.next.clickID = id;
+                imev.internal.next.clickID = id.id;
             }
         }
         return .{
-            .hover = imev.internal.hoverID == id and if (imev.internal.clickID != 0)
+            .hover = imev.internal.hoverID == id.id and if (imev.internal.clickID != 0)
                 imev.internal.hoverID == imev.internal.clickID
             else
                 true,
-            .click = imev.internal.clickID == id,
+            .click = imev.internal.clickID == id.id,
         };
     }
 
@@ -181,7 +191,7 @@ pub const ImEvent = struct {
 
 // caching text
 pub const Text = struct {
-    id: u64,
+    id: ID,
     text: ?struct {
         hash: u32, // std.hash.autoHash("text")
         text: win.Text,
@@ -373,7 +383,7 @@ pub const ColorInterpolation = Interpolation(win.Color);
 pub const PosInterpolation = Interpolation(i64);
 
 pub const Button = struct {
-    id: u64,
+    id: ID,
     text: Text,
     bumpColor: ColorInterpolation,
     topColor: ColorInterpolation,
@@ -524,7 +534,7 @@ fn StructEditor(comptime Struct: type) type {
 
     return struct {
         const Editor = @This();
-        id: u64,
+        id: ID,
         data: DataStruct,
         pub const isInline = false;
         pub fn init(ev: *ImEvent) Editor {
@@ -669,7 +679,7 @@ fn UnionEditor(comptime Union: type) type {
 
     return struct {
         const Editor = @This();
-        id: u64,
+        id: ID,
         enumEditor: DataEditor(Enum),
         selectedUnionEditor: ?struct { choice: Enum, editor: ModeData },
         deselectedUnionData: [typeInfo.fields.len]Union, // storage for if you enter some data and select a different union choice so when you go back, your data is still there
@@ -778,7 +788,7 @@ fn EnumEditor(comptime Enum: type) type {
     if (typeInfo.fields.len == 0) unreachable;
     return struct {
         const Editor = @This();
-        id: u64,
+        id: ID,
         dropdownMenuShow: Button,
         buttonData: [typeInfo.fields.len]Button,
         consideringChange: ?Enum = null,
@@ -890,7 +900,7 @@ pub fn StringEditor(comptime RawData: type) type {
 
     return struct {
         const Editor = @This();
-        id: u64,
+        id: ID,
         text: Text,
         pub const isInline = true;
         pub fn init(ev: *ImEvent) Editor {
@@ -960,7 +970,7 @@ pub fn VoidEditor(comptime Ignore: type) type {
 pub fn UnsupportedEditor(comptime Ignore: type) type {
     return struct {
         const Editor = @This();
-        id: u64,
+        id: ID,
         text: Text,
         pub const isInline = true;
         pub fn init(ev: *ImEvent) Editor {
@@ -992,7 +1002,7 @@ pub fn UnsupportedEditor(comptime Ignore: type) type {
 pub fn BoolEditor(comptime Bool: type) type {
     return struct {
         const Editor = @This();
-        id: u64,
+        id: ID,
         rightOffset: PosInterpolation,
         clicking: union(enum) { no: void, yes: struct { start: usize, moved: bool } },
         buttonColor: ColorInterpolation,
