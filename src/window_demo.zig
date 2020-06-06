@@ -230,6 +230,10 @@ pub const AutoTest = struct {
             const tbhc = imev.hover(w.id.next(1), titlebarRect);
             if (tbhc.hover and imev.mouseDown) {
                 // note while imev.mouseDown is true, hc.click is still false
+                // that might be a problem if eg something above uses right click
+                // only so hover is true and mouseDown is true (right click) but next
+                // frame hover will be false because the thing above stole it with its
+                // right click takeover thing
                 w.dragging = true;
             }
             if (w.dragging and imev.mouseUp) {
