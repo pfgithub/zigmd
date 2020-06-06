@@ -272,6 +272,14 @@ pub const Window = struct {
             sdl.SDL_RenderSetClipRect(window.sdlRenderer, null);
     }
 
+    pub fn clippingRectangle(window: *Window) ?Rect {
+        return if (window.clippingRectangles.items.len >= 1)
+            window.clippingRectangles.items[window.clippingRectangles.items.len - 1]
+            // stdlib really needs a way to get the last item from an arraylist
+        else
+            null;
+    }
+
     pub fn waitEvent(window: *Window) ER!Event {
         var event: sdl.SDL_Event = undefined;
         if (sdl.SDL_WaitEvent(&event) != 1) return sdlError();

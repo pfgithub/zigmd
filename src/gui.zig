@@ -101,10 +101,11 @@ pub const ImEvent = struct {
         click: bool,
         hover: bool,
     };
-    pub fn hover(imev: *ImEvent, id: ID, rect: win.Rect) Hover {
+    pub fn hover(imev: *ImEvent, id: ID, rect_: win.Rect) Hover {
         if (imev.mouseUp) {
             imev.internal.next.clickID = 0;
         }
+        const rect = if (imev.window.clippingRectangle()) |cr| rect_.overlap(cr) else rect_;
         if (rect.containsPoint(imev.cursor)) {
             imev.internal.next.hoverID = id.id;
             if (imev.mouseDown) {
@@ -924,7 +925,7 @@ pub fn StringEditor(comptime RawData: type) type {
             const textEntryArea = area.addHeight(-4);
             const belowTextArea = area.downCut(area.h - 4);
 
-            const hover = area.containsPoint(ev.cursor) and !ev.click;
+            const hover = ev.hover(editor.id, area);
             if (hover) {
                 window.cursor = .ibeam;
             }
