@@ -266,7 +266,7 @@ pub const Window = struct {
         _ = if (window.clippingRectangles.items.len >= 1)
             sdl.SDL_RenderSetClipRect(
                 window.sdlRenderer,
-                &rectToSDL(window.clippingRectangles.pop()),
+                &rectToSDL(window.clippingRectangles.items[window.clippingRectangles.items.len - 1]),
             )
         else
             sdl.SDL_RenderSetClipRect(window.sdlRenderer, null);

@@ -158,7 +158,6 @@ pub const AutoTest = struct {
         title: []const u8,
         body: Component,
         relativePos: win.Rect,
-        dragging: bool = false,
     };
 
     pub fn init(
@@ -226,30 +225,34 @@ pub const AutoTest = struct {
             // }
 
             const titlebarRect = windowRect.height(25);
+            const resizeRect = windowRect.position(.{ .w = 25, .h = 25 }, .right, .bottom);
+            // obviously I want resize to be a few pixels off the edges eventually
+            // 10 px seems to work pretty well for windowsystem.pfg.pw
+            // also I want an alt+rmb drag or something
             const hc = imev.hover(w.id, windowRect); // to prevent clicking through body
             const tbhc = imev.hover(w.id.next(1), titlebarRect);
-            if (tbhc.hover and imev.mouseDown) {
-                // note while imev.mouseDown is true, hc.click is still false
-                // that might be a problem if eg something above uses right click
-                // only so hover is true and mouseDown is true (right click) but next
-                // frame hover will be false because the thing above stole it with its
-                // right click takeover thing
-                w.dragging = true;
-            }
-            if (w.dragging and imev.mouseUp) {
-                w.dragging = false;
-            }
-            if (w.dragging) {
+            if (tbhc.click) {
                 w.relativePos.x += imev.mouseDelta.x;
                 w.relativePos.y += imev.mouseDelta.y;
                 imev.window.cursor = .move;
             }
 
             const bodyRect = windowRect.inset(25, 1, 1, 1);
-
             try win.renderRect(imev.window, style.colors.window, bodyRect);
 
-            w.body.render(imev, style, bodyRect.inset(4, 4, 4, 4), alloc);
+            {
+                try imev.window.pushClipRect(bodyRect);
+                defer imev.window.popClipRect();
+                w.body.render(imev, style, bodyRect, alloc);
+            }
+
+            const rshc = imev.hover(w.id.next(2), resizeRect);
+            try win.renderRect(imev.window, style.colors.background, resizeRect);
+            if (rshc.click) {
+                w.relativePos.w += imev.mouseDelta.x;
+                w.relativePos.h += imev.mouseDelta.y;
+                imev.window.cursor = .move;
+            }
             // handle mod+drag after ("capturing")
             // before = bubbling, after = capturing
         }

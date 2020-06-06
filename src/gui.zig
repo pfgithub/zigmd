@@ -50,12 +50,12 @@ pub const Style = struct {
 };
 
 pub const ID = struct {
-    // lower half is what is updated by .newID()
-    // upper half is used by id.next(count)
+    // lower 48 is what is updated by .newID()
+    // upper 16 is used by id.next(count)
     id: u64 = 0,
-    pub fn next(id: ID, count: u32) ID {
-        if (id.id > std.math.maxInt(u32)) @panic("next used on already next id");
-        return .{ .id = id.id + std.math.maxInt(u32) * count };
+    pub fn next(id: ID, count: u16) ID {
+        if (id.id > std.math.maxInt(u48)) @panic("next used on already next id");
+        return .{ .id = id.id + std.math.maxInt(u48) * @as(u64, count) };
     }
 };
 
