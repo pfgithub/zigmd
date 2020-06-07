@@ -1214,13 +1214,19 @@ pub fn ScrollView(comptime Child: type) type {
             // instead it keeps scrolling the thing you were scrolling until
             // it has been a few hundred ms.
 
-            me.scrollY += imev.scroll(me.auto.id, pos).y;
-
             me.scrollYAnim.set(imev, me.scrollY, timing.EaseIn, .reverse);
             const visualScrollY = me.scrollYAnim.get(imev);
-            var updPos = pos.noHeight().down(visualScrollY);
+            var updPos = pos.noHeight().down(-visualScrollY);
 
             var resHeight = try @call(.{}, me.child.render, childArgs ++ .{ style, imev, updPos });
+
+            const scrollDistance = imev.scroll(me.auto.id, pos).y;
+            me.scrollY -= scrollDistance;
+            if (me.scrollY > resHeight.h - lineHeight) me.scrollY = resHeight.h - lineHeight;
+            if (me.scrollY < 0) me.scrollY = 0;
+
+            if (scrollDistance != 0)
+                imev.rerender();
         }
     };
 }
