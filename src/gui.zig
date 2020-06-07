@@ -70,7 +70,7 @@ pub const ImEvent = struct {
         hoverID: u64 = 0,
         clickID: u64 = 0,
         scrollID: u64 = 0,
-        scrollUpdated: u64 = 0,
+        prevScrollDelta: win.Point = undefined,
         next: Next = Next{},
 
         const Next = struct {
@@ -91,7 +91,7 @@ pub const ImEvent = struct {
     textInput: ?win.Event.TextInput = undefined,
     time: u64 = undefined,
     animationEnabled: bool = false,
-    scrollDelta: win.Point = undefined,
+    scrollDelta: win.Point = win.Point{ .x = 0, .y = 0 },
     // unfortunately, sdl scrolling is really bad. numbers are completely random and useless,
     // and it only scrolls by whole ticks. this is one of the places raylib is better.
     window: *win.Window = undefined,
@@ -128,18 +128,17 @@ pub const ImEvent = struct {
     }
     pub fn scroll(imev: *ImEvent, id: ID, rect_: win.Rect) win.Point {
         const rect = if (imev.window.clippingRectangle()) |cr| rect_.overlap(cr) else rect_;
-        if (!std.meta.eql(imev.scrollDelta, win.Point{ .x = 0, .y = 0 }))
-            imev.internal.scrollUpdated = imev.time;
-        if (imev.internal.scrollID == 0 or
-            !std.meta.eql(imev.mouseDelta, win.Point{ .x = 0, .y = 0 }) or
-            imev.time > imev.internal.scrollUpdated + 300)
-        {
-            if (rect.containsPoint(imev.cursor)) {
+        // overview:
+        // - if scrolled:
+        if (!std.meta.eql(imev.scrollDelta, win.Point.origin)) {
+            if (rect.containsPoint(imev.cursor))
                 imev.internal.next.scrollID = id.id;
-            }
+            // there needs to be some way to keep the current scroll id if:
+            //      the last scroll was <300ms ago
+            // and  the last scroll is still under the cursor
         }
         if (imev.internal.scrollID == id.id) {
-            return imev.scrollDelta;
+            return imev.internal.prevScrollDelta;
         }
         return .{ .x = 0, .y = 0 };
     }
@@ -156,6 +155,7 @@ pub const ImEvent = struct {
         imev.textInput = null;
         imev.time = win.time();
         imev.window = window;
+        imev.internal.prevScrollDelta = imev.scrollDelta;
         imev.scrollDelta = .{ .x = 0, .y = 0 };
 
         // is this worth it or should it be written manually? // not worth it
@@ -170,6 +170,7 @@ pub const ImEvent = struct {
         imev.internal.clickID = imev.internal.next.clickID;
 
         imev.internal.scrollID = imev.internal.next.scrollID;
+        imev.internal.next.scrollID = 0;
 
         const startCursor = imev.cursor;
 

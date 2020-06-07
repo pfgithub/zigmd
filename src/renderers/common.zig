@@ -107,6 +107,7 @@ pub const TextSize = struct {
 pub const Point = struct {
     x: i64,
     y: i64,
+    pub const origin = Point{ .x = 0, .y = 0 };
 };
 pub const WH = struct {
     w: i64,

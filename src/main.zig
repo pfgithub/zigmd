@@ -841,8 +841,8 @@ pub const App = struct {
         const hover = imev.hover(app.id, fullArea).hover;
         if (hover) {
             window.cursor = .ibeam;
-            app.scrollY += -imev.scrollDelta.y;
         }
+        app.scrollY += -imev.scroll(app.id, fullArea).y;
 
         app.scrollYAnim.set(imev, app.scrollY, gui.timing.EaseIn, .reverse);
         const scrollY = app.scrollYAnim.get(imev); // app.scrollAnimationEnabled ? scrollYAnim.get : app.scrollY
