@@ -1164,12 +1164,12 @@ pub const MainPage = struct {
         });
     }
     pub fn deinit(page: *MainPage) void {
-        Auto.destroy(page, .{ .imedtr, .imedtr2, .app, .displayedtr });
+        Auto.destroy(page, .{ .imedtrscrll, .imedtr2, .app, .displayedtr });
     }
 
     auto: Auto,
 
-    imedtr: gui.DataEditor(UpdateMode),
+    imedtrscrll: gui.ScrollView(gui.DataEditor(UpdateMode)),
     imedtr2: gui.DataEditor(UpdateMode),
     app: App,
     displayedtr: gui.DataEditor(DisplayMode),
@@ -1181,7 +1181,7 @@ pub const MainPage = struct {
     fn render(page: *MainPage, imev: *gui.ImEvent, style: gui.Style, pos: win.Rect, alloc: *std.mem.Allocator) !void {
         var currentPos: win.TopRect = pos.noHeight().down(5);
 
-        var imedtr = &page.imedtr;
+        var imedtrscrll = &page.imedtrscrll;
         var imedtr2 = &page.imedtr2;
         var app = &page.app;
         var displayedtr = &page.displayedtr;
@@ -1198,11 +1198,11 @@ pub const MainPage = struct {
                 switch (page.updateMode.guiDisplay) {
                     .double => {
                         const cx = currentPos.centerX();
-                        _ = try imedtr.render(&page.updateMode, style, imev, guiPos.setX2(cx - 20));
+                        _ = try imedtrscrll.render(.{&page.updateMode}, style, imev, guiPos.setX2(cx - 20).setY2(pos.h));
                         _ = try imedtr2.render(&page.updateMode, style, imev, guiPos.rightCut(cx + 20));
                     },
                     .single => {
-                        _ = try imedtr.render(&page.updateMode, style, imev, guiPos);
+                        _ = try imedtrscrll.render(.{&page.updateMode}, style, imev, guiPos.setY2(pos.h));
                     },
                 }
             },

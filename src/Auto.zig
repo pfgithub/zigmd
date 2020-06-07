@@ -52,6 +52,19 @@ const ImevInitAllocHeader = struct {
     pub const __h_ALLOW_EXTRA = true;
 };
 
+pub fn autoInitAnyThing(comptime Thing: type, event: *gui.ImEvent, alloc: *std.mem.Allocator) Thing {
+    return if (comptime header_match.conformsToBool(AutoInitHeader, Thing))
+        Thing.autoInit(event, alloc)
+    else if (comptime header_match.conformsToBool(ImevInitHeader, Thing))
+        Thing.init(event)
+    else if (comptime header_match.conformsToBool(ImevInitAllocHeader, Thing))
+        Thing.init(event, alloc)
+    else {
+        // comptime header_match.conformsTo(AutoInitHeader, curfld.field_type);
+        @compileError("Field `" ++ curfld.name ++ "` was not initialized.");
+    };
+}
+
 pub fn create(
     comptime Container: type,
     event: *gui.ImEvent,
@@ -77,16 +90,7 @@ pub fn create(
             @field(result, curfld.name) = defltv;
             continue;
         }
-        if (comptime header_match.conformsToBool(AutoInitHeader, curfld.field_type))
-            @field(result, curfld.name) = curfld.field_type.autoInit(event, alloc)
-        else if (comptime header_match.conformsToBool(ImevInitHeader, curfld.field_type))
-            @field(result, curfld.name) = curfld.field_type.init(event)
-        else if (comptime header_match.conformsToBool(ImevInitAllocHeader, curfld.field_type))
-            @field(result, curfld.name) = curfld.field_type.init(event, alloc)
-        else {
-            // comptime header_match.conformsTo(AutoInitHeader, curfld.field_type);
-            @compileError("Field `" ++ curfld.name ++ "` was not initialized.");
-        }
+        @field(result, curfld.name) = autoInitAnyThing(curfld.field_type, event, alloc);
     }
 
     return result;

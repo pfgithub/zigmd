@@ -1164,12 +1164,10 @@ pub fn ScrollView(comptime Child: type) type {
         child: Child,
 
         scrollY: i64 = 0,
-        scrollYAnim: gui.PosInterpolation,
+        scrollYAnim: PosInterpolation,
 
-        pub fn init(ev: *ImEvent, child: Child, alloc: *std.mem.Allocator) Me {
-            return Auto.create(Me, ev, alloc, .{
-                .child = child,
-            });
+        pub fn init(ev: *ImEvent, alloc: *std.mem.Allocator) Me {
+            return Auto.create(Me, ev, alloc, .{});
         }
 
         pub fn autoDeinit(me: *Me) void {
@@ -1183,9 +1181,18 @@ pub fn ScrollView(comptime Child: type) type {
             imev: *ImEvent,
             pos: win.Rect,
         ) !void {
-            me.scrollYAnim.set(imev, app.scrollY, gui.timing.EaseIn, .reverse);
+            try imev.window.pushClipRect(pos);
+            defer imev.window.popClipRect();
+
+            // scroll will need a timeout so if you are just scrolling you
+            // don't get to another scrollview and immediately start scrolling it
+            // instead it keeps scrolling the thing you were scrolling until
+            // it has been a few hundred ms.
+
+            me.scrollYAnim.set(imev, me.scrollY, timing.EaseIn, .reverse);
             const visualScrollY = me.scrollYAnim.get(imev);
-            try @call(me.child.autoRender, childArgs ++ .{pos.noHeight().down(visualScrollY)});
+            var updPos = pos.noHeight().down(visualScrollY);
+            var resHeight = try @call(.{}, me.child.render, childArgs ++ .{ style, imev, updPos });
         }
     };
 }
