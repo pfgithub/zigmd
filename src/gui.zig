@@ -1,6 +1,7 @@
 const std = @import("std");
-const win = @import("./render.zig");
-const help = @import("./helpers.zig");
+const win = @import("render.zig");
+const help = @import("helpers.zig");
+const Auto = @import("Auto.zig");
 
 pub const Style = struct {
     colors: struct {
@@ -316,6 +317,9 @@ pub fn Interpolation(comptime Kind: type) type {
 
         pub fn init(transitionDuration: u64) Interp {
             return .{ .transitionDuration = transitionDuration, .value = .unset };
+        }
+        pub fn autoInit(event: *ImEvent, alloc: *std.mem.Allocator) Interp {
+            return init(100); // maybe transitionDuration should be a comptime arg to the type
         }
         pub fn teleport(cinterp: *Interp, imev: *ImEvent, nv: Kind, timingFunction: TimingFunction, easeMode: EaseMode) void {
             if (cinterp.value.started.exact == null)
@@ -1130,10 +1134,6 @@ pub const EditorHeader = struct {
     }
 };
 
-// unioneditor is more difficult
-// tabs at the top
-// needs to keep data for each tab if you switch tabs and switch back
-
 pub fn DataEditor(comptime Data: type) type {
     const typeInfo = @typeInfo(Data);
     return switch (typeInfo) {
@@ -1149,4 +1149,43 @@ pub fn DataEditor(comptime Data: type) type {
     };
 }
 
-// eg StructEditor(enum {One, Two}) shows a select switch for one or two
+// to help with this, lots of optimization can be done in child components
+// eg don't render if out of view. maybe don't even do any processing unless
+// in view. that would make global "find" methods harder though, find would
+// be pretty "simple" if text is always at least processed. that doesn't
+// matter though.
+
+/// child must have an autoDeinit fn.
+pub fn ScrollView(comptime Child: type) type {
+    return struct {
+        const Me = @This();
+
+        auto: Auto,
+        child: Child,
+
+        scrollY: i64 = 0,
+        scrollYAnim: gui.PosInterpolation,
+
+        pub fn init(ev: *ImEvent, child: Child, alloc: *std.mem.Allocator) Me {
+            return Auto.create(Me, ev, alloc, .{
+                .child = child,
+            });
+        }
+
+        pub fn autoDeinit(me: *Me) void {
+            Auto.destroy(me, .{ .auto, .child });
+        }
+
+        pub fn render(
+            me: *Me,
+            childArgs: var,
+            style: Style,
+            ev: *ImEvent,
+            pos: win.Rect,
+        ) !void {
+            me.scrollYAnim.set(imev, app.scrollY, gui.timing.EaseIn, .reverse);
+            const visualScrollY = me.scrollYAnim.get(imev);
+            try @call(me.child.autoRender, childArgs ++ .{pos.noHeight().down(visualScrollY)});
+        }
+    };
+}

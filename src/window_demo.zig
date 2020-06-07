@@ -3,55 +3,9 @@ const std = @import("std");
 const help = @import("helpers.zig");
 const gui = @import("gui.zig");
 const win = @import("render.zig");
+const Auto = @import("Auto.zig");
 
 pub const WindowDemo = AutoTest;
-
-/// now we're just making react but in zig
-pub const Auto = struct {
-    alloc: *std.mem.Allocator,
-    items: ItemsMap,
-
-    const ItemsMap = std.AutoHashMap(u64, struct { value: help.AnyPtr, deinit: DeinitFn });
-    const DeinitFn = fn (value: help.AnyPtr) void;
-
-    pub fn init(alloc: *std.mem.Allocator) Auto {
-        return .{
-            .alloc = alloc,
-            .items = ItemsMap.init(alloc),
-        };
-    }
-
-    pub fn deinit(auto: *Auto) void {
-        var it = auto.items.iterator();
-        while (it.next()) |next| {
-            next.value.deinit(next.value.value);
-            // since value is not comptime known, it needs a deinit fn
-        }
-        auto.items.deinit();
-    }
-
-    /// something must be a unique type every time otherwise the wrong id will be made!
-    /// don't use this in a loop (todo support loops)
-    pub fn new(auto: *Auto, initmethod: var, args: var) *@typeInfo(@TypeOf(initmethod)).Fn.return_type.? {
-        const Type = @typeInfo(@TypeOf(initmethod)).Fn.return_type.?;
-        const uniqueID = help.AnyPtr.typeID(struct {});
-        if (auto.items.getValue(uniqueID)) |v| return v.value.readAs(Type);
-        const allocated = auto.alloc.create(Type) catch @panic("oom not handled");
-        const deinitfn: DeinitFn = struct {
-            fn f(value: help.AnyPtr) void {
-                value.readAs(Type).deinit();
-            }
-        }.f;
-        allocated.* = @call(.{}, initmethod, args);
-        if (auto.items.put(
-            uniqueID,
-            .{ .deinit = deinitfn, .value = help.AnyPtr.fromPtr(allocated) },
-        ) catch @panic("oom not handled")) |_| @panic("duplicate insert (never)");
-        return allocated;
-    }
-
-    // pub fn memo() yeah this is just react
-};
 
 pub const Component = struct {
     body: *WindowBody,
@@ -98,23 +52,19 @@ pub const WindowBody = struct {
 
 pub const WindowTest = struct {
     windowBody: WindowBody,
-
-    id: gui.ID,
     auto: Auto,
 
     pub fn init(
         imev: *gui.ImEvent,
         alloc: *std.mem.Allocator,
     ) WindowTest {
-        return .{
+        return Auto.create(WindowTest, imev, alloc, .{
             .windowBody = WindowBody.from(WindowTest, "windowBody"),
-            .id = imev.newID(),
-            .auto = Auto.init(alloc),
-        };
+        });
     }
 
     pub fn deinit(body: *WindowTest) void {
-        body.auto.deinit();
+        Auto.destroy(body, .{.auto});
     }
 
     pub fn render(
@@ -133,7 +83,7 @@ pub const WindowTest = struct {
             pos.position(.{ .w = 100, .h = 25 }, .hcenter, .vcenter),
         ) catch @panic("not handled");
         if (clicked.click) {
-            std.debug.warn("demo {}\n", .{body.id});
+            std.debug.warn("demo {}\n", .{body.auto.id});
         }
     }
 };
@@ -144,16 +94,10 @@ pub const WindowTest = struct {
 /// but floating works for now (and is really good as a test of
 /// overlapping windows)
 pub const AutoTest = struct {
-    id: gui.ID,
-    auto: Auto, // each auto call can make its own unique id
-    // it would probably be possible to make some kind of comptime
-    // auto that stores things without heap allocation
-    // not doing that yet.
-
+    auto: Auto,
     windows: std.ArrayList(Window),
 
     const Window = struct {
-        id: gui.ID,
         auto: Auto,
         title: []const u8,
         body: Component,
@@ -164,21 +108,16 @@ pub const AutoTest = struct {
         imev: *gui.ImEvent,
         alloc: *std.mem.Allocator,
     ) AutoTest {
-        return .{
-            .id = imev.newID(),
-            .auto = Auto.init(alloc),
-
+        return Auto.create(AutoTest, imev, alloc, .{
             .windows = std.ArrayList(Window).init(alloc),
-        };
+        });
     }
     pub fn deinit(view: *AutoTest) void {
         for (view.windows) |*w| {
-            w.auto.deinit();
-            w.body.deinit();
+            Auto.destroy(w, .{ .auto, .body });
         }
         view.windows.deinit();
-        view.auto.deinit();
-        view.* = undefined; // is this a thing that can be done?
+        Auto.destroy(view, .{.auto});
     }
 
     pub fn render(
@@ -200,13 +139,13 @@ pub const AutoTest = struct {
         if (clicked.click) {
             var windowTest = alloc.create(WindowTest) catch @panic("oom not handled");
             windowTest.* = WindowTest.init(imev, alloc);
-            view.windows.append(.{
-                .id = imev.newID(),
-                .auto = Auto.init(alloc),
+            var windowBody = &windowTest.windowBody;
+            var component: Component = .{ .body = windowBody };
+            view.windows.append(Auto.create(Window, imev, alloc, .{
                 .title = "Title",
-                .body = .{ .body = &windowTest.windowBody },
+                .body = component,
                 .relativePos = .{ .x = 100, .y = 100, .w = 500, .h = 500 },
-            }) catch @panic("oom not handled");
+            })) catch @panic("oom not handled");
         }
         for (view.windows.items) |*w| {
             const windowRect = w.relativePos.down(pos.x).right(pos.y);
@@ -229,8 +168,8 @@ pub const AutoTest = struct {
             // obviously I want resize to be a few pixels off the edges eventually
             // 10 px seems to work pretty well for windowsystem.pfg.pw
             // also I want an alt+rmb drag or something
-            const hc = imev.hover(w.id, windowRect); // to prevent clicking through body
-            const tbhc = imev.hover(w.id.next(1), titlebarRect);
+            const hc = imev.hover(w.auto.id, windowRect); // to prevent clicking through body
+            const tbhc = imev.hover(w.auto.id.next(1), titlebarRect);
             if (tbhc.click) {
                 w.relativePos.x += imev.mouseDelta.x;
                 w.relativePos.y += imev.mouseDelta.y;
@@ -246,7 +185,7 @@ pub const AutoTest = struct {
                 w.body.render(imev, style, bodyRect, alloc);
             }
 
-            const rshc = imev.hover(w.id.next(2), resizeRect);
+            const rshc = imev.hover(w.auto.id.next(2), resizeRect);
             try win.renderRect(imev.window, style.colors.background, resizeRect);
             if (rshc.click) {
                 w.relativePos.w += imev.mouseDelta.x;
@@ -260,8 +199,6 @@ pub const AutoTest = struct {
 };
 
 pub const Minesweeper = struct {
-    id: gui.ID,
-
     gameState: GameState,
 
     const GameState = union(enum) {

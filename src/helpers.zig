@@ -388,6 +388,58 @@ fn expectEqualStrings(str1: []const u8, str2: []const u8) void {
     std.debug.panic("\nExpected `{}`, got `{}`\n", .{ str1, str2 });
 }
 
+pub fn fixedCoerce(comptime Container: type, asl: var) Container {
+    if (@typeInfo(@TypeOf(asl)) != .Struct) {
+        return @as(Container, asl);
+    }
+    if (@TypeOf(asl) == Container) {
+        return asl;
+    }
+    var result: Container = undefined;
+    switch (@typeInfo(Container)) {
+        .Struct => |ti| {
+            comptime var setFields: [ti.fields.len]bool = [_]bool{false} ** ti.fields.len;
+            inline for (@typeInfo(@TypeOf(asl)).Struct.fields) |rmfld| {
+                comptime const i = for (ti.fields) |fld, i| {
+                    if (std.mem.eql(u8, fld.name, rmfld.name)) break i;
+                } else @compileError("Field " ++ rmfld.name ++ " is not in " ++ @typeName(Container));
+                comptime setFields[i] = true;
+                const field = ti.fields[i];
+                @field(result, rmfld.name) = fixedCoerce(field.field_type, @field(asl, field.name));
+            }
+            comptime for (setFields) |bol, i| if (!bol) {
+                comptime const field = ti.fields[i];
+                if (field.default_value) |defv|
+                    @field(result, field.name) = defv
+                else
+                    @compileError("Did not set field " ++ field.name);
+            };
+        },
+        .Enum => @compileError("enum niy"),
+        else => @compileError("cannot coerce anon struct literal to " ++ @typeName(Container)),
+    }
+    return result;
+}
+
+test "fixedCoerce" {
+    const SomeValue = struct { b: u32 = 4, a: u16 };
+    const OtherValue = struct { a: u16, b: u32 = 4 };
+    std.testing.expectEqual(SomeValue{ .a = 5, .b = 4 }, fixedCoerce(SomeValue, .{ .a = 5 }));
+    std.testing.expectEqual(SomeValue{ .a = 5, .b = 10 }, fixedCoerce(SomeValue, .{ .a = 5, .b = 10 }));
+    std.testing.expectEqual(@as(u32, 25), fixedCoerce(u32, 25));
+    std.testing.expectEqual(SomeValue{ .a = 5 }, SomeValue{ .a = 5 });
+
+    // should fail:
+    // unfortunately, since there is no way of detecting anon literals vs real structs, this may not be possible
+    // *: maybe check if @TypeOf(&@as(@TypeOf(asl)).someField) is const? idk. that is a bug though
+    //    that may be fixed in the future.
+    std.testing.expectEqual(SomeValue{ .a = 5 }, fixedCoerce(SomeValue, OtherValue{ .a = 5 }));
+
+    const InnerStruct = struct { b: u16 };
+    const DoubleStruct = struct { a: InnerStruct };
+    std.testing.expectEqual(DoubleStruct{ .a = InnerStruct{ .b = 10 } }, fixedCoerce(DoubleStruct, .{ .a = .{ .b = 10 } }));
+}
+
 test "anyptr" {
     var number: u32 = 25;
     var longlonglong: u64 = 25;
