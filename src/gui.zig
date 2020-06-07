@@ -69,11 +69,14 @@ pub const ImEvent = struct {
 
         hoverID: u64 = 0,
         clickID: u64 = 0,
+        scrollID: u64 = 0,
+        scrollUpdated: u64 = 0,
         next: Next = Next{},
 
         const Next = struct {
             hoverID: u64 = 0,
             clickID: u64 = 0,
+            scrollID: u64 = 0,
         };
     };
     internal: Internal = Internal{},
@@ -88,7 +91,9 @@ pub const ImEvent = struct {
     textInput: ?win.Event.TextInput = undefined,
     time: u64 = undefined,
     animationEnabled: bool = false,
-    scrollDelta: win.Point = undefined, // unfortunately, sdl scrolling is really bad. numbers are completely random and useless, and it only scrolls by whole ticks. this is one of the places raylib is better.
+    scrollDelta: win.Point = undefined,
+    // unfortunately, sdl scrolling is really bad. numbers are completely random and useless,
+    // and it only scrolls by whole ticks. this is one of the places raylib is better.
     window: *win.Window = undefined,
     render: bool = false,
     const KeyArr = help.EnumArray(win.Key, bool);
@@ -121,6 +126,23 @@ pub const ImEvent = struct {
             .click = imev.internal.clickID == id.id,
         };
     }
+    pub fn scroll(imev: *ImEvent, id: ID, rect_: win.Rect) win.Point {
+        const rect = if (imev.window.clippingRectangle()) |cr| rect_.overlap(cr) else rect_;
+        if (!std.meta.eql(imev.scrollDelta, win.Point{ .x = 0, .y = 0 }))
+            imev.internal.scrollUpdated = imev.time;
+        if (imev.internal.scrollID == 0 or
+            !std.meta.eql(imev.mouseDelta, win.Point{ .x = 0, .y = 0 }) or
+            imev.time > imev.internal.scrollUpdated + 300)
+        {
+            if (rect.containsPoint(imev.cursor)) {
+                imev.internal.next.scrollID = id.id;
+            }
+        }
+        if (imev.internal.scrollID == id.id) {
+            return imev.scrollDelta;
+        }
+        return .{ .x = 0, .y = 0 };
+    }
 
     pub fn apply(imev: *ImEvent, ev: win.Event, window: *win.Window) void {
         // clear instantanious flags (mouseDown, mouseUp)
@@ -146,6 +168,8 @@ pub const ImEvent = struct {
         imev.internal.next.hoverID = 0;
 
         imev.internal.clickID = imev.internal.next.clickID;
+
+        imev.internal.scrollID = imev.internal.next.scrollID;
 
         const startCursor = imev.cursor;
 
@@ -1189,9 +1213,12 @@ pub fn ScrollView(comptime Child: type) type {
             // instead it keeps scrolling the thing you were scrolling until
             // it has been a few hundred ms.
 
+            me.scrollY += imev.scroll(me.auto.id, pos).y;
+
             me.scrollYAnim.set(imev, me.scrollY, timing.EaseIn, .reverse);
             const visualScrollY = me.scrollYAnim.get(imev);
             var updPos = pos.noHeight().down(visualScrollY);
+
             var resHeight = try @call(.{}, me.child.render, childArgs ++ .{ style, imev, updPos });
         }
     };
