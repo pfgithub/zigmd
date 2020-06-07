@@ -1180,7 +1180,7 @@ pub fn ScrollView(comptime Child: type) type {
             me: *Me,
             childArgs: var,
             style: Style,
-            ev: *ImEvent,
+            imev: *ImEvent,
             pos: win.Rect,
         ) !void {
             me.scrollYAnim.set(imev, app.scrollY, gui.timing.EaseIn, .reverse);

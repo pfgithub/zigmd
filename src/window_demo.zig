@@ -9,7 +9,7 @@ pub const WindowDemo = AutoTest;
 
 pub const Component = struct {
     body: *WindowBody,
-    fn render(
+    pub fn render(
         self: *Component,
         imev: *gui.ImEvent,
         style: gui.Style,
@@ -18,7 +18,7 @@ pub const Component = struct {
     ) void {
         self.body.render(self.body, imev, style, pos, alloc);
     }
-    fn deinit(self: *Component) void {
+    pub fn deinit(self: *Component) void {
         self.body.deinit(self.body);
     }
 };
@@ -113,7 +113,7 @@ pub const AutoTest = struct {
         });
     }
     pub fn deinit(view: *AutoTest) void {
-        for (view.windows) |*w| {
+        for (view.windows.items) |*w| {
             Auto.destroy(w, .{ .auto, .body });
         }
         view.windows.deinit();

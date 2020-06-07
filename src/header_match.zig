@@ -169,6 +169,12 @@ pub fn conformsTo(comptime Header: type, comptime Implementation: type) void {
     if (testingImplements(Header, Implementation)) |err|
         @compileError(prettyPrintError(err));
 }
+pub fn conformsToBool(comptime Header: type, comptime Implementation: type) bool {
+    if (testingImplements(Header, Implementation)) |err|
+        return false
+    else
+        return true;
+}
 fn testingImplements(comptime Header: type, comptime Implementation: type) ?ImplErr {
     var memo: Memo = .{};
     var res = implements(Header, Implementation, ImplCtx{}, &memo);
@@ -383,6 +389,7 @@ fn structImplements(
 
     for (header.decls) |decl| {
         if (!decl.is_pub) continue;
+        if (decl.name.len >= 4 and std.mem.eql(u8, decl.name[0..4], "__h_")) continue;
 
         const namedContext = context.add("decl " ++ decl.name, switch (decl.data) {
             .Type, .Var => |typ| typ,
@@ -430,7 +437,7 @@ fn structImplements(
         }
     }
     for (implementation.decls) |decl| {
-        if (!@hasDecl(Header, decl.name) and decl.is_pub)
+        if (!@hasDecl(Header, decl.name) and decl.is_pub and !@hasDecl(Header, "__h_ALLOW_EXTRA"))
             return context.err("Header has extra disallowed declaration `pub " ++ decl.name ++ "`", Header, Implementation);
     }
 

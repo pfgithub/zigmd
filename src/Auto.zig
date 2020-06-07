@@ -1,6 +1,7 @@
 const std = @import("std");
 const gui = @import("gui.zig");
 const help = @import("helpers.zig");
+const header_match = @import("header_match.zig");
 
 const Auto = @This();
 
@@ -32,6 +33,25 @@ pub fn autoDeinit(auto: *Auto) void {
     auto.items.deinit();
 }
 
+const AutoInitHeader = struct {
+    pub fn autoInit(event: *gui.ImEvent, alloc: *std.mem.Allocator) @This() {
+        return undefined;
+    }
+    pub const __h_ALLOW_EXTRA = true;
+};
+const ImevInitHeader = struct {
+    pub fn init(event: *gui.ImEvent) @This() {
+        return undefined;
+    }
+    pub const __h_ALLOW_EXTRA = true;
+};
+const ImevInitAllocHeader = struct {
+    pub fn init(event: *gui.ImEvent, alloc: *std.mem.Allocator) @This() {
+        return undefined;
+    }
+    pub const __h_ALLOW_EXTRA = true;
+};
+
 pub fn create(
     comptime Container: type,
     event: *gui.ImEvent,
@@ -57,18 +77,34 @@ pub fn create(
             @field(result, curfld.name) = defltv;
             continue;
         }
-        if (!@hasDecl(curfld.field_type, "autoInit"))
+        if (comptime header_match.conformsToBool(AutoInitHeader, curfld.field_type))
+            @field(result, curfld.name) = curfld.field_type.autoInit(event, alloc)
+        else if (comptime header_match.conformsToBool(ImevInitHeader, curfld.field_type))
+            @field(result, curfld.name) = curfld.field_type.init(event)
+        else if (comptime header_match.conformsToBool(ImevInitAllocHeader, curfld.field_type))
+            @field(result, curfld.name) = curfld.field_type.init(event, alloc)
+        else {
+            // comptime header_match.conformsTo(AutoInitHeader, curfld.field_type);
             @compileError("Field `" ++ curfld.name ++ "` was not initialized.");
-        @field(result, curfld.name) = curfld.field_type.autoInit(event, alloc);
+        }
     }
 
     return result;
 }
 
+// instead of the current thing, what if we looped over all and autoDeinitted
+// fields that would be user deinitted or did not need deinitting would be
+// provided as a list
 pub fn destroy(selfptr: var, comptime fields: var) void {
     inline for (fields) |ft| {
         const fieldName = @tagName(ft);
-        @field(selfptr, fieldName).autoDeinit();
+        const FieldType = help.FieldType(@TypeOf(selfptr).Child, fieldName);
+        if (@hasDecl(FieldType, "autoDeinit"))
+            @field(selfptr, fieldName).autoDeinit()
+        else if (@hasDecl(FieldType, "deinit"))
+            @field(selfptr, fieldName).deinit()
+        else
+            @compileError(@typeName(FieldType) ++ " does not have a deinit fn");
     }
 }
 

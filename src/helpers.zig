@@ -213,6 +213,8 @@ pub fn unionCallThis(comptime method: []const u8, unionValue: var, args: var) Un
 
 pub fn FieldType(comptime Container: type, comptime fieldName: []const u8) type {
     if (!@hasField(Container, fieldName)) @compileError("Container does not have field " ++ fieldName);
+    // @TypeOf(@field(@as(Container, undefined), fieldName));
+    // ^compiler crash
     switch (@typeInfo(Container)) {
         .Union => |uni| for (uni.fields) |field| {
             if (std.mem.eql(u8, field.name, fieldName)) return field.field_type;

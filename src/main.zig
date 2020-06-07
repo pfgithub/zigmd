@@ -5,6 +5,7 @@ pub const gui = @import("./gui.zig");
 const help = @import("./helpers.zig");
 const List = std.SinglyLinkedList;
 const ArrayList = std.ArrayList;
+const Auto = @import("Auto.zig");
 
 pub const TextHLStyleReal = struct {
     font: *const win.Font,
@@ -591,7 +592,7 @@ pub const App = struct {
 
     textRenderCache: TextRenderCache,
 
-    fn init(alloc: *std.mem.Allocator, style: *const gui.Style, filename: []const u8, ev: *gui.ImEvent) !App {
+    pub fn init(alloc: *std.mem.Allocator, style: *const gui.Style, filename: []const u8, ev: *gui.ImEvent) !App {
         var readOnly = false;
         var file: []u8 = std.fs.cwd().readFileAlloc(alloc, filename, 10000000) catch |e| blk: {
             readOnly = true;
@@ -633,7 +634,7 @@ pub const App = struct {
             .id = ev.newID(),
         };
     }
-    fn deinit(app: *App) void {
+    pub fn deinit(app: *App) void {
         if (app.textInfo) |*ti| ti.deinit();
         app.text.deinit();
         app.textRenderCache.deinit();
@@ -1156,38 +1157,17 @@ const DisplayMode = enum {
 const WindowDemo = @import("window_demo.zig").WindowDemo;
 
 pub const MainPage = struct {
-    // this should not take a style argument
-    // style should be passed in on each render
-    // for now I am leaving it because App uses a style arg and it's a bit annoying to change
-    // all init methods will probably end up with an allocator + error return in the future though. maybe.
-    fn init(alloc: *std.mem.Allocator, imev: *gui.ImEvent, style: *gui.Style) !MainPage {
-        const imedtr = gui.DataEditor(UpdateMode).init(imev);
-        const imedtr2 = gui.DataEditor(UpdateMode).init(imev);
-
-        const app = try App.init(alloc, style, "tests/medium sized file.md", imev);
-
-        const displayedtr = gui.DataEditor(DisplayMode).init(imev);
-
-        // gui.autoInit(self)?
-        const windowDemo = WindowDemo.init(imev, alloc);
-
-        return MainPage{
-            .id = imev.newID(),
-            .imedtr = imedtr,
-            .imedtr2 = imedtr2,
-            .app = app,
-            .displayedtr = displayedtr,
-            .windowDemo = windowDemo,
-        };
+    fn init(alloc: *std.mem.Allocator, imev: *gui.ImEvent, style: *gui.Style) MainPage {
+        return Auto.create(MainPage, imev, alloc, .{
+            .app = App.init(alloc, style, "tests/medium sized file.md", imev) catch
+                @panic("oom not handled"),
+        });
     }
     pub fn deinit(page: *MainPage) void {
-        defer page.imedtr.deinit();
-        defer page.imedtr2.deinit();
-        defer page.app.deinit();
-        defer page.displayedtr.deinit();
+        Auto.destroy(page, .{ .imedtr, .imedtr2, .app, .displayedtr });
     }
 
-    id: gui.ID,
+    auto: Auto,
 
     imedtr: gui.DataEditor(UpdateMode),
     imedtr2: gui.DataEditor(UpdateMode),
@@ -1328,7 +1308,7 @@ pub fn main() !void {
     var windowInFocus: bool = true;
     var evc: u64 = 0;
 
-    var mainPage = try MainPage.init(alloc, &imev, &style);
+    var mainPage = MainPage.init(alloc, &imev, &style);
     defer mainPage.deinit();
 
     var renderCount: u64 = 0;
