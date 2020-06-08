@@ -142,6 +142,7 @@ pub const AutoTest = struct {
             })) catch @panic("oom not handled");
         }
         var removeIndex: ?usize = null;
+        var bringToFrontIndex: ?usize = null;
         for (view.windows.items) |*w, i| {
             const windowRect = w.relativePos.down(pos.y).right(pos.x);
 
@@ -172,7 +173,7 @@ pub const AutoTest = struct {
                 w.relativePos.w += imev.mouseDelta.x;
                 w.relativePos.h += imev.mouseDelta.y;
             }
-            const hc = imev.hover(w.auto.id, windowRect); // to prevent clicking through body
+            const hc = imev.hover(w.auto.id, windowRect);
             const tbhc = imev.hover(w.auto.id.next(1), titlebarRect);
             if (tbhc.click) {
                 w.relativePos.x += imev.mouseDelta.x;
@@ -195,12 +196,23 @@ pub const AutoTest = struct {
                 defer imev.window.popClipRect();
                 w.body.render(imev, style, bodyRect, alloc);
             }
+            if (i != view.windows.items.len - 1) {
+                const finalHC = imev.hover(w.auto.id.next(4), windowRect);
+                // this needs to be a special type of hover that doesn't interrupt hovers before it or something
+                // so that when clicking on a background window, you can still press buttons but it also brings to front.
+                if (finalHC.click) {
+                    bringToFrontIndex = i;
+                }
+            }
 
             // handle mod+drag after ("capturing")
             // before = bubbling, after = capturing
         }
         if (removeIndex) |ri| {
             view.windows.orderedRemove(ri).deinit();
+        }
+        if (bringToFrontIndex) |btfi| {
+            view.windows.appendAssumeCapacity(view.windows.orderedRemove(btfi));
         }
     }
 };
