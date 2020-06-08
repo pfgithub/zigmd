@@ -1,7 +1,8 @@
 const std = @import("std");
-const gui = @import("gui.zig");
-const help = @import("helpers.zig");
-const header_match = @import("header_match.zig");
+
+const gui = @import("../gui.zig");
+const help = @import("../helpers.zig");
+const header_match = @import("../header_match.zig");
 
 const Auto = @This();
 

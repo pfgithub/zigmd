@@ -5,7 +5,8 @@ pub const gui = @import("./gui.zig");
 const help = @import("./helpers.zig");
 const List = std.SinglyLinkedList;
 const ArrayList = std.ArrayList;
-const Auto = @import("Auto.zig");
+const Auto = gui.Auto;
+const ImEvent = gui.ImEvent;
 
 pub const TextHLStyleReal = struct {
     font: *const win.Font,
@@ -592,7 +593,7 @@ pub const App = struct {
 
     textRenderCache: TextRenderCache,
 
-    pub fn init(alloc: *std.mem.Allocator, filename: []const u8, ev: *gui.ImEvent) !App {
+    pub fn init(alloc: *std.mem.Allocator, filename: []const u8, ev: *ImEvent) !App {
         var readOnly = false;
         var file: []u8 = std.fs.cwd().readFileAlloc(alloc, filename, 10000000) catch |e| blk: {
             readOnly = true;
@@ -833,7 +834,7 @@ pub const App = struct {
         };
     }
 
-    fn render(app: *App, imev: *gui.ImEvent, showPerformance: bool, fullArea: win.Rect) !void {
+    fn render(app: *App, imev: *ImEvent, showPerformance: bool, fullArea: win.Rect) !void {
         var timer = if (showPerformance) try std.time.Timer.start() else undefined;
 
         const window = imev.window;
@@ -1159,7 +1160,7 @@ const DisplayMode = enum {
 const WindowDemo = @import("window_demo.zig").WindowDemo;
 
 pub const MainPage = struct {
-    pub fn init(alloc: *std.mem.Allocator, imev: *gui.ImEvent) MainPage {
+    pub fn init(alloc: *std.mem.Allocator, imev: *ImEvent) MainPage {
         return Auto.create(MainPage, imev, alloc, .{
             .app = App.init(alloc, "tests/medium sized file.md", imev) catch
                 @panic("oom not handled"),
@@ -1179,7 +1180,7 @@ pub const MainPage = struct {
 
     displayMode: DisplayMode = .gui,
 
-    fn render(page: *MainPage, imev: *gui.ImEvent, style: gui.Style, pos: win.Rect, alloc: *std.mem.Allocator) !void {
+    fn render(page: *MainPage, imev: *ImEvent, style: gui.Style, pos: win.Rect, alloc: *std.mem.Allocator) !void {
         var currentPos: win.TopRect = pos.noHeight().down(5);
         var updateMode: *UpdateMode = &imev.data.settings.updateMode;
 
@@ -1304,7 +1305,7 @@ pub fn main() !void {
     // if in foreground, loop pollevent
     // if in background, waitevent
 
-    var imev: gui.ImEvent = .{
+    var imev: ImEvent = .{
         .data = .{
             .settings = .{
                 .style = style,

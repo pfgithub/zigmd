@@ -4,7 +4,7 @@ const main = @import("main.zig");
 const help = @import("helpers.zig");
 const gui = @import("gui.zig");
 const win = @import("render.zig");
-const Auto = @import("Auto.zig");
+const Auto = gui.Auto;
 
 pub const WindowDemo = AutoTest;
 
