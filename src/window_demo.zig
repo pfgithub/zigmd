@@ -198,8 +198,8 @@ pub const AutoTest = struct {
             }
             if (i != view.windows.items.len - 1) {
                 const finalHC = imev.hover(w.auto.id.next(4), windowRect);
-                // this needs to be a special type of hover that doesn't interrupt hovers before it or something
-                // so that when clicking on a background window, you can still press buttons but it also brings to front.
+                // passthrough should add an id to a list of ids that will pass unless it is changed.
+                // eg if another thing does hover no passthrough, it will win. if it does hover passthrough, it will not.
                 if (finalHC.click) {
                     bringToFrontIndex = i;
                 }
