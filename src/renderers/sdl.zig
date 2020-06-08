@@ -236,6 +236,10 @@ pub const Window = struct {
                 .pointer = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_HAND).?,
                 .ibeam = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_IBEAM).?,
                 .move = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_SIZEALL).?,
+                .resizeNwSe = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_SIZENWSE).?,
+                .resizeNeSw = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_SIZENESW).?,
+                .resizeNS = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_SIZENS).?,
+                .resizeEW = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_SIZEWE).?,
             }),
             .lastFrame = 0,
         };

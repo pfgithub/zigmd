@@ -159,7 +159,16 @@ pub const AutoTest = struct {
             // obviously I want resize to be a few pixels off the edges eventually
             // 10 px seems to work pretty well for windowsystem.pfg.pw
             // also I want an alt+rmb drag or something
-            const hc = imev.hover(w.auto.id, windowRect.inset(-5, -5, -5, -5)); // to prevent clicking through body
+            const resizehc = imev.hover(w.auto.id.next(3), windowRect.inset(-10, -10, -10, -10));
+            if (resizehc.hover) {
+                imev.window.cursor = .resizeNwSe;
+            }
+            if (resizehc.click) {
+                imev.window.cursor = .resizeNwSe;
+                w.relativePos.w += imev.mouseDelta.x;
+                w.relativePos.h += imev.mouseDelta.y;
+            }
+            const hc = imev.hover(w.auto.id, windowRect); // to prevent clicking through body
             const tbhc = imev.hover(w.auto.id.next(1), titlebarRect);
             if (tbhc.click) {
                 w.relativePos.x += imev.mouseDelta.x;
@@ -183,13 +192,6 @@ pub const AutoTest = struct {
                 w.body.render(imev, style, bodyRect, alloc);
             }
 
-            const rshc = imev.hover(w.auto.id.next(2), resizeRect);
-            try win.renderRect(imev.window, style.colors.background, resizeRect);
-            if (rshc.click) {
-                w.relativePos.w += imev.mouseDelta.x;
-                w.relativePos.h += imev.mouseDelta.y;
-                imev.window.cursor = .move;
-            }
             // handle mod+drag after ("capturing")
             // before = bubbling, after = capturing
         }

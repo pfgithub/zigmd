@@ -97,6 +97,10 @@ pub const Cursor = enum {
     pointer,
     ibeam,
     move,
+    resizeNwSe,
+    resizeNeSw,
+    resizeNS,
+    resizeEW,
 };
 
 pub const TextSize = struct {
