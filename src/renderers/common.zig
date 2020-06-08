@@ -126,6 +126,9 @@ pub const WH = struct {
 pub const HAlign = enum { left, hcenter, right };
 pub const VAlign = enum { top, vcenter, bottom };
 
+/// RectType(some rect type, .{.x, .y}, .{.h})
+/// => struct{x, y, w? (if somerect type has w), h}
+fn RectType(comptime Extends: type, comptime sets: var, comptime takes: var) type {}
 fn RectFns(comptime This: type) type {
     return struct {
         pub fn x2(rect: This) i64 {
