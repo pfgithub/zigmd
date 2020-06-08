@@ -126,8 +126,14 @@ pub const WH = struct {
 pub const HAlign = enum { left, hcenter, right };
 pub const VAlign = enum { top, vcenter, bottom };
 
-/// RectType(some rect type, .{.x, .y}, .{.h})
+/// AutoRectType(some rect type, .{.x, .y}, .{.h})
 /// => struct{x, y, w? (if somerect type has w), h}
+/// pub const Rect = AutoRectType(.{.x, .y, .w, .h});
+/// pub const TopRect = AutoRectType(.{.x, .y, .w});
+/// pub const LeftRect = AutoRectType(.{.x, .y, .h});
+/// pub const Point = AutoRectType(.{.x, .y});
+/// what about BottomRect/RightRect? those need x2, y2 and are needed to create
+/// auto-sized tabs starting on the right side.
 fn RectType(comptime Extends: type, comptime sets: var, comptime takes: var) type {}
 fn RectFns(comptime This: type) type {
     return struct {
