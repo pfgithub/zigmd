@@ -1127,6 +1127,7 @@ pub const UpdateMode = struct {
     guiDisplay: enum { single, double } = .single,
     showRenderCount: bool = false,
     showPerformance: bool = false,
+    showClippingRects: bool = false,
     resizePin: enum { top, center, bottom } = .top,
     // when resizing the window, the location of what part of the text should be preserved on screen?
 
@@ -1138,6 +1139,7 @@ pub const UpdateMode = struct {
         guiDisplay: T(.guiDisplay),
         showRenderCount: T(.showRenderCount),
         showPerformance: T(.showPerformance),
+        showClippingRects: T(.showClippingRects),
         resizePin: T(.resizePin),
 
         pointlessButtons: T(.pointlessButtons),
@@ -1355,6 +1357,8 @@ pub fn main() !void {
 
         var windowSize = try window.getSize();
         // ===
+
+        window.debug.showClippingRects = updateMode.showClippingRects;
 
         try mainPage.render(&imev, style, windowSize.xy(0, 0), alloc);
         if (window.clippingRectangle()) |cr| @panic("Not supposed to have a clip rect.");

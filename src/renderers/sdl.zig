@@ -189,6 +189,9 @@ fn eventFromSDL(event: sdl.SDL_Event) Event {
 pub const Window = struct {
     // public
     cursor: Cursor,
+    debug: struct {
+        showClippingRects: bool = false,
+    },
 
     sdlWindow: *sdl.SDL_Window,
     sdlRenderer: *sdl.SDL_Renderer,
@@ -226,6 +229,7 @@ pub const Window = struct {
             .sdlRenderer = renderer.?,
             .clippingRectangles = clippingRectangles,
             .cursor = .default,
+            .debug = .{},
             .previousCursor = .ibeam,
             .allCursors = AllCursors.init(.{
                 .default = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_ARROW).?,
@@ -249,12 +253,15 @@ pub const Window = struct {
 
     /// defer popClipRect
     pub fn pushClipRect(window: *Window, rect: Rect) ER!void {
-        // var crcol = @intCast(u8, window.clippingRectangles.items.len * 8);
-        // renderRect(
-        //     window,
-        //     Color{ .r = crcol, .g = crcol, .b = crcol, .a = 255 },
-        //     rect,
-        // ) catch @panic("unhandled")
+        if (window.debug.showClippingRects) {
+            var crcolr = window.clippingRectangles.items.len;
+            var crcol = @intCast(u8, std.math.min(crcolr * 8, 255));
+            renderRect(
+                window,
+                Color{ .r = crcol, .g = crcol, .b = crcol, .a = 255 },
+                rect,
+            ) catch @panic("unhandled");
+        }
         const resRect = if (window.clippingRectangles.items.len >= 1)
             rect.overlap(window.clippingRectangles.items[window.clippingRectangles.items.len - 1])
         else
