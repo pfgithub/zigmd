@@ -93,6 +93,9 @@ pub const AutoTest = struct {
         title: []const u8,
         body: Component,
         relativePos: win.Rect,
+        pub fn deinit(window: *Window) void {
+            Auto.destroy(window, .{ .auto, .body });
+        }
     };
 
     pub fn init(
@@ -138,7 +141,8 @@ pub const AutoTest = struct {
                 .relativePos = .{ .x = 100, .y = 100, .w = 500, .h = 500 },
             })) catch @panic("oom not handled");
         }
-        for (view.windows.items) |*w| {
+        var removeIndex: ?usize = null;
+        for (view.windows.items) |*w, i| {
             const windowRect = w.relativePos.down(pos.y).right(pos.x);
 
             try win.renderRect(imev.window, style.colors.background, windowRect);
@@ -181,7 +185,7 @@ pub const AutoTest = struct {
                 imev,
                 windowRect.position(.{ .w = 25, .h = 25 }, .right, .top),
             );
-            if (closeBtn.click) {}
+            if (closeBtn.click) removeIndex = i;
 
             const bodyRect = windowRect.inset(25, 1, 1, 1);
             try win.renderRect(imev.window, style.colors.window, bodyRect);
@@ -194,6 +198,9 @@ pub const AutoTest = struct {
 
             // handle mod+drag after ("capturing")
             // before = bubbling, after = capturing
+        }
+        if (removeIndex) |ri| {
+            view.windows.orderedRemove(ri).deinit();
         }
     }
 };
