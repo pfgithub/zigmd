@@ -861,13 +861,17 @@ fn EnumEditor(comptime Enum: type) type {
             const gap = connectedGap;
 
             const lenInt = @intCast(i64, typeInfo.fields.len);
-            const choiceWidth = @divFloor(
-                (pos.w - gap * (lenInt - 1)),
-                lenInt,
-            );
-            if (choiceWidth > 50) {
+
+            const a__ = (pos.w - gap * (lenInt - 1));
+            const choiceWidthMain = @divFloor(a__, lenInt);
+            const choiceRemainder = @rem(a__, lenInt);
+
+            if (choiceWidthMain > 50) {
+                var rightShift: i64 = 0;
                 inline for (typeInfo.fields) |field, i| {
-                    const choicePos = pos.rightCut((choiceWidth + gap) * @intCast(i64, i)).width(choiceWidth).height(lineHeight);
+                    const choiceWidth: i64 = choiceWidthMain + if (i < choiceRemainder) @as(i64, 1) else @as(i64, 0);
+                    const choicePos = pos.rightCut(rightShift).width(choiceWidth).height(lineHeight);
+                    rightShift += choiceWidth + gap;
                     const thisTag = @field(Enum, field.name);
 
                     var btn = &editor.buttonData[i];
