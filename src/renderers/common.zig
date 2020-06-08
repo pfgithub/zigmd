@@ -146,7 +146,12 @@ fn RectFns(comptime This: type) type {
                 .y = rect.centerY(),
             };
         }
+        // fn copySetReturn()
+        // copySet(rect, .{.h = null}) // remove h (returns noHeight)
         fn copySet(rect: This, set: var) This {
+            // var return type would be nice here
+            // so copyset could set .h on a toprect
+            // without a mess of return logic
             var copy = rect;
             inline for (@typeInfo(@TypeOf(set)).Struct.fields) |field| {
                 if (!@hasField(This, field.name)) @compileError("Does not have field");
@@ -157,6 +162,42 @@ fn RectFns(comptime This: type) type {
         pub fn right(rect: This, distance: i64) This {
             return copySet(rect, .{ .x = rect.x + distance });
         }
+        pub fn rightCut(rect: This, distance: i64) This {
+            return rect.right(distance).addWidth(-distance);
+        }
+        pub fn down(rect: This, distance: i64) This {
+            return copySet(rect, .{ .y = rect.y + distance });
+        }
+        pub fn downCut(rect: This, distance: i64) This {
+            return rect.down(distance).addHeight(-distance);
+        }
+        pub fn width(rect: This, newWidth: i64) This {
+            return copySet(rect, .{ .w = newWidth });
+        }
+        pub fn addWidth(rect: This, newWidth: i64) This {
+            return copySet(rect, .{ .w = rect.w + newWidth });
+        }
+        pub fn height(rect: This, newHeight: i64) This {
+            return copySet(rect, .{ .h = newHeight });
+        }
+        pub fn addHeight(rect: This, newHeight: i64) This {
+            return copySet(rect, .{ .h = rect.h + newHeight });
+        }
+        pub fn setX(rect: This, x: i64) This {
+            return copySet(rect, .{ .x = x });
+        }
+        pub fn setX1(rect: This, x1: i64) This {
+            return copySet(rect, .{ .w = rect.w + (rect.x - x1), .x = x1 });
+        }
+        pub fn setX2(rect: This, x2_: i64) This {
+            return rect.width(x2_ - rect.x);
+        }
+        pub fn setY1(rect: This, y1: i64) This {
+            return copySet(rect, .{ .h = rect.h + (rect.y - y1), .y = y1 });
+        }
+        pub fn setY2(rect: This, y2_: i64) This {
+            return rect.height(y2_ - rect.y);
+        }
     };
 }
 
@@ -166,40 +207,6 @@ pub const Rect = struct {
     w: i64,
     h: i64,
     pub usingnamespace RectFns(Rect);
-    pub fn rightCut(rect: Rect, distance: i64) Rect {
-        return rect.right(distance).addWidth(-distance);
-    }
-    pub fn down(rect: Rect, distance: i64) Rect {
-        return .{ .x = rect.x, .y = rect.y + distance, .w = rect.w, .h = rect.h };
-    }
-    pub fn downCut(rect: Rect, distance: i64) Rect {
-        return rect.down(distance).addHeight(-distance);
-    }
-    pub fn width(rect: Rect, newWidth: i64) Rect {
-        return .{ .x = rect.x, .y = rect.y, .w = newWidth, .h = rect.h };
-    }
-    pub fn addWidth(rect: Rect, newWidth: i64) Rect {
-        return rect.width(rect.w + newWidth);
-    }
-    pub fn setX(rect: Rect, x: i64) Rect {
-        return .{ .x = x, .y = rect.y, .w = rect.w, .h = rect.h };
-    }
-    pub fn setX1(rect: Rect, x1: i64) Rect {
-        const newWidth = rect.w + (rect.x - x1); // #3234 workaround
-        return .{ .x = x1, .y = rect.y, .w = newWidth, .h = rect.h };
-    }
-    pub fn setX2(rect: Rect, x2_: i64) Rect {
-        return rect.width(x2_ - rect.x);
-    }
-    pub fn height(rect: Rect, newHeight: i64) Rect {
-        return .{ .x = rect.x, .y = rect.y, .w = rect.w, .h = newHeight };
-    }
-    pub fn addHeight(rect: Rect, newHeight: i64) Rect {
-        return rect.height(rect.h + newHeight);
-    }
-    pub fn setY2(rect: Rect, y2_: i64) Rect {
-        return rect.height(y2_ - rect.y);
-    }
     pub fn noHeight(rect: Rect) TopRect {
         return .{ .x = rect.x, .y = rect.y, .w = rect.w };
     }
