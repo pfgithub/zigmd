@@ -121,71 +121,51 @@ pub const WH = struct {
 };
 pub const HAlign = enum { left, hcenter, right };
 pub const VAlign = enum { top, vcenter, bottom };
+
+fn RectFns(comptime This: type) type {
+    return struct {
+        pub fn x2(rect: This) i64 {
+            return rect.x + rect.w;
+        }
+        pub fn y2(rect: This) i64 {
+            return rect.y + rect.h;
+        }
+        pub fn containsPoint(rect: This, point: Point) bool {
+            return point.x >= rect.x and point.x <= rect.x + rect.w and
+                point.y >= rect.y and point.y <= rect.y + rect.h;
+        }
+        pub fn centerX(rect: This) i64 {
+            return rect.x + @divFloor(rect.w, 2);
+        }
+        pub fn centerY(rect: This) i64 {
+            return rect.y + @divFloor(rect.h, 2);
+        }
+        pub fn center(rect: This) Point {
+            return .{
+                .x = rect.centerX(),
+                .y = rect.centerY(),
+            };
+        }
+        fn copySet(rect: This, set: var) This {
+            var copy = rect;
+            inline for (@typeInfo(@TypeOf(set)).Struct.fields) |field| {
+                if (!@hasField(This, field.name)) @compileError("Does not have field");
+                @field(copy, field.name) = @field(set, field.name);
+            }
+            return copy;
+        }
+        pub fn right(rect: This, distance: i64) This {
+            return copySet(rect, .{ .x = rect.x + distance });
+        }
+    };
+}
+
 pub const Rect = struct {
     x: i64,
     y: i64,
     w: i64,
     h: i64,
-    // usingnamespace rectFns(.{.x, .y, .w, .h}, TopRect);
-    pub fn x2(rect: Rect) i64 {
-        return rect.x + rect.w;
-    }
-    pub fn y2(rect: Rect) i64 {
-        return rect.y + rect.h;
-    }
-    pub fn containsPoint(rect: Rect, point: Point) bool {
-        return point.x >= rect.x and point.x <= rect.x + rect.w and
-            point.y >= rect.y and point.y <= rect.y + rect.h;
-    }
-    pub fn centerX(rect: Rect) i64 {
-        return rect.x + @divFloor(rect.w, 2);
-    }
-    pub fn centerY(rect: Rect) i64 {
-        return rect.y + @divFloor(rect.h, 2);
-    }
-    pub fn center(rect: Rect) Point {
-        return .{
-            .x = rect.centerX(),
-            .y = rect.centerY(),
-        };
-    }
-    pub fn position(rect: Rect, item: WH, halign: HAlign, valign: VAlign) Rect {
-        return .{
-            // rect.x + rect.w * percent - item.w * percent
-            .x = switch (halign) {
-                .left => rect.x,
-                .hcenter => rect.x + @divFloor(rect.w, 2) - @divFloor(item.w, 2),
-                .right => rect.x + rect.w - item.w,
-            },
-            .y = switch (valign) {
-                .top => rect.y,
-                .vcenter => rect.y + @divFloor(rect.h, 2) - @divFloor(item.h, 2),
-                .bottom => rect.y + rect.h - item.h,
-            },
-            .w = item.w,
-            .h = item.h,
-        };
-        // .overlap(rect)?
-    }
-    pub fn overlap(one: Rect, two: Rect) Rect {
-        var fx = if (one.x > two.x) one.x else two.x;
-        var fy = if (one.y > two.y) one.y else two.y;
-        var onex2 = one.x + one.w;
-        var twox2 = two.x + two.w;
-        var oney2 = one.y + one.h;
-        var twoy2 = two.y + two.h;
-        var fx2 = if (onex2 > twox2) twox2 else onex2;
-        var fy2 = if (oney2 > twoy2) twoy2 else oney2;
-        return .{
-            .x = fx,
-            .y = fy,
-            .w = fx2 - fx,
-            .h = fy2 - fy,
-        };
-    }
-    pub fn right(rect: Rect, distance: i64) Rect {
-        return .{ .x = rect.x + distance, .y = rect.y, .w = rect.w, .h = rect.h };
-    }
+    pub usingnamespace RectFns(Rect);
     pub fn rightCut(rect: Rect, distance: i64) Rect {
         return rect.right(distance).addWidth(-distance);
     }
@@ -225,6 +205,40 @@ pub const Rect = struct {
     }
     pub fn inset(rect: Rect, top_: i64, right_: i64, bottom_: i64, left_: i64) Rect {
         return rect.downCut(top_).rightCut(left_).addWidth(-right_).addHeight(-bottom_);
+    }
+    pub fn position(rect: Rect, item: WH, halign: HAlign, valign: VAlign) Rect {
+        return .{
+            // rect.x + rect.w * percent - item.w * percent
+            .x = switch (halign) {
+                .left => rect.x,
+                .hcenter => rect.x + @divFloor(rect.w, 2) - @divFloor(item.w, 2),
+                .right => rect.x + rect.w - item.w,
+            },
+            .y = switch (valign) {
+                .top => rect.y,
+                .vcenter => rect.y + @divFloor(rect.h, 2) - @divFloor(item.h, 2),
+                .bottom => rect.y + rect.h - item.h,
+            },
+            .w = item.w,
+            .h = item.h,
+        };
+        // .overlap(rect)?
+    }
+    pub fn overlap(one: Rect, two: Rect) Rect {
+        var fx = if (one.x > two.x) one.x else two.x;
+        var fy = if (one.y > two.y) one.y else two.y;
+        var onex2 = one.x + one.w;
+        var twox2 = two.x + two.w;
+        var oney2 = one.y + one.h;
+        var twoy2 = two.y + two.h;
+        var fx2 = if (onex2 > twox2) twox2 else onex2;
+        var fy2 = if (oney2 > twoy2) twoy2 else oney2;
+        return .{
+            .x = fx,
+            .y = fy,
+            .w = fx2 - fx,
+            .h = fy2 - fy,
+        };
     }
 };
 pub const TopRect = struct {
