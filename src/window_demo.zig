@@ -159,13 +159,20 @@ pub const AutoTest = struct {
             // obviously I want resize to be a few pixels off the edges eventually
             // 10 px seems to work pretty well for windowsystem.pfg.pw
             // also I want an alt+rmb drag or something
-            const hc = imev.hover(w.auto.id, windowRect); // to prevent clicking through body
+            const hc = imev.hover(w.auto.id, windowRect.inset(-5, -5, -5, -5)); // to prevent clicking through body
             const tbhc = imev.hover(w.auto.id.next(1), titlebarRect);
             if (tbhc.click) {
                 w.relativePos.x += imev.mouseDelta.x;
                 w.relativePos.y += imev.mouseDelta.y;
                 imev.window.cursor = .move;
             }
+
+            const closeBtn = try w.auto.new(gui.Button.init, .{imev}).render(
+                .{ .text = "x", .font = style.fonts.standard, .active = false, .style = style },
+                imev,
+                windowRect.position(.{ .w = 25, .h = 25 }, .right, .top),
+            );
+            if (closeBtn.click) {}
 
             const bodyRect = windowRect.inset(25, 1, 1, 1);
             try win.renderRect(imev.window, style.colors.window, bodyRect);
