@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const main = @import("main.zig");
 const help = @import("helpers.zig");
 const gui = @import("gui.zig");
 const win = @import("render.zig");
@@ -74,17 +75,7 @@ pub const WindowTest = struct {
         pos: win.Rect,
         alloc: *std.mem.Allocator,
     ) void {
-        const clicked = body.auto.new(
-            gui.Button.init,
-            .{imev},
-        ).render(
-            .{ .text = "Test", .font = style.fonts.standard, .active = false, .style = style },
-            imev,
-            pos.position(.{ .w = 100, .h = 25 }, .hcenter, .vcenter),
-        ) catch @panic("not handled");
-        if (clicked.click) {
-            std.debug.warn("demo {}\n", .{body.auto.id});
-        }
+        body.auto.new(main.MainPage.init, .{ alloc, imev }).render(imev, style, pos, alloc) catch @panic("error not handled");
     }
 };
 
@@ -148,7 +139,7 @@ pub const AutoTest = struct {
             })) catch @panic("oom not handled");
         }
         for (view.windows.items) |*w| {
-            const windowRect = w.relativePos.down(pos.x).right(pos.y);
+            const windowRect = w.relativePos.down(pos.y).right(pos.x);
 
             try win.renderRect(imev.window, style.colors.background, windowRect);
 

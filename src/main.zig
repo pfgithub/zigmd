@@ -592,7 +592,7 @@ pub const App = struct {
 
     textRenderCache: TextRenderCache,
 
-    pub fn init(alloc: *std.mem.Allocator, style: *const gui.Style, filename: []const u8, ev: *gui.ImEvent) !App {
+    pub fn init(alloc: *std.mem.Allocator, filename: []const u8, ev: *gui.ImEvent) !App {
         var readOnly = false;
         var file: []u8 = std.fs.cwd().readFileAlloc(alloc, filename, 10000000) catch |e| blk: {
             readOnly = true;
@@ -614,7 +614,7 @@ pub const App = struct {
             .scrollY = 0,
             .scrollYAnim = gui.PosInterpolation.init(200),
             .alloc = alloc,
-            .style = style,
+            .style = &ev.data.settings.style,
             .cursorLocation = 0,
             .cursorRowCol = .{ .row = 0, .col = 0 },
             .selection = .{
@@ -1118,7 +1118,7 @@ const Update = union(enum) {
         poll: T(.poll),
     };
 };
-const UpdateMode = struct {
+pub const UpdateMode = struct {
     const T = gui.StructDataHelper(@This());
 
     // todo move title_... and other things these to DisplayDetails or something
@@ -1157,9 +1157,9 @@ const DisplayMode = enum {
 const WindowDemo = @import("window_demo.zig").WindowDemo;
 
 pub const MainPage = struct {
-    fn init(alloc: *std.mem.Allocator, imev: *gui.ImEvent, style: *gui.Style) MainPage {
+    pub fn init(alloc: *std.mem.Allocator, imev: *gui.ImEvent) MainPage {
         return Auto.create(MainPage, imev, alloc, .{
-            .app = App.init(alloc, style, "tests/medium sized file.md", imev) catch
+            .app = App.init(alloc, "tests/medium sized file.md", imev) catch
                 @panic("oom not handled"),
         });
     }
@@ -1175,11 +1175,11 @@ pub const MainPage = struct {
     displayedtr: gui.DataEditor(DisplayMode),
     windowDemo: WindowDemo,
 
-    updateMode: UpdateMode = UpdateMode{},
-    displayMode: DisplayMode = .editor,
+    displayMode: DisplayMode = .gui,
 
     fn render(page: *MainPage, imev: *gui.ImEvent, style: gui.Style, pos: win.Rect, alloc: *std.mem.Allocator) !void {
         var currentPos: win.TopRect = pos.noHeight().down(5);
+        var updateMode: *UpdateMode = &imev.data.settings.updateMode;
 
         var imedtrscrll = &page.imedtrscrll;
         var imedtr2 = &page.imedtr2;
@@ -1190,19 +1190,19 @@ pub const MainPage = struct {
 
         switch (page.displayMode) {
             .editor => {
-                try app.render(imev, page.updateMode.showPerformance, currentPos.setY2(pos.h));
+                try app.render(imev, updateMode.showPerformance, currentPos.setY2(pos.h));
             },
             .gui => {
                 currentPos.y += gui.seperatorGap;
                 const guiPos = currentPos.addWidth(-40).rightCut(40);
-                switch (page.updateMode.guiDisplay) {
+                switch (updateMode.guiDisplay) {
                     .double => {
                         const cx = currentPos.centerX();
-                        _ = try imedtrscrll.render(.{&page.updateMode}, style, imev, guiPos.setX2(cx - 20).setY2(pos.h));
-                        _ = try imedtr2.render(&page.updateMode, style, imev, guiPos.rightCut(cx + 20));
+                        _ = try imedtrscrll.render(.{updateMode}, style, imev, guiPos.setX2(cx - 20).setY2(pos.h));
+                        _ = try imedtr2.render(updateMode, style, imev, guiPos.rightCut(cx + 20));
                     },
                     .single => {
-                        _ = try imedtrscrll.render(.{&page.updateMode}, style, imev, guiPos.setY2(pos.h));
+                        _ = try imedtrscrll.render(.{updateMode}, style, imev, guiPos.setY2(pos.h));
                     },
                 }
             },
@@ -1297,24 +1297,33 @@ pub fn main() !void {
 
     defer std.debug.warn("Quitting!\n", .{});
 
-    // only if mode has raw text input flag sethttps://thetravelers.online/leaderboard
+    // only if mode has raw text input flag set
 
     // if in foreground, loop pollevent
     // if in background, waitevent
 
-    var imev: gui.ImEvent = .{};
+    var imev: gui.ImEvent = .{
+        .data = .{
+            .settings = .{
+                .style = style,
+                .updateMode = UpdateMode{},
+            },
+        },
+    };
 
     var event: win.Event = .empty;
     var windowInFocus: bool = true;
     var evc: u64 = 0;
 
-    var mainPage = MainPage.init(alloc, &imev, &style);
+    var mainPage = MainPage.init(alloc, &imev);
     defer mainPage.deinit();
+
+    const updateMode = &imev.data.settings.updateMode;
 
     var renderCount: u64 = 0;
     while (true) {
         if (event == .empty and !imev.internal.rerender and !imev.render) {
-            event = if (windowInFocus) switch (mainPage.updateMode.update) {
+            event = if (windowInFocus) switch (updateMode.update) {
                 .wait => try window.waitEvent(),
                 .poll => window.pollEvent(),
             } else try window.waitEvent();
@@ -1327,12 +1336,12 @@ pub fn main() !void {
             else => {},
         }
 
-        if (windowInFocus and mainPage.updateMode.update == .poll and mainPage.updateMode.update.poll.reportFPS) {
+        if (windowInFocus and updateMode.update == .poll and updateMode.update.poll.reportFPS) {
             // todo report fps
         }
 
         // === RENDER
-        imev.animationEnabled = switch (mainPage.updateMode.update) {
+        imev.animationEnabled = switch (updateMode.update) {
             .poll => |p| if (windowInFocus) p.animations else false,
             else => false,
         };
@@ -1348,6 +1357,7 @@ pub fn main() !void {
         // ===
 
         try mainPage.render(&imev, style, windowSize.xy(0, 0), alloc);
+        if (window.clippingRectangle()) |cr| @panic("Not supposed to have a clip rect.");
 
         // if (imev.internal.rerender) continue;
         // new events should not be pushed after a requested rerender.
@@ -1362,7 +1372,7 @@ pub fn main() !void {
         }
         imev.render = false;
 
-        if (mainPage.updateMode.showRenderCount) {
+        if (updateMode.showRenderCount) {
             const msg = try std.fmt.allocPrint0(alloc, "{}", .{renderCount});
             defer alloc.free(msg);
             var renderText = try win.Text.init(style.fonts.standard, style.gui.text, msg, null, &window);

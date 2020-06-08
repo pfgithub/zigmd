@@ -249,6 +249,12 @@ pub const Window = struct {
 
     /// defer popClipRect
     pub fn pushClipRect(window: *Window, rect: Rect) ER!void {
+        // var crcol = @intCast(u8, window.clippingRectangles.items.len * 8);
+        // renderRect(
+        //     window,
+        //     Color{ .r = crcol, .g = crcol, .b = crcol, .a = 255 },
+        //     rect,
+        // ) catch @panic("unhandled")
         const resRect = if (window.clippingRectangles.items.len >= 1)
             rect.overlap(window.clippingRectangles.items[window.clippingRectangles.items.len - 1])
         else

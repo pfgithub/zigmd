@@ -1,4 +1,5 @@
 const std = @import("std");
+const main = @import("main.zig");
 const win = @import("render.zig");
 const help = @import("helpers.zig");
 const Auto = @import("Auto.zig");
@@ -79,6 +80,13 @@ pub const ImEvent = struct {
             scrollID: u64 = 0,
         };
     };
+    const Data = struct {
+        settings: struct {
+            style: Style,
+            updateMode: main.UpdateMode,
+        },
+    };
+    data: Data,
     internal: Internal = Internal{},
     click: bool = false,
     mouseDown: bool = false,
