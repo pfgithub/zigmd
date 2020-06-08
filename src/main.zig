@@ -1192,7 +1192,7 @@ pub const MainPage = struct {
 
         switch (page.displayMode) {
             .editor => {
-                try app.render(imev, updateMode.showPerformance, currentPos.setY2(pos.h));
+                try app.render(imev, updateMode.showPerformance, currentPos.setY2(pos.y2()));
             },
             .gui => {
                 currentPos.y += gui.seperatorGap;
@@ -1200,16 +1200,16 @@ pub const MainPage = struct {
                 switch (updateMode.guiDisplay) {
                     .double => {
                         const cx = currentPos.centerX();
-                        _ = try imedtrscrll.render(.{updateMode}, style, imev, guiPos.setX2(cx - 20).setY2(pos.h));
-                        _ = try imedtr2.render(updateMode, style, imev, guiPos.rightCut(cx + 20));
+                        _ = try imedtrscrll.render(.{updateMode}, style, imev, guiPos.setX2(cx - 20).setY2(pos.y2()));
+                        _ = try imedtr2.render(updateMode, style, imev, guiPos.setX1(cx + 20));
                     },
                     .single => {
-                        _ = try imedtrscrll.render(.{updateMode}, style, imev, guiPos.setY2(pos.h));
+                        _ = try imedtrscrll.render(.{updateMode}, style, imev, guiPos.setY2(pos.y2()));
                     },
                 }
             },
             .window => {
-                try page.windowDemo.render(imev, style, currentPos.setY2(pos.h), alloc);
+                try page.windowDemo.render(imev, style, currentPos.setY2(pos.y2()), alloc);
             },
         }
     }

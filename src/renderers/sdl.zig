@@ -251,6 +251,10 @@ pub const Window = struct {
         window.clippingRectangles.deinit();
     }
 
+    // TODO if this returns the previous rect size, there will be
+    // no need for an internal arraylist.
+    // var popClipRect = pushClipRect();
+    // defer popClipRect.pop();
     /// defer popClipRect
     pub fn pushClipRect(window: *Window, rect: Rect) ER!void {
         if (window.debug.showClippingRects) {

@@ -126,6 +126,13 @@ pub const Rect = struct {
     y: i64,
     w: i64,
     h: i64,
+    // usingnamespace rectFns(.{.x, .y, .w, .h}, TopRect);
+    pub fn x2(rect: Rect) i64 {
+        return rect.x + rect.w;
+    }
+    pub fn y2(rect: Rect) i64 {
+        return rect.y + rect.h;
+    }
     pub fn containsPoint(rect: Rect, point: Point) bool {
         return point.x >= rect.x and point.x <= rect.x + rect.w and
             point.y >= rect.y and point.y <= rect.y + rect.h;
@@ -201,8 +208,8 @@ pub const Rect = struct {
         const newWidth = rect.w + (rect.x - x1); // #3234 workaround
         return .{ .x = x1, .y = rect.y, .w = newWidth, .h = rect.h };
     }
-    pub fn setX2(rect: Rect, x2: i64) Rect {
-        return rect.width(x2 - rect.x);
+    pub fn setX2(rect: Rect, x2_: i64) Rect {
+        return rect.width(x2_ - rect.x);
     }
     pub fn height(rect: Rect, newHeight: i64) Rect {
         return .{ .x = rect.x, .y = rect.y, .w = rect.w, .h = newHeight };
@@ -210,8 +217,8 @@ pub const Rect = struct {
     pub fn addHeight(rect: Rect, newHeight: i64) Rect {
         return rect.height(rect.h + newHeight);
     }
-    pub fn setY2(rect: Rect, y2: i64) Rect {
-        return rect.height(y2 - rect.y);
+    pub fn setY2(rect: Rect, y2_: i64) Rect {
+        return rect.height(y2_ - rect.y);
     }
     pub fn noHeight(rect: Rect) TopRect {
         return .{ .x = rect.x, .y = rect.y, .w = rect.w };
@@ -224,6 +231,11 @@ pub const TopRect = struct {
     x: i64,
     y: i64,
     w: i64,
+    // usingnamespace rectFns(.{.x, .y, .w}, TopRect);
+    // before each fn, @compileError if it needs more rect
+    pub fn x2(rect: Rect) i64 {
+        return rect.x + rect.w;
+    }
     pub fn centerX(rect: TopRect) i64 {
         return rect.x + @divFloor(rect.w, 2);
     }
@@ -242,13 +254,17 @@ pub const TopRect = struct {
     pub fn addWidth(rect: TopRect, newWidth: i64) TopRect {
         return rect.width(rect.w + newWidth);
     }
-    pub fn setX2(rect: TopRect, x2: i64) TopRect {
-        return rect.width(x2 - rect.x);
+    pub fn setX1(rect: TopRect, x1: i64) TopRect {
+        const newWidth = rect.w + (rect.x - x1); // #3234 workaround
+        return .{ .x = x1, .y = rect.y, .w = newWidth };
+    }
+    pub fn setX2(rect: TopRect, x2_: i64) TopRect {
+        return rect.width(x2_ - rect.x);
     }
     pub fn height(rect: TopRect, h: i64) Rect {
         return .{ .x = rect.x, .y = rect.y, .w = rect.w, .h = h };
     }
-    pub fn setY2(rect: TopRect, y2: i64) Rect {
-        return rect.height(y2 - rect.y);
+    pub fn setY2(rect: TopRect, y2_: i64) Rect {
+        return rect.height(y2_ - rect.y);
     }
 };
