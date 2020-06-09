@@ -174,6 +174,7 @@ pub const AutoTest = struct {
                 w.relativePos.h += imev.mouseDelta.y;
             }
             const hc = imev.hover(w.auto.id, windowRect);
+            const scrl = imev.scroll(w.auto.id, windowRect);
             const tbhc = imev.hover(w.auto.id.next(1), titlebarRect);
             if (tbhc.click) {
                 w.relativePos.x += imev.mouseDelta.x;

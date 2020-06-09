@@ -168,8 +168,9 @@ pub fn scroll(imev: *ImEvent, id: ID, rect_: win.Rect) win.Point {
     // overview:
     // - if scrolled:
     if (!std.meta.eql(imev.scrollDelta, win.Point.origin)) {
-        if (rect.containsPoint(imev.cursor))
-            imev.internal.next.scrollIDs.add(id.id) catch @panic("oom not handled");
+        if (rect.containsPoint(imev.cursor)) {
+            addOrReplace(id.id, &imev.internal.next.scrollIDs, .take);
+        }
         // there needs to be some way to keep the current scroll id if:
         //      the last scroll was <300ms ago
         // and  the last scroll is still under the cursor
