@@ -1122,15 +1122,12 @@ const Update = union(enum) {
 pub const UpdateMode = struct {
     const T = gui.StructDataHelper(@This());
 
-    // todo move title_... and other things these to DisplayDetails or something
-
     update: Update = .{ .poll = Update.default_poll },
     guiDisplay: enum { single, double } = .single,
     showRenderCount: bool = false,
     showPerformance: bool = false,
     showClippingRects: bool = false,
     resizePin: enum { top, center, bottom } = .top,
-    // when resizing the window, the location of what part of the text should be preserved on screen?
 
     pointlessButtons: PointlessButtons = PointlessButtons{},
     textField: [100]u8 = [_]u8{0} ** 100,
