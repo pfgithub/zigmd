@@ -5,22 +5,70 @@ const win = @import("../render.zig");
 const help = @import("../helpers.zig");
 usingnamespace @import("../gui.zig");
 
+pub fn Set(comptime Child: type) type {
+    return struct {
+        const AL = std.ArrayList(Child);
+        const SetThis = @This();
+        data: AL,
+        pub fn init(alloc: *std.mem.Allocator) SetThis {
+            return .{ .data = AL.init(alloc) };
+        }
+        pub fn deinit(set: *SetThis) void {
+            set.data.deinit();
+        }
+        /// o(n) atm, don't use too often with big lists.
+        pub fn add(set: *SetThis, item: Child) !void {
+            if (!set.has(item)) {
+                try set.data.append(item);
+            }
+        }
+        /// o(n) atm, don't use too often with big lists.
+        pub fn has(set: *SetThis, item: Child) bool {
+            return for (set.data.items) |itm| {
+                if (itm == item) break true;
+            } else false;
+        }
+        pub fn clear(set: *SetThis) void {
+            set.data.allocator.free(set.data.toOwnedSlice());
+        }
+        pub fn isEmpty(set: *SetThis) bool {
+            return set.data.items.len == 0;
+        }
+        // /// move all items from set -> to. to must be empty, set will be emptied.
+        /// clear to and move all items from set -> to. set will be empty after.
+        pub fn move(set: *SetThis, to: *SetThis) void {
+            // if (to.data.items.len != 0) @panic("expected .clear() first");
+            // to.data.deinit();
+            to.clear();
+            to.* = .{ .data = AL.fromOwnedSlice(set.data.allocator, set.data.toOwnedSlice()) };
+        }
+        /// clear to and copy all items from set -> to.
+        pub fn copyTo(set: *SetThis, to: *SetThis) !void {
+            to.clear();
+            try to.data.appendSlice(set.data.items);
+        }
+    };
+}
+
 const Internal = struct {
     mouseDown: bool = false,
     click: bool = false,
     rerender: bool = undefined,
     latestAssignedID: u32 = 0,
 
-    hoverID: u64 = 0,
-    clickID: u64 = 0,
-    scrollID: u64 = 0,
+    // a set would be better than an arraylist because this is only unique values
+    // .add, .has, .clear
+    hoverIDs: Set(u64),
+    clickIDs: Set(u64),
+    scrollIDs: Set(u64),
     prevScrollDelta: win.Point = undefined,
-    next: Next = Next{},
+    prevMouseDelta: win.Point = undefined, // TODO
+    next: Next,
 
     const Next = struct {
-        hoverID: u64 = 0,
-        clickID: u64 = 0,
-        scrollID: u64 = 0,
+        hoverIDs: Set(u64),
+        clickIDs: Set(u64),
+        scrollIDs: Set(u64),
     };
 };
 const Data = struct {
@@ -30,7 +78,7 @@ const Data = struct {
     },
 };
 data: Data,
-internal: Internal = Internal{},
+internal: Internal,
 click: bool = false,
 mouseDown: bool = false,
 mouseUp: bool = undefined,
@@ -47,7 +95,29 @@ scrollDelta: win.Point = win.Point{ .x = 0, .y = 0 },
 // and it only scrolls by whole ticks. this is one of the places raylib is better.
 window: *win.Window = undefined,
 render: bool = false,
+alloc: *std.mem.Allocator,
 const KeyArr = help.EnumArray(win.Key, bool);
+
+pub fn init(data: Data, alloc: *std.mem.Allocator) ImEvent {
+    return .{
+        .data = data,
+        .alloc = alloc,
+        .internal = .{
+            .hoverIDs = Set(u64).init(alloc),
+            .clickIDs = Set(u64).init(alloc),
+            .scrollIDs = Set(u64).init(alloc),
+            .next = .{
+                .hoverIDs = Set(u64).init(alloc),
+                .clickIDs = Set(u64).init(alloc),
+                .scrollIDs = Set(u64).init(alloc),
+            },
+        },
+    };
+}
+pub fn deinit(imev: *ImEvent) void {
+    Auto.destroy(&imev.internal, .{ .hoverIDs, .clickIDs, .scrollIDs });
+    Auto.destroy(&imev.internal.next, .{ .hoverIDs, .clickIDs, .scrollIDs });
+}
 
 pub fn newID(imev: *ImEvent) ID {
     imev.internal.latestAssignedID += 1;
@@ -58,23 +128,39 @@ pub const Hover = struct {
     click: bool,
     hover: bool,
 };
+/// eg making a window that doesn't allow clicks through but when clicked activates and clicks the selected thing:
+/// hover(auto.id, rect, .take) // take body clicks and do nothing
+/// hover(auto.id.next(1), rect, .passthrough) // take any clicks and move window to foreground
+/// sidenote: should auto.id.next be removed in favor of the react style "just call everything every time"?
+/// that can be safety-checked
+pub const PassthroughMode = enum { take, passthrough };
+fn addOrReplace(item: var, list: *Set(@TypeOf(item)), mode: PassthroughMode) void {
+    switch (mode) {
+        .take => list.clear(),
+        .passthrough => {},
+    }
+    list.add(item) catch @panic("oom not handled");
+}
 pub fn hover(imev: *ImEvent, id: ID, rect_: win.Rect) Hover {
+    return imev.hoverMode(id, rect_, .take);
+}
+pub fn hoverMode(imev: *ImEvent, id: ID, rect_: win.Rect, mode: PassthroughMode) Hover {
     if (imev.mouseUp) {
-        imev.internal.next.clickID = 0;
+        imev.internal.next.clickIDs.clear();
     }
     const rect = if (imev.window.clippingRectangle()) |cr| rect_.overlap(cr) else rect_;
     if (rect.containsPoint(imev.cursor)) {
-        imev.internal.next.hoverID = id.id;
+        addOrReplace(id.id, &imev.internal.next.hoverIDs, mode);
         if (imev.mouseDown) {
-            imev.internal.next.clickID = id.id;
+            addOrReplace(id.id, &imev.internal.next.clickIDs, mode);
         }
     }
     return .{
-        .hover = imev.internal.hoverID == id.id and if (imev.internal.clickID != 0)
-            imev.internal.hoverID == imev.internal.clickID
+        .hover = imev.internal.hoverIDs.has(id.id) and if (!imev.internal.clickIDs.isEmpty())
+            imev.internal.clickIDs.has(id.id)
         else
             true,
-        .click = imev.internal.clickID == id.id,
+        .click = imev.internal.clickIDs.has(id.id),
     };
 }
 pub fn scroll(imev: *ImEvent, id: ID, rect_: win.Rect) win.Point {
@@ -83,12 +169,12 @@ pub fn scroll(imev: *ImEvent, id: ID, rect_: win.Rect) win.Point {
     // - if scrolled:
     if (!std.meta.eql(imev.scrollDelta, win.Point.origin)) {
         if (rect.containsPoint(imev.cursor))
-            imev.internal.next.scrollID = id.id;
+            imev.internal.next.scrollIDs.add(id.id) catch @panic("oom not handled");
         // there needs to be some way to keep the current scroll id if:
         //      the last scroll was <300ms ago
         // and  the last scroll is still under the cursor
     }
-    if (imev.internal.scrollID == id.id) {
+    if (imev.internal.scrollIDs.has(id.id)) {
         return imev.internal.prevScrollDelta;
     }
     return .{ .x = 0, .y = 0 };
@@ -115,13 +201,9 @@ pub fn apply(imev: *ImEvent, ev: win.Event, window: *win.Window) void {
     //     @field(imev.internal.next, field.name) = 0;
     // }
 
-    imev.internal.hoverID = imev.internal.next.hoverID;
-    imev.internal.next.hoverID = 0;
-
-    imev.internal.clickID = imev.internal.next.clickID;
-
-    imev.internal.scrollID = imev.internal.next.scrollID;
-    imev.internal.next.scrollID = 0;
+    imev.internal.next.hoverIDs.move(&imev.internal.hoverIDs);
+    imev.internal.next.clickIDs.copyTo(&imev.internal.clickIDs) catch @panic("oom not handled");
+    imev.internal.next.scrollIDs.move(&imev.internal.scrollIDs);
 
     const startCursor = imev.cursor;
 

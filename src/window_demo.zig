@@ -197,7 +197,7 @@ pub const AutoTest = struct {
                 w.body.render(imev, style, bodyRect, alloc);
             }
             if (i != view.windows.items.len - 1) {
-                const finalHC = imev.hover(w.auto.id.next(4), windowRect);
+                const finalHC = imev.hoverMode(w.auto.id.next(4), windowRect, .passthrough);
                 // passthrough should add an id to a list of ids that will pass unless it is changed.
                 // eg if another thing does hover no passthrough, it will win. if it does hover passthrough, it will not.
                 if (finalHC.click) {

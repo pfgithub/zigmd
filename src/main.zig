@@ -1305,14 +1305,13 @@ pub fn main() !void {
     // if in foreground, loop pollevent
     // if in background, waitevent
 
-    var imev: ImEvent = .{
-        .data = .{
-            .settings = .{
-                .style = style,
-                .updateMode = UpdateMode{},
-            },
+    var imev = ImEvent.init(.{
+        .settings = .{
+            .style = style,
+            .updateMode = UpdateMode{},
         },
-    };
+    }, alloc);
+    defer imev.deinit();
 
     var event: win.Event = .empty;
     var windowInFocus: bool = true;
