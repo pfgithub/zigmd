@@ -227,14 +227,14 @@ pub const Minesweeper = struct {
             boardSizeX: BoardSize,
             boardSizeY: BoardSize,
 
-            initButton: gui.Button,
-            // this shouldn't have to be here
-            // this is one of the things imgui tries to solve
-            // at least it isn't full oop gui but this shouldn't be here
-        }
+            auto: Auto,
+        },
+        play: struct {
+            board: [][]MinesweeperTile,
+        },
     };
 
-    const BoardItem = struct {
+    const MinesweeperTile = struct {
         view: enum { hidden, flagged, shown },
         number: u64,
     };
