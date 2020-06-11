@@ -181,6 +181,12 @@ pub fn scroll(imev: *ImEvent, id: ID, rect_: win.Rect) win.Point {
     return .{ .x = 0, .y = 0 };
 }
 
+pub fn tabindex(imev: *ImEvent, id: ID) bool {
+    // true if focused, false else.
+    // press tab to go to next indexed item
+    // if this id is lost, go to the first item with an id that still exists
+}
+
 pub fn apply(imev: *ImEvent, ev: win.Event, window: *win.Window) void {
     // clear instantanious flags (mouseDown, mouseUp)
     if (imev.internal.mouseDown) {
