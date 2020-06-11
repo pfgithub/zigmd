@@ -219,6 +219,9 @@ pub const AutoTest = struct {
 };
 
 pub const Minesweeper = struct {
+    windowBody: WindowBody,
+    auto: Auto,
+
     gameState: GameState,
 
     const GameState = union(enum) {
@@ -230,18 +233,57 @@ pub const Minesweeper = struct {
             auto: Auto,
         },
         play: struct {
-            board: [][]MinesweeperTile,
+            board: []MinesweeperTile,
+            width: usize,
+
+            auto: Auto,
         },
+        fn deinit(gs: *GameState) void {
+            switch (gs) {
+                .setup => |*setup| {
+                    Auto.destroy(setup, .{.auto});
+                },
+                .play => |*play| {
+                    for (play.board) |*tile| {
+                        Auto.destroy(tile, .{.auto});
+                    }
+                    play.auto.alloc.free(play.board);
+                    Auto.destroy(play, .{.auto});
+                },
+            }
+        }
     };
 
     const MinesweeperTile = struct {
         view: enum { hidden, flagged, shown },
         number: u64,
+        auto: Auto,
     };
 
-    pub fn init(imev: *gui.ImEvent, style: *gui.Style) Minesweeper {
-        return .{
-            .id = imev.newID(),
-        };
+    pub fn init(
+        imev: *gui.ImEvent,
+        alloc: *std.mem.Allocator,
+    ) WindowTest {
+        return Auto.create(WindowTest, imev, alloc, .{
+            .windowBody = WindowBody.from(Minesweeper, "windowBody"),
+        });
+    }
+
+    pub fn deinit(body: *WindowTest) void {
+        body.gameState.deinit();
+        Auto.destroy(body, .{.auto});
+    }
+
+    pub fn render(
+        body: *WindowTest,
+        imev: *gui.ImEvent,
+        style: gui.Style,
+        pos: win.Rect,
+        alloc: *std.mem.Allocator,
+    ) void {
+        switch (body.gameState) {
+            .setup => |setup| {},
+        }
+        body.auto.new(main.MainPage.init, .{ alloc, imev }).render(imev, style, pos, alloc) catch @panic("error not handled");
     }
 };
