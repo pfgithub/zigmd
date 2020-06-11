@@ -277,15 +277,15 @@ pub const Minesweeper = struct {
         };
         fn deinit(gs: *GameState) void {
             switch (gs.*) {
-                .setup => |*setup| {
-                    Auto.destroy(setup, .{.auto});
+                .setup => |setup| {
+                    Auto.destroy(&gs.setup, .{.auto});
                 },
-                .play => |*play| {
-                    for (play.board) |*tile| {
+                .play => |play| {
+                    for (gs.play.board) |*tile| {
                         Auto.destroy(tile, .{.auto});
                     }
-                    play.auto.alloc.free(play.board);
-                    Auto.destroy(play, .{.auto});
+                    play.auto.alloc.free(gs.play.board);
+                    Auto.destroy(&gs.play, .{.auto});
                 },
             }
         }
@@ -301,9 +301,10 @@ pub const Minesweeper = struct {
         imev: *gui.ImEvent,
         alloc: *std.mem.Allocator,
     ) Minesweeper {
+        const gameState = GameState{ .setup = GameState.Setup.init(imev, alloc) };
         return Auto.create(Minesweeper, imev, alloc, .{
             .windowBody = WindowBody.from(Minesweeper, "windowBody"),
-            .gameState = GameState{ .setup = GameState.Setup.init(imev, alloc) },
+            .gameState = gameState,
         });
     }
 
@@ -335,16 +336,16 @@ pub const Minesweeper = struct {
             },
             .play => |play| {
                 // todo
-                const startBtn = body.auto.new(gui.Button.init, .{imev}).render(
-                    .{ .text = "Todo", .font = style.fonts.standard, .active = false, .style = style },
-                    imev,
-                    pos.position(.{ .w = 100, .h = 25 }, .hcenter, .vcenter),
-                ) catch @panic("error not handled");
-                if (startBtn.click) {
-                    body.gameState.deinit();
-                    body.gameState = .{ .play = GameState.Play.init(imev, alloc) };
-                    // what does this do to setup if it's a *const ptr? seems like an issue
-                }
+                // const startBtn = body.auto.new(gui.Button.init, .{imev}).render(
+                //     .{ .text = "Todo", .font = style.fonts.standard, .active = false, .style = style },
+                //     imev,
+                //     pos.position(.{ .w = 100, .h = 25 }, .hcenter, .vcenter),
+                // ) catch @panic("error not handled");
+                // if (startBtn.click) {
+                //     body.gameState.deinit();
+                //     body.gameState = .{ .play = GameState.Play.init(imev, alloc) };
+                //     // what does this do to setup if it's a *const ptr? seems like an issue
+                // }
             },
         }
     }
