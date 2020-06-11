@@ -141,6 +141,26 @@ pub const AutoTest = struct {
                 .relativePos = .{ .x = 100, .y = 100, .w = 500, .h = 500 },
             })) catch @panic("oom not handled");
         }
+        const msclick = try view.auto.new(
+            gui.Button.init,
+            .{imev},
+        ).render(
+            .{ .text = "+ Minesweeper", .font = style.fonts.standard, .active = false, .style = style },
+            imev,
+            pos.position(.{ .w = 100, .h = 25 }, .left, .top).down(100).right(50),
+        );
+        if (msclick.click) {
+            var windowTest = alloc.create(Minesweeper) catch @panic("oom not handled");
+            windowTest.* = Minesweeper.init(imev, alloc);
+            var windowBody = &windowTest.windowBody;
+            var component: Component = .{ .body = windowBody };
+            view.windows.append(Auto.create(Window, imev, alloc, .{
+                .title = "Title",
+                .body = component,
+                .relativePos = .{ .x = 100, .y = 100, .w = 500, .h = 500 },
+            })) catch @panic("oom not handled");
+        }
+
         var removeIndex: ?usize = null;
         var bringToFrontIndex: ?usize = null;
         for (view.windows.items) |*w, i| {
@@ -225,21 +245,38 @@ pub const Minesweeper = struct {
     gameState: GameState,
 
     const GameState = union(enum) {
-        setup: struct {
-            const BoardSize = enum { @"5" = 5, @"6" = 6, @"7" = 7, @"8" = 8, @"9" = 9 }; // good place for a textarea + dropdown combo or a slider or something"
-            boardSizeX: BoardSize,
-            boardSizeY: BoardSize,
+        setup: Setup,
+        play: Play,
+        const Setup = struct {
+            boardSizeX: u16,
+            boardSizeY: u16,
 
             auto: Auto,
-        },
-        play: struct {
+            const This = @This();
+            pub fn init(imev: *gui.ImEvent, alloc: *std.mem.Allocator) This {
+                return Auto.create(This, imev, alloc, .{
+                    .boardSizeX = 10,
+                    .boardSizeY = 10,
+                });
+            }
+        };
+        const Play = struct {
             board: []MinesweeperTile,
             width: usize,
 
             auto: Auto,
-        },
+            const This = @This();
+            // pub const init = Auto.createInitFn(@This())
+            // that doesn't allow for anthing custom
+            pub fn init(imev: *gui.ImEvent, alloc: *std.mem.Allocator) This {
+                return Auto.create(This, imev, alloc, .{
+                    .board = alloc.alloc(MinesweeperTile, 10 * 10) catch @panic("oom not handled"),
+                    .width = 10,
+                });
+            }
+        };
         fn deinit(gs: *GameState) void {
-            switch (gs) {
+            switch (gs.*) {
                 .setup => |*setup| {
                     Auto.destroy(setup, .{.auto});
                 },
@@ -263,27 +300,52 @@ pub const Minesweeper = struct {
     pub fn init(
         imev: *gui.ImEvent,
         alloc: *std.mem.Allocator,
-    ) WindowTest {
-        return Auto.create(WindowTest, imev, alloc, .{
+    ) Minesweeper {
+        return Auto.create(Minesweeper, imev, alloc, .{
             .windowBody = WindowBody.from(Minesweeper, "windowBody"),
+            .gameState = GameState{ .setup = GameState.Setup.init(imev, alloc) },
         });
     }
 
-    pub fn deinit(body: *WindowTest) void {
+    pub fn deinit(body: *Minesweeper) void {
         body.gameState.deinit();
         Auto.destroy(body, .{.auto});
     }
 
     pub fn render(
-        body: *WindowTest,
+        body: *Minesweeper,
         imev: *gui.ImEvent,
         style: gui.Style,
         pos: win.Rect,
         alloc: *std.mem.Allocator,
     ) void {
         switch (body.gameState) {
-            .setup => |setup| {},
+            .setup => |setup| {
+                // using a frame delay, it might be possible to center eg things with unknown height
+                const startBtn = body.auto.new(gui.Button.init, .{imev}).render(
+                    .{ .text = "Start", .font = style.fonts.standard, .active = false, .style = style },
+                    imev,
+                    pos.position(.{ .w = 100, .h = 25 }, .hcenter, .vcenter),
+                ) catch @panic("error not handled");
+                if (startBtn.click) {
+                    body.gameState.deinit();
+                    body.gameState = .{ .play = GameState.Play.init(imev, alloc) };
+                    // what does this do to setup if it's a *const ptr? seems like an issue
+                }
+            },
+            .play => |play| {
+                // todo
+                const startBtn = body.auto.new(gui.Button.init, .{imev}).render(
+                    .{ .text = "Todo", .font = style.fonts.standard, .active = false, .style = style },
+                    imev,
+                    pos.position(.{ .w = 100, .h = 25 }, .hcenter, .vcenter),
+                ) catch @panic("error not handled");
+                if (startBtn.click) {
+                    body.gameState.deinit();
+                    body.gameState = .{ .play = GameState.Play.init(imev, alloc) };
+                    // what does this do to setup if it's a *const ptr? seems like an issue
+                }
+            },
         }
-        body.auto.new(main.MainPage.init, .{ alloc, imev }).render(imev, style, pos, alloc) catch @panic("error not handled");
     }
 };
