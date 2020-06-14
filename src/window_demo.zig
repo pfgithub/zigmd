@@ -217,6 +217,14 @@ pub const AutoTest = struct {
                 defer imev.window.popClipRect();
                 w.body.render(imev, style, bodyRect, alloc);
             }
+
+            // if (mod key pressed)
+            //    imev.hover
+            //    if(hover.lmb)
+            //        move window
+            //    if(hover.rmb)
+            //        resize window (auto direction, same that should be used for border drag)
+
             if (i != view.windows.items.len - 1) {
                 const finalHC = imev.hoverMode(w.auto.id.next(4), windowRect, .passthrough);
                 // passthrough should add an id to a list of ids that will pass unless it is changed.
@@ -225,9 +233,6 @@ pub const AutoTest = struct {
                     bringToFrontIndex = i;
                 }
             }
-
-            // handle mod+drag after ("capturing")
-            // before = bubbling, after = capturing
         }
         if (removeIndex) |ri| {
             view.windows.orderedRemove(ri).deinit();
