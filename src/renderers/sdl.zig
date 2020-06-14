@@ -118,6 +118,8 @@ fn keyFromSDL(sdlKey: var) Key {
         .SDL_SCANCODE_DELETE => .Delete,
         .SDL_SCANCODE_S => .S,
         .SDL_SCANCODE_ESCAPE => .Escape,
+        .SDL_SCANCODE_LALT => .Alt,
+        .SDL_SCANCODE_RALT => .Alt,
         else => .Unknown,
     };
 }

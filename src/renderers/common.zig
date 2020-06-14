@@ -50,6 +50,7 @@ pub const Key = enum(u64) {
     Unknown,
     S,
     Escape,
+    Alt, // LAlt/RAlt?
 };
 
 pub const Event = union(enum) {

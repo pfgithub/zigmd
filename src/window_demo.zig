@@ -218,12 +218,21 @@ pub const AutoTest = struct {
                 w.body.render(imev, style, bodyRect, alloc);
             }
 
-            // if (mod key pressed)
-            //    imev.hover
-            //    if(hover.lmb)
-            //        move window
-            //    if(hover.rmb)
-            //        resize window (auto direction, same that should be used for border drag)
+            if (imev.key.get(.Alt)) {
+                const clickHover = imev.hover(w.auto.id.next(5), windowRect);
+
+                //    if(hover.lmb)
+                //        move window
+                //    if(hover.rmb)
+                //        resize window (auto direction, same that should be used for border drag)
+                // todo lmb/rmb distinction in imev
+                if (clickHover.click) {
+                    // move into fn, this is done too often
+                    w.relativePos.x += imev.mouseDelta.x;
+                    w.relativePos.y += imev.mouseDelta.y;
+                    imev.window.cursor = .move;
+                }
+            }
 
             if (i != view.windows.items.len - 1) {
                 const finalHC = imev.hoverMode(w.auto.id.next(4), windowRect, .passthrough);
