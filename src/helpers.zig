@@ -149,6 +149,24 @@ pub fn UnionArray(comptime Union: type) type {
     };
 }
 
+// don't think this can be implemented yet because the fn
+// can't be varargs
+// vararg tuples please zig ty
+/// usingnamespace vtable(@This());
+pub fn vtable(comptime Vtable: type) type {
+    const ti = @typeInfo(Vtable).Struct;
+    return struct {
+        pub fn from(comptime Container: type) Vtable {
+            var result: Vtable = undefined;
+            inline for (ti.fields) |field| {
+                @field(result, field.name) = struct {
+                    // pub fn a(...args: var)
+                }.a;
+            }
+        }
+    };
+}
+
 // comptime only
 pub fn UnionCallReturnType(comptime Union: type, comptime method: []const u8) type {
     var res: ?type = null;
@@ -194,8 +212,7 @@ pub fn unionCallReturnsThis(comptime Union: type, comptime method: []const u8, e
     @panic("Did not match any enum value");
 }
 
-// unionCallThis(*Union, "deinit")(someUnion, .{}) should work
-// also is there any reason it needs to return a fn? why can't it be unionCallThis(someUnion, "deinit", .{})
+// should it be unionCallThis(unionv, .deinit, .{args})? feels better imo.
 pub fn unionCallThis(comptime method: []const u8, unionValue: var, args: var) UnionCallReturnType(DePointer(@TypeOf(unionValue)), method) {
     const isPtr = @typeInfo(@TypeOf(unionValue)) == .Pointer;
     const Union = DePointer(@TypeOf(unionValue));
@@ -385,7 +402,7 @@ pub const AnyPtr = comptime blk: {
     };
 };
 
-fn expectEqualStrings(str1: []const u8, str2: []const u8) void {
+pub fn expectEqualStrings(str1: []const u8, str2: []const u8) void {
     if (std.mem.eql(u8, str1, str2)) return;
     std.debug.panic("\nExpected `{}`, got `{}`\n", .{ str1, str2 });
 }
