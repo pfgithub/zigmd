@@ -24,19 +24,18 @@ pub fn addBuildOptions(b: *Builder, renderer: Renderer, mode: var, exe: var) voi
     exe.addBuildOption(Renderer, "Renderer = enum { sdl, raylib };\npub const renderer", renderer); // hmm (#3127)
 
     // tree-sitter
-    if (mode == .ReleaseFast) {
-        // supposedly "-fno-sanitize=undefined" works in this array vvvvvvvvvvvvvv todo
-        exe.addCSourceFile("deps/build/tree-sitter/lib/src/lib.c", &[_][]const u8{});
-        exe.addIncludeDir("deps/build/tree-sitter/lib/src");
-    } else {
-        exe.addObjectFile("deps/build/tree-sitter/lib/src/lib.o");
-    }
+    exe.addCSourceFile("deps/build/tree-sitter/lib/src/lib.c", &[_][]const u8{"-fno-sanitize=undefined"});
+    exe.addIncludeDir("deps/build/tree-sitter/lib/src");
 
     exe.linkSystemLibrary("c++");
     exe.addIncludeDir("deps/build/tree-sitter/lib/include");
+
+    // tree-sitter-markdown
     exe.addCSourceFile("deps/build/tree-sitter-markdown/src/parser.c", &[_][]const u8{});
     exe.addObjectFile("deps/build/tree-sitter-markdown/src/scanner.o");
-    exe.addCSourceFile("deps/build/tree-sitter-json/src/parser.c", &[_][]const u8{});
+
+    // tree-sitter-json
+    // exe.addCSourceFile("deps/build/tree-sitter-json/src/parser.c", &[_][]const u8{});
 }
 
 pub fn build(b: *Builder) void {
