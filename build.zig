@@ -25,9 +25,9 @@ pub fn addBuildOptions(b: *Builder, renderer: Renderer, mode: var, exe: var) voi
 
     // tree-sitter
     if (mode == .ReleaseFast) {
+        // supposedly "-fno-sanitize=undefined" works in this array vvvvvvvvvvvvvv todo
         exe.addCSourceFile("deps/build/tree-sitter/lib/src/lib.c", &[_][]const u8{});
         exe.addIncludeDir("deps/build/tree-sitter/lib/src");
-        exe.addIncludeDir("deps/build/tree-sitter/lib/include");
     } else {
         exe.addObjectFile("deps/build/tree-sitter/lib/src/lib.o");
     }

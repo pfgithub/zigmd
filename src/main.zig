@@ -1341,8 +1341,8 @@ pub fn main() !void {
 
         // === RENDER
         imev.animationEnabled = switch (updateMode.update) {
-            .poll => |p| if (windowInFocus) p.animations else false,
-            else => false,
+            .poll => |p| windowInFocus and p.animations,
+            .wait => false,
         };
 
         imev.apply(event, &window);

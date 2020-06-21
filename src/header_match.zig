@@ -671,6 +671,51 @@ test "" {
         },
     }), "a: Struct > [custom]: Fn > one: Int >: Types differ. Expected: u64, Got: u32.");
 }
+
+/// UniqueType can only be header matched once!
+pub fn UniqueType(nomemo: var) type {
+    var saved: ?type = null;
+    return CustomTypeCompare(struct {
+        pub fn a(comptime Other: type, comptime compare: var, comptime ctx: ImplCtx) ?ImplErr {
+            if (saved == null) {
+                saved = Other;
+                return null;
+            }
+            if (saved) |s|
+                if (s != Other)
+                    return ctx.err("Expected, got.", s, Other);
+            return null;
+        }
+    }.a);
+}
+
+pub const AnyType = CustomTypeCompare(struct {
+    pub fn a(comptime Other: type, comptime compare: var, comptime ctx: ImplCtx) ?ImplErr {
+        return null;
+    }
+}.a);
+
+test "" {
+    comptime expectEqual(testingImplements(struct {
+        pub const A = UniqueType(.{});
+        pub const B = UniqueType(.{});
+        pub const C = A;
+    }, struct {
+        pub const A = struct {};
+        pub const B = struct {};
+        pub const C = struct {};
+    }), "decl A: Struct > [custom]: Fn >: Expected, got.");
+    comptime conformsTo(struct {
+        pub const A = UniqueType(.{});
+        pub const B = UniqueType(.{});
+        pub const C = A;
+    }, struct {
+        pub const A = struct {};
+        pub const B = struct {};
+        pub const C = A;
+    });
+}
+
 // TODO for this. instead of implements happening immediately, it should:
 // - add this call to a list
 // The main caller passes in a list and
