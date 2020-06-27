@@ -147,8 +147,6 @@ pub fn LinkedList(comptime Value: type) type {
     };
 }
 
-pub const TextStyle = struct {};
-
 pub fn EditorCore(comptime Measurer: type) type {
     const MeasurerInterface = struct {
         pub const Text = struct {
@@ -167,22 +165,35 @@ pub fn EditorCore(comptime Measurer: type) type {
 
     return struct {
         const Core = @This();
-        pub const CodeRange = union(enum) {
-            text: struct {
-                // node: *RangeList.Node?
-                style: TextStyle,
-                text: std.ArrayList(u8),
-                // might need to include individual character sizes too
-                // ^ do, not might.
-                measure: ?struct {
-                    characters: std.ArrayList(struct { width: i64 }),
-                    measure: Measurement,
-                    data: Measurer.Text, // measurer.render
-                },
-            },
-            start,
+
+        pub const MeasurementData = struct {
+            characters: std.ArrayList(struct { width: i64 }),
+            measure: Measurement,
+            data: Measurer.Text, // measurer.render
         };
-        pub const RangeList = LinkedList(CodeRange);
+        pub const CodeText = struct {
+            // in the future, if really large files are ever supported, it might be possible
+            // for a given range of text to not exist and require fetching the file to find.
+            // luckily,  this is not necessary to  worry about right  now because now is not
+            // the future.
+            text: std.ArrayList(u8),
+            // might need to include individual character sizes too
+            // ^ do, not might.
+            measure: ?MeasurementData,
+
+            pub fn node(me: *CodeText) *RangeList.Node {
+                return @fieldParentPtr(RangeList.Node, "value", me);
+            }
+            pub fn deinit(me: *CodeText) void {
+                me.text.deinit();
+                if (me.measure) |*measure| {
+                    measure.characters.deinit();
+                    measure.measure.deinit();
+                    measure.data.deinit();
+                }
+            }
+        };
+        pub const RangeList = LinkedList(CodeText);
 
         alloc: *Alloc,
         measurer: Measurer,
@@ -190,24 +201,124 @@ pub fn EditorCore(comptime Measurer: type) type {
         code: *RangeList.Node,
 
         cursor: TextPoint,
-        pub const TextPoint = struct { node: *RangeList.Node, offset: u64 };
+        pub const TextPoint = struct { text: *CodeText, offset: u64 };
 
         pub fn insert(me: *Core, point: TextPoint, text: []const u8) !void {
-            try point.value.text.text.insertSlice(point.offset, text);
-            point.value.text.measure = null;
-            // point.value.text
-            // insert
-            // update tree-sitter
-            // â€™
+            try point.text.text.insertSlice(point.offset, text);
+            point.text.measure = null;
+            // 1. update tree-sitter /
+            // 2. remeasure? idk /
+            // 3. â€™ /
+            // also how to make sure eg cursor never has an invalid offset? idk. todo think. /
+
+            // update all saved TextPoints at the updated point to the new point. /
+            // maybe a fn to handle this? /
+            if (me.cursor.text == point.text) {
+                // depending on insert direction, choose > or >= /
+                if (me.cursor.offset > point.offset) me.cursor.offset += point.offset;
+            }
         }
-        // render
-        // deltaScroll will scroll based on the current saved node to scroll based
-        // on.
-        // returns []{x: , y: , data: Measurer.Text}. free it yourself.
-        pub fn render(width: i64, deltaScroll: i64) void {}
+
+        pub fn removeNodeText(me: *Core, node: *RangeList.Node, from: usize, to: usize) void {
+            alRemoveRange(node.value.text, from, to);
+            if (me.cursor.text == &node.value) {
+                if (me.cursor.offset > to) me.cursor.offset -= to - from
+                // zig fmt bug/
+                else if (me.cursor.offset > from) me.cursor.offset = from;
+            }
+            if (node.value.text.items != 0) return;
+
+            // first node:/
+            if (me.code == node) {
+                if (node.next == null) return;
+                me.code = node.next.?;
+            }
+            if (me.cursor.text == &node.value) {
+                if (node.next) |nxt| me.cursor = .{ .text = &nxt.value, .offset = 0 }
+                // zig/
+                else me.cursor = .{ .text = &node.previous.?.value, .offset = node.previous.?.value.text.items.len };
+            }
+            node.remove().deinit();
+        }
+
+        pub fn delete(me: *Core, from: TextPoint, to: TextPoint) void {
+            // TODO: remove 0-length nodes unless the node is the/
+            // start node and there is no next node./
+            if (from.node == to.node) {
+                me.removeNodeText(from.text.node(), from.offset, to.offset);
+                return;
+            }
+            var currentText: ?*CodeText = from.text;
+            while (currentText) |ctxt| : (currentText = currentText.node().next) {
+                if (ctxt == from.text) {
+                    me.removeNodeText(ctxt.text.node(), from.offset, ctxt.items.len);
+                } else if (ctxt == to.text) {
+                    me.removeNodeText(ctxt.text.node(), 0, to.offset);
+                } else {
+                    me.removeNodeText(ctxt.text.node(), 0, ctxt.text.items.len);
+                }
+            }
+        }
+
+        // what if renderIterator handles all the tree sitter stuff and the only thing
+        // the other fns have to do is publish edits?
+        // that wouldn't be terrible
+        // so renderIterator will be splitting nodes and stuff while looping
+        pub const RenderIterator = struct {
+            current: ?*CodeText,
+            x: i64 = 0,
+            y: i64 = 0,
+            width: i64,
+            height: i64,
+            remainingItemsInLine: usize = 0,
+            lineHeight: i64 = 0,
+            lineBaseline: i64 = undefined,
+            pub fn next(ri: *RenderIterator) ?struct { x: i64, y: i64, height: i64, measure: MeasurementData } {
+                if (ri.y > ri.height) return null;
+                if (ri.current == null) return null;
+
+                const current = ri.current.?;
+
+                if (ri.remainingItemsInLine == 0) {
+                    ri.y += ri.lineHeight;
+                    ri.lineHeight = undefined;
+                    ri.lineBaseline = undefined;
+
+                    // tree sitter get node () /
+                    // if node.length > ts node.lengthUntilNewline
+                    //    split node
+                    // else if node.length < ts node.lengthUntilNewline
+                    //    merge node /
+                    // ts next node (or just next part after newline)
+
+                    // loop over this line until reaching the end.
+                    //   tree sitter get and split/merge this node into the nodes tree-sitter wants
+                    //   if tree sitter says this node should render newlines, split out the newline node too
+                    //   (we don't talk to tree-sitter directly, we use Measurer.syntaxHighlighter)
+                    //   measure
+                    // if the measurement
+                    // save line height (= max height), linebaseline (= max baseline), and remainingItemsInLine /
+                }
+                const measure = current.measure.?; // measured above already
+
+                const cx = ri.x;
+                ri.x += measure.width;
+                ri.current = current.node().next();
+
+                return .{ .x = cx, .y = ri.y + (ri.lineBaseline - measure.measure.baseline), .measure = measure };
+            }
+        };
+        pub fn render(me: *EditorCore, width: i64, height: i64, deltaScroll: i64) RenderIterator {
+            return .{ .current = &me.code.value, .width = width, .height = height };
+        }
 
         pub fn init(alloc: *Alloc, measurer: Measurer) !Core {
-            const startNode = try RangeList.Node.create(alloc, .start);
+            var snal = std.ArrayList(u8).init(alloc);
+            errdefer snal.deinit();
+            const startNode = try RangeList.Node.create(
+                alloc,
+                .{ .text = snal, .measure = null },
+            );
             errdefer startNode.remove(alloc);
 
             return Core{
@@ -221,9 +332,8 @@ pub fn EditorCore(comptime Measurer: type) type {
         pub fn deinit(me: *Core) void {
             me.measurer.deinit();
             var iter = me.code.iter();
-            if (iter.next().?.remove(me.alloc) != .start) unreachable;
             while (iter.next()) |itm| {
-                itm.remove(me.alloc).text.data.deinit();
+                itm.remove(me.alloc).deinit();
             }
             me.* = undefined;
         }
@@ -257,7 +367,7 @@ test "editor core" {
             }
             return .{
                 .width = finalSize,
-                .height = 50,
+                .height = if (text.len > 0) 50 else 25,
                 .baseline = 45,
             };
         }
