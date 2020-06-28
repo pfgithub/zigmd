@@ -45,6 +45,7 @@ pub const CursorPos = struct {
 
 // this should be built into arraylist
 pub fn alRemoveRange(al: var, start: usize, end: usize) void {
+    if (@typeInfo(@TypeOf(al)) != .Pointer) @compileError("must be *std.ArrayList(...)");
     const ChildT = @typeInfo(@TypeOf(al).Child.Slice).Pointer.child;
     std.mem.copy(ChildT, al.items[start..], al.items[end..]);
     al.items.len -= end - start;
@@ -113,30 +114,31 @@ pub fn LinkedList(comptime Value: type) type {
             value: Value,
             next: ?*Node,
             previous: ?*Node,
+            alloc: *Alloc,
             pub fn create(alloc: *Alloc, value: Value) !*Node {
                 var node = try alloc.create(Node);
-                node.* = .{ .value = value, .next = null, .previous = null };
+                node.* = .{ .alloc = alloc, .value = value, .next = null, .previous = null };
                 return node;
             }
-            pub fn remove(me: *Node, alloc: *Alloc) Value {
+            pub fn remove(me: *Node) Value {
                 if (me.next) |nxt| nxt.previous = me.next;
                 if (me.previous) |prev| prev.next = me.previous;
 
                 const result = me.value;
-                alloc.destroy(me);
+                me.alloc.destroy(me);
                 return result;
             }
-            pub fn insertAfter(me: *Node, alloc: *Alloc, value: Value) !*Node {
-                var node = try alloc.create(Node);
-                node.* = .{ .value = value, .next = me.next, .previous = me };
-                me.next.previous = node;
+            pub fn insertAfter(me: *Node, value: Value) !*Node {
+                var node = try me.alloc.create(Node);
+                node.* = .{ .alloc = me.alloc, .value = value, .next = me.next, .previous = me };
+                if (me.next) |nxt| nxt.previous = node;
                 me.next = node;
                 return node;
             }
-            pub fn insertBefore(me: *Node, alloc: *Alloc, value: Value) !*Node {
-                var node = try alloc.create(Node);
-                node.* = .{ .value = value, .next = me.previous, .previous = me };
-                me.previous.next = node;
+            pub fn insertBefore(me: *Node, value: Value) !*Node {
+                var node = try me.alloc.create(Node);
+                node.* = .{ .alloc = me.alloc, .value = value, .next = me.previous, .previous = me };
+                if (me.previous) |prv| prv.next = node;
                 me.previous = node;
                 return node;
             }
@@ -147,29 +149,34 @@ pub fn LinkedList(comptime Value: type) type {
     };
 }
 
+// const MeasurerInterface = struct {
+//     pub const Text = struct {
+//         fn deinit(text: *Text) void {}
+//     };
+//     pub fn render(me: *Measurer, text: []const u8, style: TextStyle, measure: Measurement) Text {
+//         return undefined;
+//     }
+//     pub fn measure(me: *Measurer, text: []const u8, style: TextStyle) Measurement {
+//         return undefined;
+//     }
+//     pub fn deinit(me: *Measurer) void {}
+// };
+// header.conformsTo(MeasurerInterface, Measurer);
+//    zig compiler crash oops
 pub fn EditorCore(comptime Measurer: type) type {
-    const MeasurerInterface = struct {
-        pub const Text = struct {
-            fn deinit(text: *Text) void {}
-        };
-        pub fn render(me: *Measurer, text: []const u8, style: TextStyle, measure: Measurement) Text {
-            return undefined;
-        }
-        pub fn measure(me: *Measurer, text: []const u8, style: TextStyle) Measurement {
-            return undefined;
-        }
-        pub fn deinit(me: *Measurer) void {}
-    };
-    // header.conformsTo(MeasurerInterface, Measurer);
-    //    zig compiler crash oops
-
     return struct {
         const Core = @This();
 
+        pub const CharacterMeasure = struct { width: i64 };
         pub const MeasurementData = struct {
-            characters: std.ArrayList(struct { width: i64 }),
+            characters: std.ArrayList(CharacterMeasure),
             measure: Measurement,
             data: Measurer.Text, // measurer.render
+            pub fn deinit(md: *MeasurementData) void {
+                md.characters.deinit();
+                md.data.deinit();
+                md.* = undefined;
+            }
         };
         pub const CodeText = struct {
             // in the future, if really large files are ever supported, it might be possible
@@ -187,9 +194,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             pub fn deinit(me: *CodeText) void {
                 me.text.deinit();
                 if (me.measure) |*measure| {
-                    measure.characters.deinit();
-                    measure.measure.deinit();
-                    measure.data.deinit();
+                    measure.deinit();
                 }
             }
         };
@@ -203,9 +208,37 @@ pub fn EditorCore(comptime Measurer: type) type {
         cursor: TextPoint,
         pub const TextPoint = struct { text: *CodeText, offset: u64 };
 
+        /// force remeasure a given node. use remeasureIfNeeded instead
+        pub fn remeasure(me: *Core, text: *CodeText) !void {
+            var charactersAl = std.ArrayList(CharacterMeasure).init(me.alloc);
+            errdefer charactersAl.deinit();
+
+            for (text.text.items) |_, i| {
+                const progress: Measurement = try me.measurer.measure(text.text.items[0..i]);
+                try charactersAl.append(.{ .width = progress.width });
+            }
+
+            const measurement = try me.measurer.measure(text.text.items);
+            const data = try me.measurer.render(text.text.items, measurement);
+            errdefer data.deinit();
+
+            text.measure = .{
+                .measure = measurement,
+                .data = data,
+                .characters = charactersAl,
+            };
+        }
+
+        /// after calling this function, text.measure is not null
+        /// and up to date, unless this function returns an error.
+        pub fn remeasureIfNeeded(me: *Core, text: *CodeText) !void {
+            // when editing nodes, any affected will have measure reset to nlul
+            if (text.measure == null) return me.remeasure(text);
+        }
+
         pub fn insert(me: *Core, point: TextPoint, text: []const u8) !void {
             try point.text.text.insertSlice(point.offset, text);
-            point.text.measure = null;
+            if (text.len != 0) point.text.measure = null;
             // 1. update tree-sitter
             // 2. remeasure? idk
             // 3. â€™
@@ -220,7 +253,9 @@ pub fn EditorCore(comptime Measurer: type) type {
         }
 
         pub fn removeNodeText(me: *Core, node: *RangeList.Node, from: usize, to: usize) void {
-            alRemoveRange(node.value.text, from, to);
+            alRemoveRange(&node.value.text, from, to);
+            if (to - from != 0) node.value.measure = null;
+
             if (me.cursor.text == &node.value) {
                 if (me.cursor.offset > to) me.cursor.offset -= to - from
                 // zig fmt bug
@@ -242,8 +277,6 @@ pub fn EditorCore(comptime Measurer: type) type {
         }
 
         pub fn delete(me: *Core, from: TextPoint, to: TextPoint) void {
-            // TODO: remove 0-length nodes unless the node is the
-            // start node and there is no next node.
             if (from.node == to.node) {
                 me.removeNodeText(from.text.node(), from.offset, to.offset);
                 return;
@@ -263,16 +296,18 @@ pub fn EditorCore(comptime Measurer: type) type {
         pub fn splitNode(me: *Core, point: TextPoint) !void {
             // split the node
             // update any saved nodes eg cursor position
+            if (point.offset == 0) return; // nothing to split
             if (point.offset == point.text.text.items.len) return; // nothing to split
             var removeSlice = point.text.text.items[point.offset..];
 
-            var al = try std.ArrayList(u8).initCapacity(removeSlice.len);
+            var al = try std.ArrayList(u8).initCapacity(me.alloc, removeSlice.len);
             errdefer al.deinit();
 
             al.appendSlice(removeSlice) catch unreachable;
-            alRemoveRange(al, point.offset, al.items.len);
+            alRemoveRange(&point.text.text, point.offset, point.text.text.items.len);
 
-            var insertedNode = try point.text.node().insertAfter(me.alloc, .{ .text = al, .measure = null });
+            point.text.measure = null;
+            var insertedNode = try point.text.node().insertAfter(.{ .text = al, .measure = null });
             errdefer _ = insertedNode.remove();
 
             if (me.cursor.text == point.text and me.cursor.offset > point.text.text.items.len) {
@@ -284,7 +319,8 @@ pub fn EditorCore(comptime Measurer: type) type {
         }
 
         pub fn mergeNextNode(me: *Core, first: *CodeText) !void {
-            if (first.node().next == null) return; // nothing to merge. @panic()?
+            if (first.node().next == null) return; // nothing to merge
+
             var next = &first.node().next.?.value;
             if (me.cursor.text == next) {
                 me.cursor = .{
@@ -294,6 +330,8 @@ pub fn EditorCore(comptime Measurer: type) type {
             }
             try first.text.appendSlice(next.text.items);
             next.node().remove().deinit();
+
+            first.measure = null;
         }
 
         pub fn splitNewlines(me: *Core, start: *CodeText) !void {
@@ -301,7 +339,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             // split/merge until we get there
             // leave the newline/space in the same line
             var i: usize = 0;
-            while (i < start.text.items.len) {
+            while (i < start.text.items.len) : (i += 1) {
                 const char = start.text.items[i];
                 if (char == ' ' or char == '\n') {
                     try me.splitNode(.{ .text = start, .offset = i + 1 });
@@ -321,76 +359,67 @@ pub fn EditorCore(comptime Measurer: type) type {
         // so renderIterator will be splitting nodes and stuff while looping
         pub const RenderIterator = struct {
             current: ?*CodeText,
-            x: i64 = 0,
             y: i64 = 0,
             width: i64,
             height: i64,
-            core: *EditorCore,
-            remainingItemsInLine: usize = 0,
-            lineHeight: i64 = 0,
-            lineBaseline: i64 = undefined,
+            core: *Core,
 
-            // this function might be better if it returned []struct{...} that you freed so it could do the whole line
-            // at once without an inner loop
-            pub fn next(ri: *RenderIterator) ?struct { x: i64, y: i64, height: i64, measure: MeasurementData } {
+            const RenderPiece = struct { x: i64, y: i64, measure: MeasurementData };
+            const RenderResult = struct {
+                pieces: []RenderPiece,
+                lineHeight: i64,
+                alloc: *Alloc,
+                pub fn deinit(me: *RenderResult) void {
+                    me.alloc.free(me.pieces);
+                    me.* = undefined;
+                }
+            };
+            pub fn next(ri: *RenderIterator, alloc: *Alloc) !?RenderResult {
                 if (ri.y > ri.height) return null;
                 if (ri.current == null) return null;
 
-                const current = ri.current.?;
+                var currentNode: ?*RangeList.Node = ri.current.?.node();
 
-                if (ri.remainingItemsInLine == 0) {
-                    ri.y += ri.lineHeight;
-                    ri.lineHeight = undefined;
-                    ri.lineBaseline = undefined;
+                var cx: i64 = 0;
+                var lineHeight: i64 = 0;
+                var lineBaseline: i64 = 0;
 
-                    // for now, split at spaces and newlines and merge others
-                    // - find distance to next space or newline
-                    //   - if in this node, split this node at that point, keeping the space in this node
-                    // - if this node ends with a space/newline, do nothing
-                    // - if this node does not contain a space/newline, check next node. if !next node, do nothing.
-                    //   if next node, find space in next node, split
-                    // this sounds like a mess doesn't it
-                    // actually no, it's surprisingly simple
+                var resAL = std.ArrayList(RenderPiece).init(alloc);
+                errdefer resAL.deinit();
 
-                    var currentNode = current.node();
-                    var cx = 0;
-                    while (currentNode) |node| {
-                        currentNode = currentNode.node().next; // advance current node
+                while (currentNode) |node| : (currentNode = node.next) {
+                    var text: *CodeText = &node.value;
 
-                        ri.core.splitNewlines(&node.value.text);
-                        // measure + ?render node
-                        // there was supposed to be a difference between measure and render
-                        // I guess the only difference is render is an unknown type but measure is known
+                    try ri.core.splitNewlines(text);
+                    try ri.core.remeasureIfNeeded(text);
 
-                        ri.core.remeasureIfNeeded(&node.value.text);
-                        cx += node.text.measure.measure.width;
+                    const measure = text.measure.?;
+                    cx += measure.measure.width;
 
-                        // no need to continue measuring if this goes over the line
-                        if (cx >= ri.width) break;
-                        if (std.mem.eql(u8, node.value.text.items, "\n")) break;
-                    }
+                    if (cx >= ri.width) break;
+                    if (std.mem.eql(u8, node.value.text.items, "\n")) break;
 
-                    // update nodes to match tree-sitter (but split at newlines and spaces no matter what) here
-                    // TODO.
+                    lineBaseline = std.math.max(lineBaseline, measure.measure.baseline);
+                    lineHeight = std.math.max(lineHeight, measure.measure.height);
 
-                    // loop over this line until reaching the end.
-                    //   tree sitter get and split/merge this node into the nodes tree-sitter wants
-                    //   if tree sitter says this node should render newlines, split out the newline node too
-                    //   (we don't talk to tree-sitter directly, we use Measurer.syntaxHighlighter)
-                    //   measure
-                    // if the measurement
-                    // save line height (= max height), linebaseline (= max baseline), and remainingItemsInLine
+                    try resAL.append(.{ .x = cx - measure.measure.width, .y = undefined, .measure = measure });
                 }
-                const measure = current.measure.?; // measured above already
+                for (resAL.items) |*item| {
+                    item.y = ri.y + (lineBaseline - item.measure.measure.baseline);
+                }
 
-                const cx = ri.x;
-                ri.x += measure.width;
-                ri.current = current.node().next();
+                if (currentNode) |cn| {
+                    if (cn.next != null) ri.current = &cn.next.?.value else ri.current = null;
+                } else ri.current = null;
 
-                return .{ .x = cx, .y = ri.y + (ri.lineBaseline - measure.measure.baseline), .measure = measure };
+                return RenderResult{
+                    .pieces = resAL.toOwnedSlice(),
+                    .lineHeight = lineHeight,
+                    .alloc = alloc,
+                };
             }
         };
-        pub fn render(me: *EditorCore, width: i64, height: i64, deltaScroll: i64) RenderIterator {
+        pub fn render(me: *Core, width: i64, height: i64, deltaScroll: i64) RenderIterator {
             return .{ .current = &me.code.value, .width = width, .height = height, .core = me };
         }
 
@@ -406,7 +435,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             return Core{
                 .alloc = alloc,
                 .measurer = measurer,
-
+                .cursor = .{ .text = &startNode.value, .offset = 0 },
                 .code = startNode,
             };
         }
@@ -415,7 +444,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             me.measurer.deinit();
             var iter = me.code.iter();
             while (iter.next()) |itm| {
-                itm.remove(me.alloc).deinit();
+                itm.remove().deinit();
             }
             me.* = undefined;
         }
@@ -433,21 +462,21 @@ test "editor core" {
             txt: []const u8,
             pub fn deinit(me: *Text) void {}
         };
-        pub fn render(me: *Measurer, text: []const u8, style: TextStyle, measure: Measurement) Text {
+        pub fn render(me: *Measurer, text: []const u8, mesur: Measurement) !Text {
             if (me.someData != 5) unreachable;
-            return .{ .txt = text };
+            return Text{ .txt = text };
         }
-        pub fn measure(me: *Measurer, text: []const u8, style: TextStyle) Measurement {
+        pub fn measure(me: *Measurer, text: []const u8) !Measurement {
             if (me.someData != 5) unreachable;
-            var finalSize: usize = 0;
+            var finalSize: i64 = 0;
             for (text) |char| {
                 finalSize += switch (char) {
                     'i' => 5,
                     'm' => 15,
-                    else => 10,
+                    else => @as(i64, 10),
                 };
             }
-            return .{
+            return Measurement{
                 .width = finalSize,
                 .height = if (text.len > 0) 50 else 25,
                 .baseline = 45,
@@ -455,8 +484,23 @@ test "editor core" {
         }
         pub fn deinit(me: *Measurer) void {}
     };
-    var core = try EditorCore(Measurer).init(alloc, Measurer{ .someData = 5 }); // , struct {fn measureText()} {};
+    var core: EditorCore(Measurer) = try EditorCore(Measurer).init(alloc, Measurer{ .someData = 5 }); // , struct {fn measureText()} {};
     defer core.deinit();
+
+    std.debug.warn("\n\n\n", .{});
+
+    try core.insert(core.cursor, "Hello, World! This is a test!\nHere is a newline!");
+
+    var riter = core.render(1000, 500, 0);
+    while (try riter.next(alloc)) |*nxt| {
+        defer nxt.deinit();
+
+        std.debug.warn("Rendering line with height {}\n", .{nxt.lineHeight});
+
+        for (nxt.pieces) |piece| {
+            std.debug.warn("  Piece →{}: `{}`\n", .{ piece.x, piece.measure.data.txt });
+        }
+    }
 
     // std.testing.expectEqual(expected: var, actual: @TypeOf(expected))
 }
