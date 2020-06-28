@@ -206,15 +206,15 @@ pub fn EditorCore(comptime Measurer: type) type {
         pub fn insert(me: *Core, point: TextPoint, text: []const u8) !void {
             try point.text.text.insertSlice(point.offset, text);
             point.text.measure = null;
-            // 1. update tree-sitter /
-            // 2. remeasure? idk /
-            // 3. â€™ /
-            // also how to make sure eg cursor never has an invalid offset? idk. todo think. /
+            // 1. update tree-sitter
+            // 2. remeasure? idk
+            // 3. â€™
+            // also how to make sure eg cursor never has an invalid offset? idk. todo think.
 
-            // update all saved TextPoints at the updated point to the new point. /
-            // maybe a fn to handle this? /
+            // update all saved TextPoints at the updated point to the new point.
+            // maybe a fn to handle this?
             if (me.cursor.text == point.text) {
-                // depending on insert direction, choose > or >= /
+                // depending on insert direction, choose > or >=
                 if (me.cursor.offset > point.offset) me.cursor.offset += point.offset;
             }
         }
@@ -223,27 +223,27 @@ pub fn EditorCore(comptime Measurer: type) type {
             alRemoveRange(node.value.text, from, to);
             if (me.cursor.text == &node.value) {
                 if (me.cursor.offset > to) me.cursor.offset -= to - from
-                // zig fmt bug/
+                // zig fmt bug
                 else if (me.cursor.offset > from) me.cursor.offset = from;
             }
             if (node.value.text.items != 0) return;
 
-            // first node:/
+            // first node:
             if (me.code == node) {
                 if (node.next == null) return;
                 me.code = node.next.?;
             }
             if (me.cursor.text == &node.value) {
                 if (node.next) |nxt| me.cursor = .{ .text = &nxt.value, .offset = 0 }
-                // zig/
+                // zig
                 else me.cursor = .{ .text = &node.previous.?.value, .offset = node.previous.?.value.text.items.len };
             }
             node.remove().deinit();
         }
 
         pub fn delete(me: *Core, from: TextPoint, to: TextPoint) void {
-            // TODO: remove 0-length nodes unless the node is the/
-            // start node and there is no next node./
+            // TODO: remove 0-length nodes unless the node is the
+            // start node and there is no next node.
             if (from.node == to.node) {
                 me.removeNodeText(from.text.node(), from.offset, to.offset);
                 return;
@@ -260,6 +260,61 @@ pub fn EditorCore(comptime Measurer: type) type {
             }
         }
 
+        pub fn splitNode(me: *Core, point: TextPoint) !void {
+            // split the node
+            // update any saved nodes eg cursor position
+            if (point.offset == point.text.text.items.len) return; // nothing to split
+            var removeSlice = point.text.text.items[point.offset..];
+
+            var al = try std.ArrayList(u8).initCapacity(removeSlice.len);
+            errdefer al.deinit();
+
+            al.appendSlice(removeSlice) catch unreachable;
+            alRemoveRange(al, point.offset, al.items.len);
+
+            var insertedNode = try point.text.node().insertAfter(me.alloc, .{ .text = al, .measure = null });
+            errdefer _ = insertedNode.remove();
+
+            if (me.cursor.text == point.text and me.cursor.offset > point.text.text.items.len) {
+                me.cursor = .{
+                    .text = &insertedNode.value,
+                    .offset = me.cursor.offset - point.text.text.items.len, // hmm
+                };
+            }
+        }
+
+        pub fn mergeNextNode(me: *Core, first: *CodeText) !void {
+            if (first.node().next == null) return; // nothing to merge. @panic()?
+            var next = &first.node().next.?.value;
+            if (me.cursor.text == next) {
+                me.cursor = .{
+                    .text = first,
+                    .offset = first.text.items.len - 1 + me.cursor.offset,
+                };
+            }
+            try first.text.appendSlice(next.text.items);
+            next.node().remove().deinit();
+        }
+
+        pub fn splitNewlines(me: *Core, start: *CodeText) !void {
+            // find the next newline
+            // split/merge until we get there
+            // leave the newline/space in the same line
+            var i: usize = 0;
+            while (i < start.text.items.len) {
+                const char = start.text.items[i];
+                if (char == ' ' or char == '\n') {
+                    try me.splitNode(.{ .text = start, .offset = i + 1 });
+                    try me.splitNode(.{ .text = start, .offset = i }); // put the newline/space into its own node.
+                    break;
+                }
+                if (i == start.text.items.len - 1) {
+                    try me.mergeNextNode(start);
+                }
+            }
+            // either we broke from the loop or hit the end of the text
+        }
+
         // what if renderIterator handles all the tree sitter stuff and the only thing
         // the other fns have to do is publish edits?
         // that wouldn't be terrible
@@ -270,9 +325,13 @@ pub fn EditorCore(comptime Measurer: type) type {
             y: i64 = 0,
             width: i64,
             height: i64,
+            core: *EditorCore,
             remainingItemsInLine: usize = 0,
             lineHeight: i64 = 0,
             lineBaseline: i64 = undefined,
+
+            // this function might be better if it returned []struct{...} that you freed so it could do the whole line
+            // at once without an inner loop
             pub fn next(ri: *RenderIterator) ?struct { x: i64, y: i64, height: i64, measure: MeasurementData } {
                 if (ri.y > ri.height) return null;
                 if (ri.current == null) return null;
@@ -284,12 +343,35 @@ pub fn EditorCore(comptime Measurer: type) type {
                     ri.lineHeight = undefined;
                     ri.lineBaseline = undefined;
 
-                    // tree sitter get node () /
-                    // if node.length > ts node.lengthUntilNewline
-                    //    split node
-                    // else if node.length < ts node.lengthUntilNewline
-                    //    merge node /
-                    // ts next node (or just next part after newline)
+                    // for now, split at spaces and newlines and merge others
+                    // - find distance to next space or newline
+                    //   - if in this node, split this node at that point, keeping the space in this node
+                    // - if this node ends with a space/newline, do nothing
+                    // - if this node does not contain a space/newline, check next node. if !next node, do nothing.
+                    //   if next node, find space in next node, split
+                    // this sounds like a mess doesn't it
+                    // actually no, it's surprisingly simple
+
+                    var currentNode = current.node();
+                    var cx = 0;
+                    while (currentNode) |node| {
+                        currentNode = currentNode.node().next; // advance current node
+
+                        ri.core.splitNewlines(&node.value.text);
+                        // measure + ?render node
+                        // there was supposed to be a difference between measure and render
+                        // I guess the only difference is render is an unknown type but measure is known
+
+                        ri.core.remeasureIfNeeded(&node.value.text);
+                        cx += node.text.measure.measure.width;
+
+                        // no need to continue measuring if this goes over the line
+                        if (cx >= ri.width) break;
+                        if (std.mem.eql(u8, node.value.text.items, "\n")) break;
+                    }
+
+                    // update nodes to match tree-sitter (but split at newlines and spaces no matter what) here
+                    // TODO.
 
                     // loop over this line until reaching the end.
                     //   tree sitter get and split/merge this node into the nodes tree-sitter wants
@@ -297,7 +379,7 @@ pub fn EditorCore(comptime Measurer: type) type {
                     //   (we don't talk to tree-sitter directly, we use Measurer.syntaxHighlighter)
                     //   measure
                     // if the measurement
-                    // save line height (= max height), linebaseline (= max baseline), and remainingItemsInLine /
+                    // save line height (= max height), linebaseline (= max baseline), and remainingItemsInLine
                 }
                 const measure = current.measure.?; // measured above already
 
@@ -309,7 +391,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             }
         };
         pub fn render(me: *EditorCore, width: i64, height: i64, deltaScroll: i64) RenderIterator {
-            return .{ .current = &me.code.value, .width = width, .height = height };
+            return .{ .current = &me.code.value, .width = width, .height = height, .core = me };
         }
 
         pub fn init(alloc: *Alloc, measurer: Measurer) !Core {
