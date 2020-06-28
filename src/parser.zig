@@ -174,7 +174,7 @@ pub const Node = struct {
         if (ts_node_is_null(result)) return null;
         return Node.wrap(result);
     }
-    fn next(n: Node) ?Node {
+    pub fn next(n: Node) ?Node {
         if (n.firstChild()) |d| return d;
         var curr = n;
         while (true) {

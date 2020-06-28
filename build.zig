@@ -21,7 +21,7 @@ pub fn addBuildOptions(b: *Builder, renderer: Renderer, mode: var, exe: var) voi
         },
     }
 
-    exe.addBuildOption(Renderer, "Renderer = enum { sdl, raylib };\npub const renderer", renderer); // hmm (#3127)
+    exe.addBuildOption(Renderer, "renderer", renderer); // hmm (#3127)
 
     // tree-sitter
     exe.addCSourceFile("deps/build/tree-sitter/lib/src/lib.c", &[_][]const u8{"-fno-sanitize=undefined"});

@@ -1177,7 +1177,7 @@ pub const MainPage = struct {
 
     displayMode: DisplayMode = .gui,
 
-    fn render(page: *MainPage, imev: *ImEvent, style: gui.Style, pos: win.Rect, alloc: *std.mem.Allocator) !void {
+    pub fn render(page: *MainPage, imev: *ImEvent, style: gui.Style, pos: win.Rect, alloc: *std.mem.Allocator) !void {
         var currentPos: win.TopRect = pos.noHeight().down(5);
         var updateMode: *UpdateMode = &imev.data.settings.updateMode;
 
