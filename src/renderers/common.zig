@@ -82,6 +82,9 @@ pub const Event = union(enum) {
     pub const TextInput = struct {
         text: [100]u8,
         length: u32,
+        pub fn slice(text: *const TextInput) []const u8 {
+            return text.text[0..text.length];
+        }
     };
     pub const MouseWheel = struct {
         x: i64, // number of pixels to scroll

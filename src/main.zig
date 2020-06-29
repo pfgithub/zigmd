@@ -3,10 +3,87 @@ pub const win = @import("./render.zig");
 pub const parser = @import("./parser.zig");
 pub const gui = @import("./gui.zig");
 const help = @import("./helpers.zig");
+const editor_core = @import("./editor_core.zig");
+const EditorCore = editor_core.EditorCore;
+const Measurement = editor_core.Measurement;
 const List = std.SinglyLinkedList;
 const ArrayList = std.ArrayList;
 const Auto = gui.Auto;
 const ImEvent = gui.ImEvent;
+
+pub const DefaultMeasurer = struct {
+    const Me = @This();
+
+    style: *const gui.Style = undefined,
+    imev: *ImEvent = undefined,
+
+    pub const Text = win.Text;
+
+    pub fn render(dm: *Me, text: []const u8, measur: Measurement) !Text {
+        if (text.len == 0) return @as(Text, undefined);
+
+        return try win.Text.init(
+            dm.style.fonts.standard,
+            dm.style.colors.text,
+            text,
+            win.TextSize{ .w = measur.width, .h = measur.height },
+            dm.imev.window,
+        );
+    }
+    pub fn measure(dm: *Me, text: []const u8) !Measurement {
+        if (text.len == 0) return Measurement{ .width = 0, .height = 10, .baseline = 0 };
+
+        const msurment = try win.Text.measure(dm.style.fonts.standard, text);
+        return Measurement{
+            .width = msurment.w,
+            .height = msurment.h,
+            .baseline = msurment.h,
+        };
+    }
+
+    pub fn deinit(dm: *Me) void {}
+};
+pub const MultilineTextEditor = struct {
+    const Me = @This();
+
+    core: EditorCore(DefaultMeasurer),
+    alloc: *std.mem.Allocator,
+
+    pub fn init(alloc: *std.mem.Allocator, imev: *ImEvent) !MultilineTextEditor {
+        return MultilineTextEditor{
+            .core = try EditorCore(DefaultMeasurer).init(alloc, .{}),
+            .alloc = alloc,
+        };
+    }
+    pub fn deinit(te: *Me) void {
+        te.core.deinit();
+    }
+
+    pub fn render(te: *Me, rect: win.Rect, imev: *ImEvent, style: gui.Style) !void {
+        try imev.window.pushClipRect(rect);
+        defer imev.window.popClipRect();
+
+        te.core.measurer = .{ .style = &style, .imev = imev };
+        defer te.core.measurer = .{};
+
+        if (imev.textInput) |text| {
+            try te.core.insert(te.core.cursor, text.slice());
+        }
+
+        var riter = te.core.render(rect.w, rect.h, 0);
+        while (try riter.next(te.alloc)) |*nxt| {
+            defer nxt.deinit();
+
+            for (nxt.pieces) |*piece| {
+                if (piece.measure.characters.items.len == 0) continue;
+                try piece.measure.data.render(imev.window, .{
+                    .x = rect.x + piece.x,
+                    .y = rect.y + piece.y,
+                });
+            }
+        }
+    }
+};
 
 pub const TextHLStyleReal = struct {
     font: *const win.Font,
@@ -1149,9 +1226,11 @@ const DisplayMode = enum {
     editor,
     gui,
     window,
+    mte,
     pub const title_editor = "Editor";
     pub const title_gui = "GUI Demo";
     pub const title_window = "Window Demo";
+    pub const title_mte = "Multiline Text Editor";
 };
 
 const WindowDemo = @import("window_demo.zig").WindowDemo;
@@ -1161,10 +1240,11 @@ pub const MainPage = struct {
         return Auto.create(MainPage, imev, alloc, .{
             .app = App.init(alloc, "tests/medium sized file.md", imev) catch
                 @panic("oom not handled"),
+            .mte = MultilineTextEditor.init(alloc, imev) catch @panic("oom not handled"),
         });
     }
     pub fn deinit(page: *MainPage) void {
-        Auto.destroy(page, .{ .imedtrscrll, .imedtr2, .app, .displayedtr });
+        Auto.destroy(page, .{ .imedtrscrll, .imedtr2, .app, .displayedtr, .mte });
     }
 
     auto: Auto,
@@ -1172,6 +1252,7 @@ pub const MainPage = struct {
     imedtrscrll: gui.ScrollView(gui.DataEditor(UpdateMode)),
     imedtr2: gui.DataEditor(UpdateMode),
     app: App,
+    mte: MultilineTextEditor,
     displayedtr: gui.DataEditor(DisplayMode),
     windowDemo: WindowDemo,
 
@@ -1187,10 +1268,11 @@ pub const MainPage = struct {
         var displayedtr = &page.displayedtr;
 
         currentPos.y += (try displayedtr.render(&page.displayMode, style, imev, currentPos)).h;
+        const contentRect = currentPos.setY2(pos.y2());
 
         switch (page.displayMode) {
             .editor => {
-                try app.render(imev, updateMode.showPerformance, currentPos.setY2(pos.y2()));
+                try app.render(imev, updateMode.showPerformance, contentRect);
             },
             .gui => {
                 currentPos.y += gui.seperatorGap;
@@ -1208,6 +1290,9 @@ pub const MainPage = struct {
             },
             .window => {
                 try page.windowDemo.render(imev, style, currentPos.setY2(pos.y2()), alloc);
+            },
+            .mte => {
+                try page.mte.render(contentRect, imev, style);
             },
         }
     }

@@ -96,6 +96,7 @@ scrollDelta: win.Point = win.Point{ .x = 0, .y = 0 },
 window: *win.Window = undefined,
 render: bool = false,
 alloc: *std.mem.Allocator,
+// arena: *std.mem.Allocator,
 const KeyArr = help.EnumArray(win.Key, bool);
 
 pub fn init(data: Data, alloc: *std.mem.Allocator) ImEvent {

@@ -351,9 +351,13 @@ pub const Text = struct {
         font: *const Font,
         text: []const u8,
     ) ER!TextSize {
+        const tmpAlloc = std.heap.c_allocator; // eew null termination
+        const nullTerminated = std.mem.dupeZ(tmpAlloc, u8, text) catch return error.Unrecoverable;
+        defer tmpAlloc.free(nullTerminated); // hot take: null termination < untyped null pointers
+
         var w: c_int = undefined;
         var h: c_int = undefined;
-        if (sdl.TTF_SizeUTF8(font.sdlFont, text.ptr, &w, &h) < 0) return ttfError();
+        if (sdl.TTF_SizeUTF8(font.sdlFont, nullTerminated.ptr, &w, &h) < 0) return ttfError();
         return TextSize{ .w = @intCast(i64, w), .h = @intCast(i64, h) };
     }
     pub fn init(
@@ -363,9 +367,13 @@ pub const Text = struct {
         size: ?TextSize,
         window: *const Window,
     ) ER!Text {
+        const tmpAlloc = std.heap.c_allocator; // eew null termination
+        const nullTerminated = std.mem.dupeZ(tmpAlloc, u8, text) catch return error.Unrecoverable;
+        defer tmpAlloc.free(nullTerminated); // hot take: null termination < untyped null pointers
+
         var surface = sdl.TTF_RenderUTF8_Blended(
             font.sdlFont,
-            text.ptr,
+            nullTerminated.ptr,
             colorToSDL(color),
         );
         if (surface == null) return sdlError();
@@ -383,7 +391,7 @@ pub const Text = struct {
         };
     }
     pub fn deinit(text: *Text) void {
-        sdl.SDL_DestroyTexture(text.texture);
+        // sdl.SDL_DestroyTexture(text.texture);
     }
     pub fn render(text: *Text, window: *const Window, pos: Point) ER!void {
         var rect = sdl.SDL_Rect{
