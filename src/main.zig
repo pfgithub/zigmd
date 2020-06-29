@@ -63,6 +63,8 @@ pub const MultilineTextEditor = struct {
         try imev.window.pushClipRect(rect);
         defer imev.window.popClipRect();
 
+        try win.renderRect(imev.window, style.colors.codeBackground, rect);
+
         te.core.measurer = .{ .style = &style, .imev = imev };
         defer te.core.measurer = .{};
 
@@ -78,12 +80,34 @@ pub const MultilineTextEditor = struct {
         while (try riter.next(te.alloc)) |*nxt| {
             defer nxt.deinit();
 
-            for (nxt.pieces) |*piece| {
+            var cursorX: ?i64 = null;
+
+            for (nxt.pieces) |*piece, i| {
+                if (piece.text == te.core.cursor.text) {
+                    cursorX = piece.x;
+                    if (te.core.cursor.offset != 0) {
+                        cursorX.? += piece.measure.characters.items[te.core.cursor.offset - 1].width;
+                    }
+                }
+            }
+
+            if (cursorX != null) {
+                try win.renderRect(imev.window, style.colors.linebg, rect.down(nxt.y).height(nxt.lineHeight));
+            }
+
+            for (nxt.pieces) |*piece, i| {
                 if (piece.measure.characters.items.len == 0) continue;
                 try piece.measure.data.render(imev.window, .{
                     .x = rect.x + piece.x,
                     .y = rect.y + piece.y,
                 });
+            }
+            if (cursorX) |crsrX| {
+                try win.renderRect(
+                    imev.window,
+                    style.colors.cursor,
+                    rect.right(crsrX - 1).width(2).down(nxt.y).height(nxt.lineHeight),
+                );
             }
         }
     }

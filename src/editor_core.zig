@@ -214,7 +214,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             errdefer charactersAl.deinit();
 
             for (text.text.items) |_, i| {
-                const progress: Measurement = try me.measurer.measure(text.text.items[0..i]);
+                const progress: Measurement = try me.measurer.measure(text.text.items[0 .. i + 1]);
                 try charactersAl.append(.{ .width = progress.width });
             }
 
@@ -226,6 +226,14 @@ pub fn EditorCore(comptime Measurer: type) type {
                 .measure = measurement,
                 .data = data,
                 .characters = charactersAl,
+            };
+        }
+
+        pub fn addPoint(point: TextPoint, add: i64) TextPoint {
+            // TODO
+            return .{
+                .text = point.text,
+                .offset = @intCast(u64, @intCast(i64, point.offset) + add),
             };
         }
 
@@ -372,11 +380,12 @@ pub fn EditorCore(comptime Measurer: type) type {
             height: i64,
             core: *Core,
 
-            const RenderPiece = struct { x: i64, y: i64, measure: *MeasurementData };
+            const RenderPiece = struct { x: i64, y: i64, measure: *MeasurementData, text: *CodeText };
             const RenderResult = struct {
                 pieces: []RenderPiece,
                 lineHeight: i64,
                 alloc: *Alloc,
+                y: i64,
                 pub fn deinit(me: *RenderResult) void {
                     me.alloc.free(me.pieces);
                     me.* = undefined;
@@ -409,7 +418,7 @@ pub fn EditorCore(comptime Measurer: type) type {
                     lineBaseline = std.math.max(lineBaseline, measure.measure.baseline);
                     lineHeight = std.math.max(lineHeight, measure.measure.height);
 
-                    try resAL.append(.{ .x = cx - measure.measure.width, .y = undefined, .measure = &text.measure.? });
+                    try resAL.append(.{ .x = cx - measure.measure.width, .y = undefined, .measure = &text.measure.?, .text = text });
                     currentNode = node.next;
 
                     if (node.value.text.items.len != 0 and node.value.text.items[node.value.text.items.len - 1] == '\n') break; // oh god why eww
@@ -417,6 +426,7 @@ pub fn EditorCore(comptime Measurer: type) type {
                 for (resAL.items) |*item| {
                     item.y = ri.y + (lineBaseline - item.measure.measure.baseline);
                 }
+                const itemY = ri.y;
 
                 if (currentNode) |cn| {
                     ri.current = &cn.value;
@@ -427,6 +437,7 @@ pub fn EditorCore(comptime Measurer: type) type {
                     .pieces = resAL.toOwnedSlice(),
                     .lineHeight = lineHeight,
                     .alloc = alloc,
+                    .y = itemY,
                 };
             }
         };
