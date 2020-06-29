@@ -69,6 +69,10 @@ pub const MultilineTextEditor = struct {
         if (imev.textInput) |text| {
             try te.core.insert(te.core.cursor, text.slice());
         }
+        if (imev.keyDown) |k| switch (k) {
+            .Return => try te.core.insert(te.core.cursor, "\n"),
+            else => {},
+        };
 
         var riter = te.core.render(rect.w, rect.h, 0);
         while (try riter.next(te.alloc)) |*nxt| {
