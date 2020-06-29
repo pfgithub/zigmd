@@ -63,7 +63,7 @@ pub const MultilineTextEditor = struct {
         try imev.window.pushClipRect(rect);
         defer imev.window.popClipRect();
 
-        try win.renderRect(imev.window, style.colors.codeBackground, rect);
+        try win.renderRect(imev.window, style.colors.background, rect);
 
         te.core.measurer = .{ .style = &style, .imev = imev };
         defer te.core.measurer = .{};
