@@ -215,6 +215,12 @@ pub fn EditorCore(comptime Measurer: type) type {
 
         code: *RangeList.Node,
 
+        /// must be the start of a line
+        top: struct {
+            text: *CodeText,
+            scroll: i64, // if this goes past the line height, move forwards/backwards
+        } = undefined,
+
         readonly: bool = false,
 
         cursor: TextPoint,
