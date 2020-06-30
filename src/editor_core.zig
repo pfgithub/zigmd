@@ -249,11 +249,12 @@ pub fn EditorCore(comptime Measurer: type) type {
                 switch (direction) {
                     .left => {
                         if (remaining <= currentPoint.offset) {
-                            return .{ .text = point.text, .offset = point.offset - remaining };
+                            return .{ .text = currentPoint.text, .offset = currentPoint.offset - remaining };
                         }
-                        remaining -= currentPoint.offset;
+                        remaining -= currentPoint.offset + 1;
                         while (true) {
-                            currentPoint.text = currentPoint.text.prev() orelse return currentPoint;
+                            currentPoint.text = currentPoint.text.prev() orelse
+                                return .{ .text = currentPoint.text, .offset = 0 };
                             if (currentPoint.text.text.items.len > 0) break;
                         }
                         currentPoint.offset = currentPoint.text.text.items.len - 1;
@@ -290,14 +291,14 @@ pub fn EditorCore(comptime Measurer: type) type {
 
         pub fn removeNodeText(me: *Core, node: *RangeList.Node, from: usize, to: usize) void {
             alRemoveRange(&node.value.text, from, to);
-            if (to - from != 0) clearMeasure(node.value);
+            if (to - from != 0) clearMeasure(&node.value);
 
             if (me.cursor.text == &node.value) {
                 if (me.cursor.offset > to) me.cursor.offset -= to - from
                 // zig fmt bug
                 else if (me.cursor.offset > from) me.cursor.offset = from;
             }
-            if (node.value.text.items != 0) return;
+            if (node.value.text.items.len != 0) return;
 
             // first node:
             if (me.code == node) {
@@ -313,18 +314,18 @@ pub fn EditorCore(comptime Measurer: type) type {
         }
 
         pub fn delete(me: *Core, from: TextPoint, to: TextPoint) void {
-            if (from.node == to.node) {
+            if (from.text == to.text) {
                 me.removeNodeText(from.text.node(), from.offset, to.offset);
                 return;
             }
             var currentText: ?*CodeText = from.text;
-            while (currentText) |ctxt| : (currentText = currentText.node().next) {
+            while (currentText) |ctxt| : (currentText = currentText.?.next()) {
                 if (ctxt == from.text) {
-                    me.removeNodeText(ctxt.text.node(), from.offset, ctxt.items.len);
+                    me.removeNodeText(ctxt.node(), from.offset, ctxt.text.items.len);
                 } else if (ctxt == to.text) {
-                    me.removeNodeText(ctxt.text.node(), 0, to.offset);
+                    me.removeNodeText(ctxt.node(), 0, to.offset);
                 } else {
-                    me.removeNodeText(ctxt.text.node(), 0, ctxt.text.items.len);
+                    me.removeNodeText(ctxt.node(), 0, ctxt.text.items.len);
                 }
             }
         }
@@ -553,7 +554,9 @@ test "editor core" {
         &[_][]const u8{"newline"},
     });
 
+    renderCursorPosition(core);
     core.cursor = core.addPoint(core.cursor, -12);
+    renderCursorPosition(core);
 
     try core.insert(core.cursor, "Fix this? ");
     try testRenderCore(&core, alloc, &[_][]const []const u8{
@@ -564,10 +567,21 @@ test "editor core" {
     // std.testing.expectEqual(expected: var, actual: @TypeOf(expected))
 }
 
+pub fn renderCursorPosition(core: var) void {
+    std.debug.warn("Cursor is on text `", .{});
+    for (core.cursor.text.text.items) |char, i| {
+        if (i == core.cursor.offset) std.debug.warn("|", .{});
+        std.debug.warn("{c}", .{char});
+    }
+    if (core.cursor.offset == core.cursor.text.text.items.len) std.debug.warn("|", .{});
+    std.debug.warn("` at offset {}\n", .{core.cursor.offset});
+}
+
 pub fn testRenderCore(core: var, alloc: var, expected: []const []const []const u8) !void {
     var riter = core.render(1000, 500, 0);
     var gi: usize = 0;
     std.debug.warn("Testing\n", .{});
+    var fail = false;
     while (try riter.next(alloc)) |*nxt| : (gi += 1) {
         defer nxt.deinit();
 
@@ -575,9 +589,10 @@ pub fn testRenderCore(core: var, alloc: var, expected: []const []const []const u
 
         for (nxt.pieces) |piece, i| {
             std.debug.warn("    Piece x={}: `{}`\n", .{ piece.x, piece.measure.data.txt });
-            std.testing.expectEqualStrings(expected[gi][i], piece.measure.data.txt);
+            if (i >= expected[gi].len or !std.mem.eql(u8, expected[gi][i], piece.measure.data.txt)) fail = true;
         }
-        std.testing.expectEqual(expected[gi].len, nxt.pieces.len);
+        if (expected[gi].len != nxt.pieces.len) fail = true;
     }
-    std.testing.expectEqual(gi, expected.len);
+    if (gi != expected.len) fail = true;
+    if (fail) return error.TestFailure;
 }

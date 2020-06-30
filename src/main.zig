@@ -76,6 +76,10 @@ pub const MultilineTextEditor = struct {
         }
         if (imev.keyDown) |k| switch (k) {
             .Return => try te.core.insert(te.core.cursor, "\n"),
+            .Left => te.core.cursor = te.core.addPoint(te.core.cursor, -1),
+            .Right => te.core.cursor = te.core.addPoint(te.core.cursor, 1),
+            .Backspace => te.core.delete(te.core.addPoint(te.core.cursor, -1), te.core.cursor),
+            .Delete => te.core.delete(te.core.cursor, te.core.addPoint(te.core.cursor, 1)),
             else => {},
         };
         const clickState = imev.hover(te.id, rect);
