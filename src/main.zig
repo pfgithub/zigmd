@@ -54,7 +54,13 @@ pub const MultilineTextEditor = struct {
         var core = try EditorCore(DefaultMeasurer).init(alloc, .{});
         errdefer core.deinit();
 
-        try core.insert(core.cursor, "here is some text to start");
+        var file: []u8 = std.fs.cwd().readFileAlloc(imev.alloc, "tests/medium sized file.md", 10000000) catch |e| blk: {
+            core.readonly = true;
+            break :blk try std.fmt.allocPrint(imev.alloc, "File load error: {}.", .{e});
+        };
+        defer imev.alloc.free(file);
+
+        try core.insert(core.cursor, file);
 
         return MultilineTextEditor{
             .core = core,

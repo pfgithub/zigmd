@@ -215,6 +215,8 @@ pub fn EditorCore(comptime Measurer: type) type {
 
         code: *RangeList.Node,
 
+        readonly: bool = false,
+
         cursor: TextPoint,
         pub const TextPoint = struct { text: *CodeText, offset: u64 };
 
@@ -239,6 +241,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             };
         }
 
+        // todo: move by whole codepoints
         pub fn addPoint(me: *Core, point: TextPoint, add: i64) TextPoint {
             if (add == 0) return .{ .text = point.text, .offset = point.offset };
             // there is probably a sensible way to do this
