@@ -165,8 +165,7 @@ pub const AutoTest = struct {
         var bringToFrontIndex: ?usize = null;
         for (view.windows.items) |*w, i| {
             const windowRect = w.relativePos.down(pos.y).right(pos.x);
-
-            try win.renderRect(imev.window, style.colors.background, windowRect);
+            try win.renderRect(imev.window, style.colors.background, windowRect.downCut(4));
 
             // if(imev.tabindex(w.id))
             // that would be interesting
@@ -180,6 +179,7 @@ pub const AutoTest = struct {
             // }
 
             const titlebarRect = windowRect.height(25);
+
             const resizeRect = windowRect.position(.{ .w = 25, .h = 25 }, .right, .bottom);
             // obviously I want resize to be a few pixels off the edges eventually
             // 10 px seems to work pretty well for windowsystem.pfg.pw
