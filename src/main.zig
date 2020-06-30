@@ -48,22 +48,25 @@ pub const MultilineTextEditor = struct {
 
     core: EditorCore(DefaultMeasurer),
     alloc: *std.mem.Allocator,
+    id: gui.ID,
 
     pub fn init(alloc: *std.mem.Allocator, imev: *ImEvent) !MultilineTextEditor {
         return MultilineTextEditor{
             .core = try EditorCore(DefaultMeasurer).init(alloc, .{}),
             .alloc = alloc,
+            .id = imev.newID(),
         };
     }
     pub fn deinit(te: *Me) void {
         te.core.deinit();
     }
 
-    pub fn render(te: *Me, rect: win.Rect, imev: *ImEvent, style: gui.Style) !void {
-        try imev.window.pushClipRect(rect);
+    pub fn render(te: *Me, fullRect: win.Rect, imev: *ImEvent, style: gui.Style) !void {
+        try imev.window.pushClipRect(fullRect);
         defer imev.window.popClipRect();
+        try win.renderRect(imev.window, style.colors.background, fullRect);
 
-        try win.renderRect(imev.window, style.colors.background, rect);
+        const rect = fullRect.inset(20, 20, 20, 20);
 
         te.core.measurer = .{ .style = &style, .imev = imev };
         defer te.core.measurer = .{};
@@ -75,14 +78,19 @@ pub const MultilineTextEditor = struct {
             .Return => try te.core.insert(te.core.cursor, "\n"),
             else => {},
         };
+        const clickState = imev.hover(te.id, rect);
 
-        var riter = te.core.render(rect.w, rect.h, 0);
+        var riter = te.core.render(rect.w, rect.h + 40, 0);
         while (try riter.next(te.alloc)) |*nxt| {
             defer nxt.deinit();
 
             var cursorX: ?i64 = null;
+            const lineRect = rect.down(nxt.y).height(nxt.lineHeight);
 
             for (nxt.pieces) |*piece, i| {
+                if (clickState.click and lineRect.rightCut(piece.x).containsPoint(imev.cursor)) {
+                    te.core.cursor = .{ .text = piece.text, .offset = 0 };
+                }
                 if (piece.text == te.core.cursor.text) {
                     cursorX = piece.x;
                     if (te.core.cursor.offset != 0) {
@@ -92,7 +100,7 @@ pub const MultilineTextEditor = struct {
             }
 
             if (cursorX != null) {
-                try win.renderRect(imev.window, style.colors.linebg, rect.down(nxt.y).height(nxt.lineHeight));
+                try win.renderRect(imev.window, style.colors.linebg, lineRect.inset(0, -20, 0, -20));
             }
 
             for (nxt.pieces) |*piece, i| {
@@ -106,7 +114,7 @@ pub const MultilineTextEditor = struct {
                 try win.renderRect(
                     imev.window,
                     style.colors.cursor,
-                    rect.right(crsrX - 1).width(2).down(nxt.y).height(nxt.lineHeight),
+                    lineRect.right(crsrX - 1).width(2),
                 );
             }
         }
