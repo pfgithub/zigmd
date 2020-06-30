@@ -191,6 +191,16 @@ pub fn EditorCore(comptime Measurer: type) type {
             pub fn node(me: *CodeText) *RangeList.Node {
                 return @fieldParentPtr(RangeList.Node, "value", me);
             }
+            pub fn prev(me: *CodeText) ?*CodeText {
+                const node_ = me.node();
+                if (node_.previous) |prev_| return &prev_.value;
+                return null;
+            }
+            pub fn next(me: *CodeText) ?*CodeText {
+                const node_ = me.node();
+                if (node_.next) |next_| return &next_.value;
+                return null;
+            }
             pub fn deinit(me: *CodeText) void {
                 me.text.deinit();
                 if (me.measure) |*measure| {
@@ -229,12 +239,30 @@ pub fn EditorCore(comptime Measurer: type) type {
             };
         }
 
-        pub fn addPoint(point: TextPoint, add: i64) TextPoint {
-            // TODO
-            return .{
-                .text = point.text,
-                .offset = @intCast(u64, @intCast(i64, point.offset) + add),
-            };
+        pub fn addPoint(me: *Core, point: TextPoint, add: i64) TextPoint {
+            // there is probably a sensible way to do this
+            var currentPoint: TextPoint = .{ .text = point.text, .offset = point.offset };
+            var remaining: u64 = std.math.absCast(add);
+            var direction: enum { left, right } = if (add < 0) .left else .right;
+
+            while (true) {
+                switch (direction) {
+                    .left => {
+                        if (remaining <= currentPoint.offset) {
+                            return .{ .text = point.text, .offset = point.offset - remaining };
+                        }
+                        remaining -= currentPoint.offset;
+                        while (true) {
+                            currentPoint.text = currentPoint.text.prev() orelse return currentPoint;
+                            if (currentPoint.text.text.items.len > 0) break;
+                        }
+                        currentPoint.offset = currentPoint.text.text.items.len - 1;
+                    },
+                    .right => @panic("right not handled"),
+                }
+            }
+
+            unreachable;
         }
 
         /// after calling this function, text.measure is not null
@@ -522,6 +550,14 @@ test "editor core" {
     try core.insert(core.cursor, "\nnewline");
     try testRenderCore(&core, alloc, &[_][]const []const u8{
         &[_][]const u8{ "Hello, ", "World! ", "Oop!\n" },
+        &[_][]const u8{"newline"},
+    });
+
+    core.cursor = core.addPoint(core.cursor, -12);
+
+    try core.insert(core.cursor, "Fix this? ");
+    try testRenderCore(&core, alloc, &[_][]const []const u8{
+        &[_][]const u8{ "Hello, ", "World! ", "Fix ", "this? ", "Oop!\n" },
         &[_][]const u8{"newline"},
     });
 
