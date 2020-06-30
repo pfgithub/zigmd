@@ -121,8 +121,8 @@ pub fn LinkedList(comptime Value: type) type {
                 return node;
             }
             pub fn remove(me: *Node) Value {
-                if (me.next) |nxt| nxt.previous = me.next;
-                if (me.previous) |prev| prev.next = me.previous;
+                if (me.next) |nxt| nxt.previous = me.previous;
+                if (me.previous) |prev| prev.next = me.next;
 
                 const result = me.value;
                 me.alloc.destroy(me);
