@@ -51,8 +51,13 @@ pub const MultilineTextEditor = struct {
     id: gui.ID,
 
     pub fn init(alloc: *std.mem.Allocator, imev: *ImEvent) !MultilineTextEditor {
+        var core = try EditorCore(DefaultMeasurer).init(alloc, .{});
+        errdefer core.deinit();
+
+        try core.insert(core.cursor, "here is some text to start");
+
         return MultilineTextEditor{
-            .core = try EditorCore(DefaultMeasurer).init(alloc, .{}),
+            .core = core,
             .alloc = alloc,
             .id = imev.newID(),
         };

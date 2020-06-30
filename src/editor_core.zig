@@ -240,27 +240,40 @@ pub fn EditorCore(comptime Measurer: type) type {
         }
 
         pub fn addPoint(me: *Core, point: TextPoint, add: i64) TextPoint {
+            if (add == 0) return .{ .text = point.text, .offset = point.offset };
             // there is probably a sensible way to do this
             var currentPoint: TextPoint = .{ .text = point.text, .offset = point.offset };
             var remaining: u64 = std.math.absCast(add);
             var direction: enum { left, right } = if (add < 0) .left else .right;
 
             while (true) {
-                switch (direction) {
-                    .left => {
-                        if (remaining <= currentPoint.offset) {
-                            return .{ .text = currentPoint.text, .offset = currentPoint.offset - remaining };
-                        }
-                        remaining -= currentPoint.offset + 1;
-                        while (true) {
-                            currentPoint.text = currentPoint.text.prev() orelse
-                                return .{ .text = currentPoint.text, .offset = 0 };
-                            if (currentPoint.text.text.items.len > 0) break;
-                        }
-                        currentPoint.offset = currentPoint.text.text.items.len - 1;
-                    },
-                    .right => @panic("right not handled"),
+                var lenlen = switch (direction) {
+                    .right => currentPoint.text.text.items.len - currentPoint.offset,
+                    .left => currentPoint.offset,
+                };
+                if (remaining <= lenlen) {
+                    return .{
+                        .text = currentPoint.text,
+                        .offset = switch (direction) {
+                            .left => currentPoint.offset - remaining,
+                            .right => currentPoint.offset + remaining,
+                        },
+                    };
                 }
+                remaining -= lenlen + 1;
+                while (true) {
+                    switch (direction) {
+                        .left => currentPoint.text = currentPoint.text.prev() orelse
+                            return .{ .text = currentPoint.text, .offset = 0 },
+                        .right => currentPoint.text = currentPoint.text.next() orelse
+                            return .{ .text = currentPoint.text, .offset = currentPoint.text.text.items.len },
+                    }
+                    if (currentPoint.text.text.items.len > 0) break;
+                }
+                currentPoint.offset = switch (direction) {
+                    .left => currentPoint.offset + currentPoint.text.text.items.len - 1,
+                    .right => 1,
+                };
             }
 
             unreachable;
