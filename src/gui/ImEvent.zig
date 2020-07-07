@@ -53,7 +53,7 @@ pub fn Set(comptime Child: type) type {
 const Internal = struct {
     mouseDown: bool = false,
     click: bool = false,
-    rerender: bool = undefined,
+    rerender: bool = false,
     latestAssignedID: u32 = 0,
 
     // a set would be better than an arraylist because this is only unique values

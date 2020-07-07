@@ -391,7 +391,8 @@ pub const Text = struct {
         };
     }
     pub fn deinit(text: *Text) void {
-        // sdl.SDL_DestroyTexture(text.texture);
+        // must deinit on next frame for mac
+        sdl.SDL_DestroyTexture(text.texture);
     }
     pub fn render(text: *Text, window: *const Window, pos: Point) ER!void {
         var rect = sdl.SDL_Rect{
