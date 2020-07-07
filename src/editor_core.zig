@@ -345,19 +345,21 @@ pub fn EditorCore(comptime Measurer: type) type {
 
             if (me.cursor.text == &node.value) {
                 if (me.cursor.offset > to) me.cursor.offset -= to - from
-                // zig fmt bug
+                //.
                 else if (me.cursor.offset > from) me.cursor.offset = from;
             }
             if (node.value.text.items.len != 0) return;
 
-            // first node:
+            // node is empty. delete:
+
             if (me.code == node) {
+                // first node:
                 if (node.next == null) return;
                 me.code = node.next.?;
             }
             if (me.cursor.text == &node.value) {
                 if (node.next) |nxt| me.cursor = .{ .text = &nxt.value, .offset = 0 }
-                // zig
+                //.
                 else me.cursor = .{ .text = &node.previous.?.value, .offset = node.previous.?.value.text.items.len };
             }
             node.remove().deinit();
@@ -377,6 +379,7 @@ pub fn EditorCore(comptime Measurer: type) type {
                     me.removeNodeText(ctxt.node(), from.offset, ctxt.text.items.len);
                 } else if (ctxt == to.text) {
                     me.removeNodeText(ctxt.node(), 0, to.offset);
+                    break;
                 } else {
                     me.removeNodeText(ctxt.node(), 0, ctxt.text.items.len);
                 }
