@@ -369,7 +369,10 @@ pub fn EditorCore(comptime Measurer: type) type {
                 return;
             }
             var currentText: ?*CodeText = from.text;
-            while (currentText) |ctxt| : (currentText = currentText.?.next()) {
+            while (currentText) |ctxt| {
+                var next = ctxt.next();
+                defer currentText = next;
+
                 if (ctxt == from.text) {
                     me.removeNodeText(ctxt.node(), from.offset, ctxt.text.items.len);
                 } else if (ctxt == to.text) {
@@ -432,13 +435,12 @@ pub fn EditorCore(comptime Measurer: type) type {
             byte: usize,
             ref: *CodeText,
             offset: usize,
-            pub fn char(me: CharacterPosition) u8 {
+            pub fn char(me: CharacterPosition) ?u8 {
                 var ref = me.ref;
                 var offset = me.offset;
-                if (me.col > std.math.maxInt(usize) / 2) unreachable;
                 while (offset >= ref.text.items.len) {
                     offset -= ref.text.items.len;
-                    ref = ref.next() orelse unreachable; // eof
+                    ref = ref.next() orelse return null; // eof
                 }
                 return ref.text.items[offset];
             }
@@ -474,7 +476,7 @@ pub fn EditorCore(comptime Measurer: type) type {
                 } else {
                     nxt.offset += 1;
                 }
-                if (me.char() == '\n') {
+                if (me.char().? == '\n') {
                     nxt.lyn += 1;
                     nxt.col = 0;
                 } else {
@@ -653,72 +655,163 @@ pub fn EditorCore(comptime Measurer: type) type {
     };
 }
 
+const TestingMeasurer = struct {
+    const Measurer = @This();
+    someData: u32,
+    alloc: *std.mem.Allocator,
+
+    pub const Text = struct {
+        txt: []const u8,
+        alloc: *std.mem.Allocator,
+        pub fn deinit(me: *Text) void {
+            // alloc.free(me.txt)
+            me.alloc.free(me.txt);
+        }
+    };
+    pub fn render(me: *Measurer, text: []const u8, mesur: Measurement) !Text {
+        if (me.someData != 5) unreachable;
+        var txtCopy = std.ArrayList(u8).init(me.alloc);
+        const strNormal = "\x1B[97m";
+        const strControl = "\x1b[36m";
+        const strHidden = "\x1b[30m";
+        try txtCopy.appendSlice(strNormal);
+        for (text) |char| {
+            // would prefer some kind of stream transformer so this could be used for measure
+            switch (char) {
+                '\n' => try txtCopy.appendSlice(strControl ++ "⌧ " ++ strNormal),
+                ' ' => try txtCopy.appendSlice(strHidden ++ "·" ++ strNormal),
+                else => try txtCopy.append(char),
+            }
+        }
+        try txtCopy.appendSlice("\x1B(B\x1B[m");
+        return Text{ .txt = txtCopy.toOwnedSlice(), .alloc = me.alloc };
+    }
+    pub fn measure(me: *Measurer, text: []const u8) !Measurement {
+        if (me.someData != 5) unreachable;
+        var finalSize: i64 = 0;
+        for (text) |char| {
+            finalSize += switch (char) {
+                'i' => 5,
+                'm' => 15,
+                else => @as(i64, 10),
+            };
+        }
+        return Measurement{
+            .width = finalSize,
+            .height = if (text.len > 0) 50 else 25,
+            .baseline = 45,
+        };
+    }
+    pub fn findNextSplit(me: *Measurer, pos: var) usize {
+        // std.debug.warn("  - Finding split from {}\n", .{pos.byte});
+        var distance: usize = 0;
+        // defer std.debug.warn("  - Found split at {} (byte {}).\n", .{ distance + 1, pos.byte + distance });
+        var cpos = pos;
+        while (cpos.char()) |chr| {
+            if (chr == '\n') return distance + 1; // character after the newline. would be useful to split both before and after.
+            if (chr == ' ') return distance + 1; // character after the space
+            cpos = cpos.next() orelse break;
+            distance += 1;
+        }
+        return distance + 1;
+    }
+    pub fn deinit(me: *Measurer) void {}
+};
+
+pub fn tcflags(comptime itms: var) std.os.tcflag_t {
+    comptime {
+        var res: std.os.tcflag_t = 0;
+        for (itms) |itm| res |= @as(std.os.tcflag_t, @field(std.os, @tagName(itm)));
+        return res;
+    }
+}
+
+pub fn main() !void {
+    const alloc = std.heap.page_allocator;
+
+    var core: EditorCore(TestingMeasurer) = try EditorCore(TestingMeasurer).init(alloc, TestingMeasurer{ .someData = 5, .alloc = alloc }); // , struct {fn measureText()} {};
+    defer core.deinit();
+
+    const stdin = std.io.getStdIn().inStream();
+    const stdout = std.io.getStdIn().outStream();
+
+    const origTermios = try std.os.tcgetattr(std.os.STDIN_FILENO);
+    {
+        var termios = origTermios;
+        termios.lflag &= ~tcflags(.{ .ECHO, .ICANON, .ISIG, .IXON, .IEXTEN, .BRKINT, .INPCK, .ISTRIP, .CS8 });
+        try std.os.tcsetattr(std.os.STDIN_FILENO, std.os.TCSA.FLUSH, termios);
+
+        try stdout.writeAll("\x1b[?1049h\x1b[22;0;0t");
+        try stdout.writeAll("\x1b[2J\x1b[H");
+    }
+    defer {
+        std.os.tcsetattr(std.os.STDIN_FILENO, std.os.TCSA.FLUSH, origTermios) catch std.debug.warn("failed to reset termios on exit\n", .{});
+        stdout.writeAll("\x1b[2J\x1b[H") catch std.debug.warn("could not clear screen before exit\n", .{});
+        stdout.writeAll("\x1b[?1049l\x1b[23;0;0t") catch std.debug.warn("could not restore screen on exit\n", .{});
+        std.debug.warn("Exited!\n", .{});
+    }
+
+    var autoRerender = false;
+
+    while (true) {
+        try stdout.writeAll("\x1b(B\x1b[m\x1b[2J\x1b[H");
+        try stdout.print("Internal representation view. Rerender is {} (\x1b[94mctrl+d\x1b(B\x1b[m)\n", .{
+            failPass(!autoRerender),
+        });
+
+        if (autoRerender) {
+            var riter = core.render(100000, 100000, 0);
+            while (try riter.next(alloc)) |*nxt| {
+                defer nxt.deinit();
+            }
+        }
+
+        renderCursorPositionOptions(core, .{ .cursor = .terminal_save });
+        try stdout.writeAll("\x1b8");
+        const rb = try stdin.readByte();
+        switch (rb) {
+            3 => break,
+            4 => {
+                autoRerender = !autoRerender;
+            },
+            '\x1b' => {
+                switch (try stdin.readByte()) {
+                    '[' => {
+                        switch (try stdin.readByte()) {
+                            '1'...'9' => |num| {
+                                if ((try stdin.readByte()) != '~') std.debug.warn("Unknown escape 1-9 something\n", .{});
+                                switch (num) {
+                                    '3' => core.delete(core.cursor, core.addPoint(core.cursor, 1)),
+                                    else => std.debug.warn("Unknown <esc>[#~ number {}\n", .{num}),
+                                }
+                            },
+                            'A' => {},
+                            'B' => {},
+                            'C' => core.cursor = core.addPoint(core.cursor, 1),
+                            'D' => core.cursor = core.addPoint(core.cursor, -1),
+                            else => |chr| std.debug.warn("Unknown [ escape {c}\n", .{chr}),
+                        }
+                    },
+                    else => |esch| std.debug.warn("Unknown Escape Type {}\n", .{esch}),
+                }
+            },
+            10, 32...126 => {
+                try core.insert(core.cursor, &[_]u8{rb});
+            },
+            127 => {
+                core.delete(core.addPoint(core.cursor, -1), core.cursor);
+            },
+            else => {
+                std.debug.warn("Control character {}\n", .{rb});
+            },
+        }
+    }
+}
+
 test "editor core" {
     const alloc = std.testing.allocator;
 
-    const Measurer = struct {
-        const Measurer = @This();
-        someData: u32,
-        alloc: *std.mem.Allocator,
-
-        pub const Text = struct {
-            txt: []const u8,
-            alloc: *std.mem.Allocator,
-            pub fn deinit(me: *Text) void {
-                // alloc.free(me.txt)
-                me.alloc.free(me.txt);
-            }
-        };
-        pub fn render(me: *Measurer, text: []const u8, mesur: Measurement) !Text {
-            if (me.someData != 5) unreachable;
-            var txtCopy = std.ArrayList(u8).init(me.alloc);
-            const strNormal = "\x1B[97m";
-            const strControl = "\x1b[36m";
-            const strHidden = "\x1b[30m";
-            try txtCopy.appendSlice(strNormal);
-            for (text) |char| {
-                // would prefer some kind of stream transformer so this could be used for measure
-                switch (char) {
-                    '\n' => try txtCopy.appendSlice(strControl ++ "⌧ " ++ strNormal),
-                    ' ' => try txtCopy.appendSlice(strHidden ++ "·" ++ strNormal),
-                    else => try txtCopy.append(char),
-                }
-            }
-            try txtCopy.appendSlice("\x1B(B\x1B[m");
-            return Text{ .txt = txtCopy.toOwnedSlice(), .alloc = me.alloc };
-        }
-        pub fn measure(me: *Measurer, text: []const u8) !Measurement {
-            if (me.someData != 5) unreachable;
-            var finalSize: i64 = 0;
-            for (text) |char| {
-                finalSize += switch (char) {
-                    'i' => 5,
-                    'm' => 15,
-                    else => @as(i64, 10),
-                };
-            }
-            return Measurement{
-                .width = finalSize,
-                .height = if (text.len > 0) 50 else 25,
-                .baseline = 45,
-            };
-        }
-        pub fn findNextSplit(me: *Measurer, pos: var) usize {
-            std.debug.warn("  - Finding split from {}\n", .{pos.byte});
-            var distance: usize = 0;
-            defer std.debug.warn("  - Found split at {} (byte {}).\n", .{ distance + 1, pos.byte + distance });
-            var cpos = pos;
-            while (true) {
-                if (cpos.char() == '\n') return distance + 1; // character after the newline. would be useful to split both before and after.
-                if (cpos.char() == ' ') return distance + 1; // character after the space
-                cpos = cpos.next() orelse break;
-                distance += 1;
-            }
-            return distance + 1;
-        }
-        pub fn deinit(me: *Measurer) void {}
-    };
-    var core: EditorCore(Measurer) = try EditorCore(Measurer).init(alloc, Measurer{ .someData = 5, .alloc = alloc }); // , struct {fn measureText()} {};
+    var core: EditorCore(TestingMeasurer) = try EditorCore(TestingMeasurer).init(alloc, TestingMeasurer{ .someData = 5, .alloc = alloc }); // , struct {fn measureText()} {};
     defer core.deinit();
 
     std.debug.warn("\n\n\n", .{});
@@ -765,16 +858,32 @@ test "editor core" {
         &[_][]const u8{"newline"},
     });
 
+    renderCursorPosition(core);
+
     // std.testing.expectEqual(expected: var, actual: @TypeOf(expected))
 }
 
+const CPOptions = struct {
+    const CursorEnum = enum { drawn, terminal_save };
+    cursor: CursorEnum = CursorEnum.drawn,
+};
+
 pub fn renderCursorPosition(core: var) void {
-    return renderPointPosition(core, core.cursor);
+    return renderCursorPositionOptions(core, .{});
+}
+pub fn renderCursorPositionOptions(core: var, options: CPOptions) void {
+    return renderPointPositionOptions(core, core.cursor, options);
 }
 
 pub fn renderPointPosition(core: var, point: var) void {
+    return renderPointPositionOptions(core, point, .{});
+}
+pub fn renderPointPositionOptions(core: var, point: var, options: CPOptions) void {
     const reset = "\x1B(B\x1B[m";
-    const cursor = "\x1B[94m|" ++ reset;
+    const cursor = switch (options.cursor) {
+        .drawn => @as([]const u8, "\x1B[94m|" ++ reset),
+        .terminal_save => "\x1b7",
+    };
     const yellow = "\x1B[33m";
     std.debug.warn("Cursor:`", .{});
     defer std.debug.warn("`\n", .{});
@@ -784,8 +893,14 @@ pub fn renderPointPosition(core: var, point: var) void {
     while (true) {
         if (!first) std.debug.warn(" ", .{});
         if (first) first = false;
+
+        const endWithNewline = cpos.len() > 0 and cpos.text.items[cpos.len() - 1] == '\n';
+        defer if (endWithNewline) {
+            std.debug.warn("\n", .{});
+        };
         std.debug.warn(yellow ++ "[" ++ reset, .{});
         defer std.debug.warn(yellow ++ "]" ++ reset, .{});
+
         const cursorHere = point.text == cpos;
         for (cpos.text.items) |char, i| {
             if (cursorHere and i == point.offset) std.debug.warn("{}", .{cursor});
@@ -815,10 +930,11 @@ pub fn failPass(boole: bool) []const u8 {
 }
 
 pub fn testRenderCore(core: var, alloc: var, expected: []const []const []const u8) !void {
-    var riter = core.render(1000, 500, 0);
     var gi: usize = 0;
     std.debug.warn("Testing\n", .{});
     var fail = false;
+
+    var riter = core.render(1000, 500, 0);
     while (try riter.next(alloc)) |*nxt| : (gi += 1) {
         defer nxt.deinit();
 
