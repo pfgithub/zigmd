@@ -19,6 +19,17 @@ pub const DefaultMeasurer = struct {
 
     pub const Text = win.Text;
 
+    pub fn findNextSplit(me: *Me, pos: var) usize {
+        var distance: usize = 0;
+        var cpos = pos;
+        while (cpos.char()) |chr| {
+            if (chr == '\n') return distance + 1; // character after the newline. would be useful to split both before and after.
+            if (chr == ' ') return distance + 1; // character after the space
+            cpos = cpos.next() orelse break;
+            distance += 1;
+        }
+        return distance + 1;
+    }
     pub fn render(dm: *Me, text: []const u8, measur: Measurement) !Text {
         if (text.len == 0) return @as(Text, undefined);
 

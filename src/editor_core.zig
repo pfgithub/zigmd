@@ -247,11 +247,8 @@ pub fn EditorCore(comptime Measurer: type) type {
         }
 
         /// force remeasure a given node. use remeasureIfNeeded instead
-        fn remeasure(me: *Core, text: *CodeText) !void {
-            if (text.measure) |*m| {
-                m.deinit();
-                text.measure = null;
-            }
+        fn remeasureForce(me: *Core, text: *CodeText) !void {
+            clearMeasure(text);
 
             var charactersAl = std.ArrayList(CharacterMeasure).init(me.alloc);
             errdefer charactersAl.deinit();
@@ -277,9 +274,8 @@ pub fn EditorCore(comptime Measurer: type) type {
         fn remeasureIfNeeded(me: *Core, text: *CodeText) !void {
             // when editing nodes, any affected will have measure reset to null
             if (text.measure) |measure| {
-                if (measure.version != me.measurementVersion) return me.remeasure(text);
-            }
-            if (text.measure == null) return me.remeasure(text);
+                if (measure.version != me.measurementVersion) return me.remeasureForce(text);
+            } else return me.remeasureForce(text);
         }
 
         // todo: move by whole codepoints
@@ -533,12 +529,12 @@ pub fn EditorCore(comptime Measurer: type) type {
             // split/merge until we get there
             // leave the newline/space in the same line
             var i: usize = 0;
-            while (i < start.text.items.len) : (i += 1) {
+            while (i <= start.text.items.len) : (i += 1) {
                 if (distanceToNextSplit - i <= 0) {
                     try me.splitNode(.{ .text = start, .offset = i });
                     break;
                 }
-                if (i == start.text.items.len - 1) {
+                if (i == start.text.items.len) {
                     try me.mergeNextNode(start);
                 }
             }
