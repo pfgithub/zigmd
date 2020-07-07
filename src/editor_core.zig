@@ -163,6 +163,13 @@ pub fn LinkedList(comptime Value: type) type {
 // };
 // header.conformsTo(MeasurerInterface, Measurer);
 //    zig compiler crash oops
+
+// in the future, it will probably be a goal for editorcore
+// to be able to be used with two different measurers at once
+// using a wrapper that handles measurement or something.
+// must have the same syntax highlighter though, given how
+// it works.
+// unless this is rethought and done better next time
 pub fn EditorCore(comptime Measurer: type) type {
     return struct {
         const Core = @This();
@@ -172,6 +179,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             characters: std.ArrayList(CharacterMeasure),
             measure: Measurement,
             data: Measurer.Text, // measurer.render
+            version: u64,
             pub fn deinit(md: *MeasurementData) void {
                 md.characters.deinit();
                 md.data.deinit();
@@ -207,6 +215,9 @@ pub fn EditorCore(comptime Measurer: type) type {
                     measure.deinit();
                 }
             }
+            pub fn len(me: *CodeText) usize {
+                return me.text.items.len;
+            }
         };
         pub const RangeList = LinkedList(CodeText);
 
@@ -224,10 +235,24 @@ pub fn EditorCore(comptime Measurer: type) type {
         readonly: bool = false,
 
         cursor: TextPoint,
+
+        measurementVersion: u64 = 0,
+
         pub const TextPoint = struct { text: *CodeText, offset: u64 };
 
+        /// use this eg if you are changing the font or syntax highlighter
+        /// or something and all text needs remeasuring
+        pub fn remeasureAll(me: *Core) void {
+            me.measurementVersion += 1;
+        }
+
         /// force remeasure a given node. use remeasureIfNeeded instead
-        pub fn remeasure(me: *Core, text: *CodeText) !void {
+        fn remeasure(me: *Core, text: *CodeText) !void {
+            if (text.measure) |*m| {
+                m.deinit();
+                text.measure = null;
+            }
+
             var charactersAl = std.ArrayList(CharacterMeasure).init(me.alloc);
             errdefer charactersAl.deinit();
 
@@ -244,7 +269,17 @@ pub fn EditorCore(comptime Measurer: type) type {
                 .measure = measurement,
                 .data = data,
                 .characters = charactersAl,
+                .version = me.measurementVersion,
             };
+        }
+        /// after calling this function, text.measure is not null
+        /// and up to date, unless this function returns an error.
+        fn remeasureIfNeeded(me: *Core, text: *CodeText) !void {
+            // when editing nodes, any affected will have measure reset to null
+            if (text.measure) |measure| {
+                if (measure.version != me.measurementVersion) return me.remeasure(text);
+            }
+            if (text.measure == null) return me.remeasure(text);
         }
 
         // todo: move by whole codepoints
@@ -280,19 +315,12 @@ pub fn EditorCore(comptime Measurer: type) type {
                     if (currentPoint.text.text.items.len > 0) break;
                 }
                 currentPoint.offset = switch (direction) {
-                    .left => currentPoint.offset + currentPoint.text.text.items.len - 1,
+                    .left => currentPoint.text.text.items.len - 1,
                     .right => 1,
                 };
             }
 
             unreachable;
-        }
-
-        /// after calling this function, text.measure is not null
-        /// and up to date, unless this function returns an error.
-        pub fn remeasureIfNeeded(me: *Core, text: *CodeText) !void {
-            // when editing nodes, any affected will have measure reset to nlul
-            if (text.measure == null) return me.remeasure(text);
         }
 
         pub fn insert(me: *Core, point: TextPoint, text: []const u8) !void {
@@ -369,10 +397,10 @@ pub fn EditorCore(comptime Measurer: type) type {
             var insertedNode = try point.text.node().insertAfter(.{ .text = al, .measure = null });
             errdefer _ = insertedNode.remove();
 
-            if (me.cursor.text == point.text and me.cursor.offset > point.text.text.items.len) {
+            if (me.cursor.text == point.text and me.cursor.offset > point.text.len()) {
                 me.cursor = .{
                     .text = &insertedNode.value,
-                    .offset = me.cursor.offset - point.text.text.items.len, // hmm
+                    .offset = me.cursor.offset - point.text.len(),
                 };
             }
         }
@@ -384,7 +412,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             if (me.cursor.text == next) {
                 me.cursor = .{
                     .text = first,
-                    .offset = first.text.items.len - 1 + me.cursor.offset,
+                    .offset = first.len() + me.cursor.offset,
                 };
             }
             try first.text.appendSlice(next.text.items);
@@ -398,26 +426,118 @@ pub fn EditorCore(comptime Measurer: type) type {
             node.measure = null;
         }
 
-        pub fn splitNewlines(me: *Core, start: *CodeText) !void {
+        pub const CharacterPosition = struct {
+            lyn: usize,
+            col: usize,
+            byte: usize,
+            ref: *CodeText,
+            offset: usize,
+            pub fn char(me: CharacterPosition) u8 {
+                var ref = me.ref;
+                var offset = me.offset;
+                if (me.col > std.math.maxInt(usize) / 2) unreachable;
+                while (offset >= ref.text.items.len) {
+                    offset -= ref.text.items.len;
+                    ref = ref.next() orelse unreachable; // eof
+                }
+                return ref.text.items[offset];
+            }
+            /// advance to a point. unreachable if the point is behind me
+            pub fn advanceTo(me: CharacterPosition, to: *CodeText) CharacterPosition {
+                var res = me;
+                while (true) {
+                    if (res.ref == to) {
+                        if (res.offset != 0) unreachable; // to is in the past
+                        return res;
+                    }
+                    for (res.ref.text.items) |char_| {
+                        res.byte += 1;
+                        res.offset += 1;
+                        if (char_ == '\n') {
+                            res.col = 0;
+                            res.lyn += 1;
+                        } else {
+                            res.col += 1;
+                        }
+                    }
+                    res.ref = res.ref.next() orelse unreachable; // to is in the past
+                    res.offset = 0;
+                }
+            }
+            // next character. null on eof
+            pub fn next(me: CharacterPosition) ?CharacterPosition {
+                // note that the newline character is the last character on a line>>
+                var nxt: CharacterPosition = me;
+                if (me.offset + 1 >= me.ref.text.items.len) {
+                    nxt.offset = 0;
+                    nxt.ref = me.ref.next() orelse return null;
+                } else {
+                    nxt.offset += 1;
+                }
+                if (me.char() == '\n') {
+                    nxt.lyn += 1;
+                    nxt.col = 0;
+                } else {
+                    nxt.col += 1;
+                }
+                nxt.byte += 1;
+                return nxt;
+            }
+            // previous character. null on first character.
+            // note that previous character after a newline is slow
+            pub fn prev(me: CharacterPosition) ?CharacterPosition {
+                // prev is easy unless the previous character is a newline
+                var nxt: CharacterPosition = undefined;
+                if (me.offset == 0) {
+                    nxt.ref = me.ref.prev() orelse return null; // eof
+                    nxt.offset = nxt.ref.len() - 1;
+                }
+                nxt.lyn = me.lyn;
+                if (pos.col == 0) blk: {
+                    if (nxt.lyn == 0) unreachable; // already caught
+                    nxt.lyn -= 1;
+                    // go backwards until the previous newline or start of file
+                    // set col appropriately
+                    var pos = nxt;
+                    pos.col = std.math.maxInt(usize);
+                    while (true) {
+                        pos = pos.prev() orelse unreachable;
+                        // not allowed to recurse. note for 0.7.0
+                        // first character already caught
+                        if (pos.ref.text.items[pos.offset] == '\n') break;
+                    }
+                    nxt.col = std.math.maxInt(usize) - pos.col - 1;
+                } else {
+                    if (nxt.char() == '\n') unreachable;
+                    nxt.col -= 1;
+                }
+            }
+        };
+
+        pub fn splitNewlines(me: *Core, pos: CharacterPosition) !void {
+            if (pos.offset != 0) unreachable; // not ok.
+            const start = pos.ref;
+            // getDistanceToNextSplit
+            // split and merge until that is made
+            // this is only necessary if text has been changed since the last frame
+            var distanceToNextSplit: usize = me.measurer.findNextSplit(pos);
+
+            // distance to next split is eg min(end of tree-sitter node, a space, a newline)
+
             // find the next newline
             // split/merge until we get there
             // leave the newline/space in the same line
             var i: usize = 0;
             while (i < start.text.items.len) : (i += 1) {
-                const char = start.text.items[i];
-                // std.debug.warn("Char[{}] = `{c}`\n", .{ i, char });
-                if (char == ' ' or char == '\n') {
-                    try me.splitNode(.{ .text = start, .offset = i + 1 });
-                    // try me.splitNode(.{ .text = start, .offset = i }); // put the newline/space into its own node.
+                if (distanceToNextSplit - i <= 0) {
+                    try me.splitNode(.{ .text = start, .offset = i });
                     break;
                 }
-                if (i == start.text.items.len - 1) { // todo and nextNode != '\n' || ' '
-                    // this is why it might be better to not put the newline/space into its own line
-                    // but idk
+                if (i == start.text.items.len - 1) {
                     try me.mergeNextNode(start);
                 }
             }
-            // either we broke from the loop or hit the end of the text
+            // either we broke from the loop or hit the end of the text. same thing.
         }
 
         // what if renderIterator handles all the tree sitter stuff and the only thing
@@ -430,6 +550,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             width: i64,
             height: i64,
             core: *Core,
+            position: CharacterPosition,
 
             const RenderPiece = struct { x: i64, y: i64, measure: *MeasurementData, text: *CodeText };
             const RenderResult = struct {
@@ -458,7 +579,9 @@ pub fn EditorCore(comptime Measurer: type) type {
                 while (currentNode) |node| {
                     var text: *CodeText = &node.value;
 
-                    try ri.core.splitNewlines(text);
+                    ri.position = ri.position.advanceTo(text);
+
+                    try ri.core.splitNewlines(ri.position);
                     try ri.core.remeasureIfNeeded(text);
 
                     const measure = text.measure.?;
@@ -493,7 +616,13 @@ pub fn EditorCore(comptime Measurer: type) type {
             }
         };
         pub fn render(me: *Core, width: i64, height: i64, deltaScroll: i64) RenderIterator {
-            return .{ .current = &me.code.value, .width = width, .height = height, .core = me };
+            return .{
+                .current = &me.code.value,
+                .width = width,
+                .height = height,
+                .core = me,
+                .position = .{ .lyn = 0, .col = 0, .byte = 0, .ref = &me.code.value, .offset = 0 },
+            };
         }
 
         pub fn init(alloc: *Alloc, measurer: Measurer) !Core {
@@ -530,14 +659,33 @@ test "editor core" {
     const Measurer = struct {
         const Measurer = @This();
         someData: u32,
+        alloc: *std.mem.Allocator,
 
         pub const Text = struct {
             txt: []const u8,
-            pub fn deinit(me: *Text) void {}
+            alloc: *std.mem.Allocator,
+            pub fn deinit(me: *Text) void {
+                // alloc.free(me.txt)
+                me.alloc.free(me.txt);
+            }
         };
         pub fn render(me: *Measurer, text: []const u8, mesur: Measurement) !Text {
             if (me.someData != 5) unreachable;
-            return Text{ .txt = text };
+            var txtCopy = std.ArrayList(u8).init(me.alloc);
+            const strNormal = "\x1B[97m";
+            const strControl = "\x1b[36m";
+            const strHidden = "\x1b[30m";
+            try txtCopy.appendSlice(strNormal);
+            for (text) |char| {
+                // would prefer some kind of stream transformer so this could be used for measure
+                switch (char) {
+                    '\n' => try txtCopy.appendSlice(strControl ++ "⌧ " ++ strNormal),
+                    ' ' => try txtCopy.appendSlice(strHidden ++ "·" ++ strNormal),
+                    else => try txtCopy.append(char),
+                }
+            }
+            try txtCopy.appendSlice("\x1B(B\x1B[m");
+            return Text{ .txt = txtCopy.toOwnedSlice(), .alloc = me.alloc };
         }
         pub fn measure(me: *Measurer, text: []const u8) !Measurement {
             if (me.someData != 5) unreachable;
@@ -555,32 +703,63 @@ test "editor core" {
                 .baseline = 45,
             };
         }
+        pub fn findNextSplit(me: *Measurer, pos: var) usize {
+            std.debug.warn("  - Finding split from {}\n", .{pos.byte});
+            var distance: usize = 0;
+            defer std.debug.warn("  - Found split at {} (byte {}).\n", .{ distance + 1, pos.byte + distance });
+            var cpos = pos;
+            while (true) {
+                if (cpos.char() == '\n') return distance + 1; // character after the newline. would be useful to split both before and after.
+                if (cpos.char() == ' ') return distance + 1; // character after the space
+                cpos = cpos.next() orelse break;
+                distance += 1;
+            }
+            return distance + 1;
+        }
         pub fn deinit(me: *Measurer) void {}
     };
-    var core: EditorCore(Measurer) = try EditorCore(Measurer).init(alloc, Measurer{ .someData = 5 }); // , struct {fn measureText()} {};
+    var core: EditorCore(Measurer) = try EditorCore(Measurer).init(alloc, Measurer{ .someData = 5, .alloc = alloc }); // , struct {fn measureText()} {};
     defer core.deinit();
 
+    std.debug.warn("\n\n\n", .{});
+    defer std.debug.warn("\n\n\n", .{});
+    renderCursorPosition(core);
+
     try core.insert(core.cursor, "Hello, World! ");
+    renderCursorPosition(core);
     try testRenderCore(&core, alloc, &[_][]const []const u8{
         &[_][]const u8{ "Hello, ", "World! " },
     });
 
+    renderCursorPosition(core);
+
     try core.insert(core.cursor, "Oop!");
+    renderCursorPosition(core);
     try testRenderCore(&core, alloc, &[_][]const []const u8{
         &[_][]const u8{ "Hello, ", "World! ", "Oop!" },
     });
 
+    renderCursorPosition(core);
+
     try core.insert(core.cursor, "\nnewline");
+    renderCursorPosition(core);
     try testRenderCore(&core, alloc, &[_][]const []const u8{
         &[_][]const u8{ "Hello, ", "World! ", "Oop!\n" },
         &[_][]const u8{"newline"},
     });
+    // Hello, World!⌧newline
 
     renderCursorPosition(core);
+    var i: usize = 0;
+    // while (i < 12) : (i += 1) {
+    //     core.cursor = core.addPoint(core.cursor, -1);
+    //     renderCursorPosition(core);
+    // }
     core.cursor = core.addPoint(core.cursor, -12);
     renderCursorPosition(core);
 
     try core.insert(core.cursor, "Fix this? ");
+    renderCursorPosition(core);
     try testRenderCore(&core, alloc, &[_][]const []const u8{
         &[_][]const u8{ "Hello, ", "World! ", "Fix ", "this? ", "Oop!\n" },
         &[_][]const u8{"newline"},
@@ -590,13 +769,49 @@ test "editor core" {
 }
 
 pub fn renderCursorPosition(core: var) void {
-    std.debug.warn("Cursor is on text `", .{});
-    for (core.cursor.text.text.items) |char, i| {
-        if (i == core.cursor.offset) std.debug.warn("|", .{});
-        std.debug.warn("{c}", .{char});
+    return renderPointPosition(core, core.cursor);
+}
+
+pub fn renderPointPosition(core: var, point: var) void {
+    const reset = "\x1B(B\x1B[m";
+    const cursor = "\x1B[94m|" ++ reset;
+    const yellow = "\x1B[33m";
+    std.debug.warn("Cursor:`", .{});
+    defer std.debug.warn("`\n", .{});
+    var cpos = &core.code.value;
+    var first = true;
+    var panic = false;
+    while (true) {
+        if (!first) std.debug.warn(" ", .{});
+        if (first) first = false;
+        std.debug.warn(yellow ++ "[" ++ reset, .{});
+        defer std.debug.warn(yellow ++ "]" ++ reset, .{});
+        const cursorHere = point.text == cpos;
+        for (cpos.text.items) |char, i| {
+            if (cursorHere and i == point.offset) std.debug.warn("{}", .{cursor});
+            switch (char) {
+                '\n' => std.debug.warn("\x1b[32m\\n" ++ reset, .{}),
+                else => std.debug.warn("{c}", .{char}),
+            }
+        }
+        if (cursorHere and point.offset == cpos.text.items.len) std.debug.warn("{}", .{cursor});
+        if (cursorHere and point.offset > cpos.text.items.len) {
+            var offset = point.offset - cpos.text.items.len;
+            while (offset > 0) : (offset -= 1) {
+                std.debug.warn("\x1b[31m×\x1b[31m", .{});
+            }
+            std.debug.warn("{}", .{cursor});
+            panic = true;
+        }
+        cpos = cpos.next() orelse break;
     }
-    if (core.cursor.offset == core.cursor.text.text.items.len) std.debug.warn("|", .{});
-    std.debug.warn("` at offset {}\n", .{core.cursor.offset});
+    if (panic) unreachable; // cursor out of bounds
+}
+
+pub fn failPass(boole: bool) []const u8 {
+    const reset = "\x1b(B\x1b[m";
+    if (boole) return "\x1b[31m×" ++ reset;
+    return "\x1b[32m√" ++ reset;
 }
 
 pub fn testRenderCore(core: var, alloc: var, expected: []const []const []const u8) !void {
@@ -610,11 +825,24 @@ pub fn testRenderCore(core: var, alloc: var, expected: []const []const []const u
         std.debug.warn("  Rendering line with height {}\n", .{nxt.lineHeight});
 
         for (nxt.pieces) |piece, i| {
-            std.debug.warn("    Piece x={}: `{}`\n", .{ piece.x, piece.measure.data.txt });
-            if (i >= expected[gi].len or !std.mem.eql(u8, expected[gi][i], piece.measure.data.txt)) fail = true;
+            var pieceFailed = i >= expected[gi].len or !std.mem.eql(u8, expected[gi][i], piece.text.text.items);
+            std.debug.warn(
+                "    {} Piece x={}: `{}`\n",
+                .{ failPass(pieceFailed), piece.x, piece.measure.data.txt },
+            );
+            if (pieceFailed) {
+                fail = true;
+                if (i >= expected[gi].len) std.debug.warn("    :: Out of bounds\n", .{}) else {
+                    std.debug.warn("    :: Got     :  `{}`\n", .{piece.text.text.items});
+                    std.debug.warn("    :: Expected:  `{}`\n", .{expected[gi][i]});
+                }
+            }
         }
         if (expected[gi].len != nxt.pieces.len) fail = true;
     }
     if (gi != expected.len) fail = true;
-    if (fail) return error.TestFailure;
+    std.debug.warn("Tested! ({})\n", .{failPass(fail)});
+    if (fail) {
+        return error.TestFailure;
+    }
 }
