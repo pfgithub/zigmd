@@ -131,7 +131,7 @@ pub const MultilineTextEditor = struct {
 
             for (nxt.pieces) |*piece, i| {
                 if (piece.measure.characters.items.len == 0) continue;
-                try piece.measure.data.render(imev.window, .{
+                try piece.measure.data.render(.{
                     .x = rect.x + piece.x,
                     .y = rect.y + piece.y,
                 });
@@ -679,7 +679,7 @@ pub const TextRenderInfo = struct {
     color: win.Color,
     text: [64]u8,
     size: win.TextSize,
-    window: *const win.Window,
+    window: *win.Window,
 };
 pub const TextRenderData = struct {
     text: win.Text,
@@ -1139,7 +1139,7 @@ pub const App = struct {
                     },
                     .window = window,
                 });
-                try text.text.render(window, .{
+                try text.text.render(.{
                     .x = drawCall.x + pos.x,
                     .y = line.yTop +
                         pos.y +
@@ -1187,10 +1187,8 @@ pub const App = struct {
                 window,
             );
             defer text.deinit();
-            // on mac, this deinit seems to cause renders to stop working.
-            // is it supposed to be deinited after the frame ends? no idea.
             if (std.builtin.os.tag != .macosx)
-                try text.render(window, .{
+                try text.render(.{
                     .x = fullArea.x + fullArea.w - text.size.w,
                     .y = fullArea.y + fullArea.h - text.size.h,
                 });
@@ -1525,7 +1523,7 @@ pub fn main() !void {
             defer alloc.free(msg);
             var renderText = try win.Text.init(style.fonts.standard, style.gui.text, msg, null, &window);
             defer renderText.deinit();
-            try renderText.render(&window, .{ .x = 0, .y = 0 });
+            try renderText.render(.{ .x = 0, .y = 0 });
             renderCount = 0;
         }
         window.present();

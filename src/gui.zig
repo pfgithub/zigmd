@@ -139,7 +139,7 @@ pub const Text = struct {
             .h = text.text.size.h,
         }, settings.halign, settings.valign).overlap(pos);
         if (ev.render)
-            try text.text.render(window, .{
+            try text.text.render(.{
                 .x = textSizeRect.x,
                 .y = textSizeRect.y,
             });

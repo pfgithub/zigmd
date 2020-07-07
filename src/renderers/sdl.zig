@@ -201,6 +201,10 @@ pub const Window = struct {
     previousCursor: Cursor,
     allCursors: AllCursors,
     lastFrame: u64,
+
+    destroyTextureList: std.ArrayList(*sdl.SDL_Texture),
+    alloc: *std.mem.Allocator,
+
     const AllCursors = help.EnumArray(Cursor, *sdl.SDL_Cursor);
 
     pub fn init(alloc: *std.mem.Allocator) ER!Window {
@@ -225,6 +229,8 @@ pub const Window = struct {
 
         var clippingRectangles = std.ArrayList(Rect).init(alloc);
         errdefer clippingRectanges.deinit();
+        var destroyTextureList = std.ArrayList(*sdl.SDL_Texture).init(alloc);
+        errdefer destroyTextureList.deinit();
 
         return Window{
             .sdlWindow = window.?,
@@ -244,13 +250,24 @@ pub const Window = struct {
                 .resizeEW = sdl.SDL_CreateSystemCursor(.SDL_SYSTEM_CURSOR_SIZEWE).?,
             }),
             .lastFrame = 0,
+            .destroyTextureList = destroyTextureList,
+            .alloc = alloc,
         };
+    }
+    pub fn destroyTextures(window: *Window) void {
+        for (window.destroyTextureList.items) |destroytex| {
+            sdl.SDL_DestroyTexture(destroytex);
+        }
+        window.destroyTextureList.deinit(); // clears the list
+        window.destroyTextureList = std.ArrayList(*sdl.SDL_Texture).init(window.alloc);
     }
     pub fn deinit(window: *Window) void {
         for (window.allCursors.data) |cursor| {
             sdl.SDL_FreeCursor(cursor);
             // why does this even exsit
         }
+        window.destroyTextures();
+        window.destroyTextureList.deinit();
 
         sdl.SDL_DestroyRenderer(window.sdlRenderer);
         sdl.SDL_DestroyWindow(window.sdlWindow);
@@ -326,12 +343,16 @@ pub const Window = struct {
         }
         sdl.SDL_RenderPresent(window.sdlRenderer);
 
-        const ctime = time();
-        const diff = ctime - window.lastFrame;
-        if (diff < 4) {
-            sdl.SDL_Delay(@intCast(u32, 4 - diff));
+        {
+            const ctime = time();
+            const diff = ctime - window.lastFrame;
+            if (diff < 4) {
+                sdl.SDL_Delay(@intCast(u32, 4 - diff));
+            }
+            window.lastFrame = time();
         }
-        window.lastFrame = time();
+
+        window.destroyTextures();
     }
     pub fn getSize(window: *Window) ER!WH {
         var screenWidth: c_int = undefined;
@@ -347,6 +368,7 @@ pub const Window = struct {
 pub const Text = struct {
     texture: *sdl.SDL_Texture,
     size: TextSize,
+    window: *Window,
     pub fn measure(
         font: *const Font,
         text: []const u8,
@@ -365,7 +387,7 @@ pub const Text = struct {
         color: Color,
         text: []const u8, // 0-terminated
         size: ?TextSize,
-        window: *const Window,
+        window: *Window,
     ) ER!Text {
         const tmpAlloc = std.heap.c_allocator; // eew null termination
         const nullTerminated = std.mem.dupeZ(tmpAlloc, u8, text) catch return error.Unrecoverable;
@@ -388,13 +410,16 @@ pub const Text = struct {
         return Text{
             .texture = texture.?,
             .size = if (size) |sz| sz else try Text.measure(font, text),
+            .window = window,
         };
     }
     pub fn deinit(text: *Text) void {
         // must deinit on next frame for mac
-        sdl.SDL_DestroyTexture(text.texture);
+        // might be bad for this catch to be here in case eg append ooms and then the texture is destroyed
+        // and then it crashes on mac
+        text.window.destroyTextureList.append(text.texture) catch sdl.SDL_DestroyTexture(text.texture);
     }
-    pub fn render(text: *Text, window: *const Window, pos: Point) ER!void {
+    pub fn render(text: *Text, pos: Point) ER!void {
         var rect = sdl.SDL_Rect{
             .x = @intCast(c_int, pos.x),
             .y = @intCast(c_int, pos.y),
@@ -402,7 +427,7 @@ pub const Text = struct {
             .h = @intCast(c_int, text.size.h),
         };
         if (sdl.SDL_RenderCopy(
-            window.sdlRenderer,
+            text.window.sdlRenderer,
             text.texture,
             null,
             &rect,
