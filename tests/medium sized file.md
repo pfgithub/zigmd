@@ -1,146 +1,188 @@
-# inter·punct bot
+## Contributing
 
-> # Configuration
-> 
-> Some parts of @inter·punct can be configured
-> 
-> - `ip!set prefix <prefix>` — [Set the prefix for running commands. If you ever get stuck, you can always reset the prefix using @inter·punct set prefix ip!](https://interpunct.info/help/settings/prefix)
-> - `ip!set ShowErrors <always|admins|never>` — [choose who command errors are shown to](https://interpunct.info/help/settings/show-errors)
-> - `ip!set ShowUnknownCommand <always|admins|never>` — [choose who unknown command errors are shown to](https://interpunct.info/help/settings/show-unknown-command)
-> - `ip!set ManageBotRole <@​role>` — [Set a role in which users can manage the bot settings.](https://interpunct.info/help/settings/managebotrole)
+### Start a Project Using Zig
 
-> # Fun
-> 
-> @inter·punct has a variety of fun commands.
-> 
-> ## Configuration
-> Fun commands are enabled by default.
-> - `ip!fun <enable|disable>` — [enables or disables fun](https://interpunct.info/help/fun/config)
-> 
-> ## Games
-> - `ip!trivia` — [play a game of trivia](https://interpunct.info/help/fun/trivia)
-> - `ip!connect4` — [Play a game of connect 4. @inter·punct requires permission to manage reactions to run games best.](https://interpunct.info/help/fun/connect4)
-> - `ip!minesweeper` — [play minesweeper](https://interpunct.info/help/fun/minesweeper)
-> - `ip!circlegame` — [Play a game of circlegame. @inter·punct requires permission to manage reactions to run games best.](https://interpunct.info/help/fun/circlegame)
-> 
-> ## Misc
-> - `ip!ping` — [Play a game of ping pong against @inter·punct.](https://interpunct.info/help/fun/ping)
-> - `ip!time [timezone]` — [time](https://interpunct.info/help/time)
-> - `ip!vote <controversial statement>` — [allows other people to vote on whether they agree or disagree with your statement](https://interpunct.info/help/fun/vote)
-> - `ip!stats` — [displays various statistics about the bot](https://interpunct.info/help/fun/stats)
-> - `ip!timer` — Error :(
-> - `ip!needle` — [Find the needle in the haystack.](https://interpunct.info/help/fun/needle)
-> - `ip!members [@​role]` — [get the number of members on the server and optionally filter by a specific role](https://interpunct.info/help/fun/members)
-> - `ip!remindme duration eg. 10h 5min [message]` — [@inter·punct will pm you with your reminder after the specified time runs out](https://interpunct.info/help/fun/remindme)
+One of the best ways you can contribute to Zig is to start using it for a
+personal project. Here are some great examples:
 
-> # Emoji
-> 
-> @inter·punct has the ability to restrict emojis so only people with certain roles can use them.
-> 
-> - `ip!emoji restrict <`![:emoji:](685668888842993833)`> <@​role list>` — [restrict an emoji so only people with one of the specified roles can use it](https://interpunct.info/help/emoji/restrict)
-> - `ip!emoji unrestrict [`![:emoji:](685668888842993833)`] [@​role]` — [unrestrict an emoji so anyone can use it](https://interpunct.info/help/emoji/unrestrict)
-> - `ip!emoji inspect <`![:emoji:](685668888842993833)`>` — [get information about an emoji](https://interpunct.info/help/emoji/inspect)
+ * [Oxid](https://github.com/dbandstra/oxid) - arcade style game
+ * [TM35-Metronome](https://github.com/TM35-Metronome) - tools for modifying and randomizing Pokémon games
+ * [trOS](https://github.com/sjdh02/trOS) - tiny aarch64 baremetal OS thingy
 
-> # Welcome/Goodbye Messages
-> 
-> - `ip!messages set welcome <#channel> <message...>` — [set a message to show when someone joins the server. use {Name} and {Mention} to include people\'s usernames/mentions](https://interpunct.info/help/messages/set-welcome)
-> - `ip!messages remove welcome` — [disable the welcome message](https://interpunct.info/help/messages/remove-welcome)
-> - `ip!messages set goodbye <#channel> <message...>` — [set a message to show when someone leaves the server. use {Name} and {Mention} to include people\'s usernames/mentions](https://interpunct.info/help/messages/set-goodbye)
-> - `ip!messages remove goodbye` — [disable the goodbye message](https://interpunct.info/help/messages/remove-goodbye)
+Without fail, these projects lead to discovering bugs and helping flesh out use
+cases, which lead to further design iterations of Zig. Importantly, each issue
+found this way comes with real world motivations, so it is easy to explain
+your reasoning behind proposals and feature requests.
 
-> # Channels
-> 
-> @inter·punct has a variety of channel management commands.
-> 
-> - `ip!purge <message count>` — [Purge messages in a channel](https://interpunct.info/help/channels/purge)
-> - `ip!slowmode set <#channel> <duration eg. 10h 5min>` — [Set the slowmode for a channel to values that discord does not provide \(such as 1 second, 45 minutes, ...\). Maximum of 6 hours, minimum of 1 second, set to 0 to disable slowmode.](https://interpunct.info/help/channels/slowmode/set)
-> - `ip!send <#list-of-channels> <message to send>` — [](https://interpunct.info/help/channels/send)
-> - `ip!pinbottom <#channel> <message...>` — [@inter·punct will send a message and make sure it always stays at the bottom of the channel](https://interpunct.info/help/channels/pinbottom)
-> - [Welcome/Goodbye Messages](https://interpunct.info/help/messages): welcome/goodbye messages
-> 
+Ideally, such a project will help you to learn new skills and add something
+to your personal portfolio at the same time.
 
-> # Administration
-> 
-> @inter·punct has a few commands for helping with administration
-> 
-> - `ip!purge <message count>` — [Purge messages in a channel](https://interpunct.info/help/channels/purge)
-> - [Autoban](https://interpunct.info/help/autoban): commands to automatically ban users
-> 
+### Spread the Word
 
-> # Custom Commands
-> inter·punct has the ability to create custom commands and quote lists.
-> 
-> - `ip!command add <commandname> <text...>` — [add a custom command](https://interpunct.info/help/customcommands/add)
-> - `ip!command remove <command name>` — [Remove a command](https://interpunct.info/help/customcommands/quotes/remove)
-> - [Quote Lists](https://interpunct.info/help/customcommands/quotes): create custom commands with a list of quotes
-> 
-> 
+Another way to contribute is to write about Zig, or speak about Zig at a
+conference, or do either of those things for your project which uses Zig.
+Here are some examples:
 
-> # Logging
-> 
-> @inter·punct has the ability to log all messages sent and edited in your server.
-> 
-> Logs can be deleted using the `ip!log reset` command, and all logs are deleted if you kick @inter·punct. Old messages will be automatically removed from logs after 60 days, and a note will be inserted at the top of the log file.
-> 
-> - `ip!log enable` — [enable logging messages on the server. @inter·punct can only log messages from channels it has access to. Message edits will be logged too.](https://interpunct.info/help/log/enable)
-> - `ip!log disable` — [disable message logging and delete any existing logs](https://interpunct.info/help/log/disable)
-> - `ip!log download` — [Upload the log file to the channel you sent this in. **Anyone will be able to download it in that channel**.](https://interpunct.info/help/log/download)
-> - `ip!log reset` — [reset the log file on the server and start a new one](https://interpunct.info/help/log/reset)
+ * [Iterative Replacement of C with Zig](http://tiehuis.github.io/blog/zig1.html)
+ * [The Right Tool for the Right Job: Redis Modules & Zig](https://www.youtube.com/watch?v=eCHM8-_poZY)
+ * [Writing a small ray tracer in Rust and Zig](https://nelari.us/post/raytracer_with_rust_and_zig/)
 
-> # Speedrun
-> 
-> @inter·punct has support for showing rules and times from [https\://speedrun.com](https%5C://speedrun.com).
-> 
-> - `ip!speedrun set <https\://speedrun.com/game%> <Category%>` — [Set the speedrun game](https://interpunct.info/help/speedrun/set)
-> - `ip!speedrun disable` — [disable speedrun commands](https://interpunct.info/help/speedrun/disable)
-> - `ip!wr [Category%]` — [Get the current speedrun world record holder](https://interpunct.info/help/speedrun/wr)
-> - `ip!pb <username> [Category%]` — [Get the pb for a specific speedrun person](https://interpunct.info/help/speedrun/pb)
-> - `ip!leaderboard <Position#> [Category%]` — [Get the current speedrun world record holder](https://interpunct.info/help/speedrun/leaderboard)
-> - `ip!speedrun rules [Category%]` — [Get the speedrun rules](https://interpunct.info/help/speedrun/rules)
+Zig is a brand new language, with no advertising budget. Word of mouth is the
+only way people find out about the project, and the more people hear about it,
+the more people will use it, and the better chance we have to take over the
+world.
 
-> # Quickrank
-> Quickrank can be set up to allow admins to rank people quickly on a server.
-> 
-> After setup, you can run commands like this\:
-> **you**: ip!rank @person sub-10
-> or react like this\:
-> [![:sub10:](443555771972845568) 1]  [![:success:](508840840416854026) 1] 
-> to give a user one or more roles
-> **inter·punct** [BOT]: @person, @admin gave you the roles @🕐︎ SUB-10, @🕐︎ SUB-15, @🕐︎ SUB-20
-> 
-> - [Quickrank Setup](https://interpunct.info/help/quickrank/setup): setup quickrank commands
-> 
-> ## Relevant Commands
-> - `ip!rank <user> <comma, separated, list, of, role, names>` — [rank someone with a given list of roles. role names must be configured with quickrank.](https://interpunct.info/help/quickrank/rank)
-> - `ip!quickrank list` — [list all quickrank configuration.](https://interpunct.info/help/quickrank/list)
-> - `ip!quickrank add named <backtick surrounded name> <@role>` — [add a rank name to be used in the `ip!rank` command](https://interpunct.info/help/quickrank/name)
-> - `ip!quickrank add time <duration eg. 10h 5min> <@role>` — [add a rank time to be unsed in the `ip!rank` command](https://interpunct.info/help/quickrank/time)
-> - `ip!quickrank add reaction <`![:emoji:](685668888842993833)`> <@role>` — [add a reaction to react to messages and click check with to rank people](https://interpunct.info/help/quickrank/reaction)
-> - `ip!quickrank add provides <@role 1> -\> <@role 2>` — [when ranking users with role 1, also give them role 2.](https://interpunct.info/help/quickrank/provides)
-> - `ip!quickrank remove role <@role>` — [Remove a role from quickrank entirely \(reaction, named, time, provides\)](https://interpunct.info/help/quickrank/remove/role)
-> - `ip!quickrank set role <role>` — [set a role that allows members to quickrank even if they do not have permissions to manage roles. Keep in mind that this will allow people with this role to give people any of the roles configured in quickrank. If you don\'t want them giving away admin roles, make sure not to put those in quickrank.](https://interpunct.info/help/quickrank/role)
-> 
-> ## Errors
-> - [Quickrank Errors](https://interpunct.info/errors/quickrank): errors
-> 
+### Finding Contributor Friendly Issues
 
-> # Autodelete
-> Autodelete in inter·punct can be set up to delete messages automatically from a user, in a channel, or starting with a given prefix, after a time period.
-> 
-> ## Using autodelete rules to create a 3s-delete channel
-> **you**: ip!autodelete add 3s channel #3s-delete
-> Any messages sent in #3s-delete will be deleted after 3 seconds.
-> 
-> ## Using autodelete rules to delete bot messages after a certain time period
-> **you**: ip!autodelete add 10 seconds user @Mee6
-> Any messages sent by @Mee6 will be deleted after 10 seconds.
-> 
-> ## Using autodelete rules to ban reaction gifs from tenor
-> **you**: ip!autodelete add 1 second prefix https\://tenor.com/
-> **you**: https\://tenor.com/ this message will be deleted
-> Note\: Autodelete rules set to \<1 second will PM the user of the deleted message.
-> 
-> ## Commands
-> - `ip!autodelete add <duration eg. 10h 5min> <prefix|user|channel|role|counting>` — [create an autodelete rule. autodelete rules will delete messages that match a certain rule, such as those from a specific user or in a specific channel.](https://interpunct.info/help/autodelete/add)
-> - `ip!autodelete list` — [list all autodelete rules on this server](https://interpunct.info/help/autodelete/list)
-> - `ip!autodelete remove #` — [remove an autodelete rule. use `ip!autodelete list` to list.](https://interpunct.info/help/autodelete/remove)
+Please note that issues labeled
+[Proposal](https://github.com/ziglang/zig/issues?q=is%3Aissue+is%3Aopen+label%3Aproposal)
+but do not also have the
+[Accepted](https://github.com/ziglang/zig/issues?q=is%3Aissue+is%3Aopen+label%3Aaccepted)
+label are still under consideration, and efforts to implement such a proposal
+have a high risk of being wasted. If you are interested in a proposal which is
+still under consideration, please express your interest in the issue tracker,
+providing extra insights and considerations that others have not yet expressed.
+The most highly regarded argument in such a discussion is a real world use case.
+
+The issue label
+[Contributor Friendly](https://github.com/ziglang/zig/issues?q=is%3Aissue+is%3Aopen+label%3A%22contributor+friendly%22)
+exists to help you find issues that are **limited in scope and/or
+knowledge of Zig internals.**
+
+### Editing Source Code
+
+First, build the Stage 1 compiler as described in [Building from Source](README.md#Building-from-Source).
+
+Zig locates lib files relative to executable path by searching up the
+filesystem tree for a sub-path of `lib/zig/std/std.zig` or `lib/std/std.zig`.
+Typically the former is an install and the latter a git working tree which
+contains the build directory.
+
+During development it is not necessary to perform installs when modifying
+stage1 or userland sources and in fact it is faster and simpler to run,
+test and debug from a git working tree.
+
+- `make` is typically sufficient to build zig during development iterations.
+- `make install` performs a build __and__ install.
+- `msbuild -p:Configuration=Release INSTALL.vcxproj` on Windows performs a
+build and install. To avoid install, pass cmake option `-DZIG_SKIP_INSTALL_LIB_FILES=ON`.
+
+To test changes, do the following from the build directory:
+
+1. Run `make` (on POSIX) or
+   `msbuild -p:Configuration=Release INSTALL.vcxproj` (on Windows).
+2. `$BUILD_DIR/zig build test` (on POSIX) or
+   `$BUILD_DIR/Release\zig.exe build test` (on Windows).
+
+That runs the whole test suite, which does a lot of extra testing that you
+likely won't always need, and can take upwards of 1 hour. This is what the
+CI server runs when you make a pull request. (Note: actually it runs a few
+more tests; keep reading.)
+
+To save time, you can add the `--help` option to the `zig build` command and
+see what options are available. One of the most helpful ones is
+`-Dskip-release`. Adding this option to the command in step 2 above will take
+the time down from around 2 hours to about 6 minutes, and this is a good
+enough amount of testing before making a pull request.
+
+Another example is choosing a different set of things to test. For example,
+`test-std` instead of `test` will only run the standard library tests, and
+not the other ones. Combining this suggestion with the previous one, you could
+do this:
+
+`$BUILD_DIR/bin/zig build test-std -Dskip-release` (on POSIX) or
+`$BUILD_DIR/Release\zig.exe build test-std -Dskip-release` (on Windows).
+
+This will run only the standard library tests, in debug mode only, for all
+targets (it will cross-compile the tests for non-native targets but not run
+them).
+
+When making changes to the compiler source code, the most helpful test step to
+run is `test-behavior`. When editing documentation it is `docs`. You can find
+this information and more in the `--help` menu.
+
+#### Testing Non-Native Architectures with QEMU
+
+The Linux CI server additionally has qemu installed and sets `-Denable-qemu`.
+This provides test coverage for, e.g. aarch64 even on x86_64 machines. It's 
+recommended for Linux users to install qemu and enable this testing option
+when editing the standard library or anything related to a non-native
+architecture.
+
+##### glibc
+
+Testing foreign architectures with dynamically linked glibc is one step trickier.
+This requires enabling `-Denable-foreign-glibc=/path/to/glibc/multi/install/glibcs`.
+This path is obtained by building glibc for multiple architectures. This
+process for me took an entire day to complete and takes up 65 GiB on my hard
+drive. The CI server does not provide this test coverage. Instructions for
+producing this path can be found
+[on the wiki](https://github.com/ziglang/zig/wiki/Updating-libc#glibc).
+Just the part with `build-many-glibcs.py`.
+
+It's understood that most contributors will not have these tests enabled.
+
+#### Testing Windows from a Linux Machine with Wine
+
+When developing on Linux, another option is available to you: `-Denable-wine`.
+This will enable running behavior tests and std lib tests with Wine. It's
+recommended for Linux users to install Wine and enable this testing option 
+when editing the standard library or anything Windows-related.
+
+#### Improving Translate-C
+
+Please read the [Editing Source Code](#editing-source-code) section as a
+prerequisite to this one.
+
+`translate-c` is a feature provided by Zig that converts C source code into
+Zig source code. It powers the `zig translate-c` command as well as
+[@cImport](https://ziglang.org/documentation/master/#cImport), allowing Zig
+code to not only take advantage of function prototypes defined in .h files,
+but also `static inline` functions written in C, and even some macros.
+
+This feature works by using libclang API to parse and semantically analyze
+C/C++ files, and then based on the provided AST and type information,
+generating Zig AST, and finally using the mechanisms of `zig fmt` to render
+the Zig AST to a file.
+
+The relevant tests for this feature are:
+
+ * `test/run_translated_c.zig` - each test case is C code with a `main` function. The C code
+   is translated into Zig code, compiled, and run, and tests that the expected output is the
+   same, and that the program exits cleanly. This kind of test coverage is preferred, when
+   possible, because it makes sure that the resulting Zig code is actually viable.
+
+ * `test/translate_c.zig` - each test case is C code, with a list of expected strings which
+   must be found in the resulting Zig code. This kind of test is more precise in what it
+   measures, but does not provide test coverage of whether the resulting Zig code is valid.
+
+This feature is self-hosted, even though Zig is not fully self-hosted yet. In the Zig source
+repo, we maintain a C API on top of Clang's C++ API:
+
+ * `src/zig_clang.h` - the C API that we maintain on top of Clang's C++ API. This
+   file does not include any Clang's C++ headers. Instead, C types and C enums are defined
+   here.
+
+ * `src/zig_clang.cpp` - a lightweight wrapper that fulfills the C API on top of the
+   C++ API. It takes advantage of `static_assert` to make sure we get compile errors when
+   Clang's C++ API changes. This one file necessarily does include Clang's C++ headers, which
+   makes it the slowest-to-compile source file in all of Zig's codebase.
+
+ * `src-self-hosted/clang.zig` - the Zig equivalent of `src/zig_clang.h`. This is a manually
+   maintained list of types and functions that are ABI-compatible with the Clang C API we
+   maintain. In theory this could be generated by running translate-c on `src/zig_clang.h`,
+   but that would introduce a dependency cycle, since we are using this file to implement
+   translate-c.
+
+Finally, the actual source code for the translate-c feature is
+`src-self-hosted/translate_c.zig`. This code uses the Clang C API exposed by
+`src-self-hosted/clang.zig`, and produces Zig AST.
+
+The steps for contributing to translate-c look like this:
+
+ 1. Identify a test case you want to improve. Add it as a run-translated-c test
+    case (usually preferable), or as a translate-c test case.
+
+ 2. Edit `src-self-hosted/translate_c.zig` to improve the behavior.
+
+ 3. Run the relevant tests: `./zig build test-run-translated-c test-translate-c`
