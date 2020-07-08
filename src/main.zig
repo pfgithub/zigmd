@@ -19,6 +19,7 @@ pub const DefaultMeasurer = struct {
 
     pub const Text = win.Text;
     pub const Style = struct {
+        newlines: bool,
         pub fn eql(a: Style, b: Style) bool {
             return std.meta.eql(a, b);
         }
@@ -33,9 +34,9 @@ pub const DefaultMeasurer = struct {
             cpos = cpos.next() orelse break;
             distance += 1;
         }
-        return .{ .distance = distance, .style = .{} };
+        return .{ .distance = distance, .style = .{ .newlines = true } };
     }
-    pub fn render(dm: *Me, text: []const u8, measur: Measurement) !Text {
+    pub fn render(dm: *Me, text: []const u8, measur: Measurement, style: Style) !Text {
         if (text.len == 0) return @as(Text, undefined);
 
         return try win.Text.init(
@@ -46,7 +47,7 @@ pub const DefaultMeasurer = struct {
             dm.imev.window,
         );
     }
-    pub fn measure(dm: *Me, text: []const u8) !Measurement {
+    pub fn measure(dm: *Me, text: []const u8, style: Style) !Measurement {
         if (text.len == 0) return Measurement{ .width = 0, .height = 10, .baseline = 0 };
 
         const msurment = try win.Text.measure(dm.style.fonts.standard, text);

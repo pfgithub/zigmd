@@ -250,17 +250,18 @@ pub fn EditorCore(comptime Measurer: type) type {
         /// force remeasure a given node. use remeasureIfNeeded instead
         fn remeasureForce(me: *Core, text: *CodeText) !void {
             clearMeasure(text);
+            if (text.style == null) unreachable; // splitNewlines was not called before remeasuring
 
             var charactersAl = std.ArrayList(CharacterMeasure).init(me.alloc);
             errdefer charactersAl.deinit();
 
             for (text.text.items) |_, i| {
-                const progress: Measurement = try me.measurer.measure(text.text.items[0 .. i + 1]);
+                const progress: Measurement = try me.measurer.measure(text.text.items[0 .. i + 1], text.style.?);
                 try charactersAl.append(.{ .width = progress.width });
             }
 
-            const measurement = try me.measurer.measure(text.text.items);
-            const data = try me.measurer.render(text.text.items, measurement);
+            const measurement = try me.measurer.measure(text.text.items, text.style.?);
+            const data = try me.measurer.render(text.text.items, measurement, text.style.?);
             errdefer data.deinit();
 
             text.measure = .{
@@ -610,7 +611,7 @@ pub fn EditorCore(comptime Measurer: type) type {
                     try resAL.append(.{ .x = cx - measure.measure.width, .y = undefined, .measure = &text.measure.?, .text = text });
                     currentNode = node.next;
 
-                    if (node.value.text.items.len != 0 and node.value.text.items[node.value.text.items.len - 1] == '\n') break; // oh god why eww
+                    if (node.value.style.?.newlines and node.value.len() != 0 and node.value.text.items[node.value.len() - 1] == '\n') break; // oh god why eww
                 }
                 for (resAL.items) |*item| {
                     item.y = ri.y + (lineBaseline - item.measure.measure.baseline);
@@ -700,11 +701,11 @@ const TestingMeasurer = struct {
             .blue => "\x1b[96m",
         };
     }
-    pub fn render(me: *Measurer, text: []const u8, mesur: Measurement) !Text {
+    pub fn render(me: *Measurer, text: []const u8, mesur: Measurement, style: Style) !Text {
         if (me.someData != 5) unreachable;
         var txtCopy = std.ArrayList(u8).init(me.alloc);
 
-        const strNormal = pickColor(.white); //style.color);
+        const strNormal = pickColor(style.color); //style.color);
         const strControl = "\x1b[36m";
         const strHidden = "\x1b[30m";
         try txtCopy.appendSlice(strNormal);
@@ -725,7 +726,7 @@ const TestingMeasurer = struct {
         try txtCopy.appendSlice("\x1B(B\x1B[m");
         return Text{ .txt = txtCopy.toOwnedSlice(), .alloc = me.alloc };
     }
-    pub fn measure(me: *Measurer, text: []const u8) !Measurement {
+    pub fn measure(me: *Measurer, text: []const u8, style: Style) !Measurement {
         if (me.someData != 5) unreachable;
         var finalSize: i64 = 0;
         for (text) |char| {
