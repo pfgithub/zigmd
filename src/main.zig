@@ -13,6 +13,7 @@ const ImEvent = gui.ImEvent;
 
 pub const DefaultMeasurer = struct {
     const Me = @This();
+    const Core = EditorCore(Me);
 
     style: *const gui.Style = undefined,
     imev: *ImEvent = undefined,
@@ -25,7 +26,16 @@ pub const DefaultMeasurer = struct {
         }
     };
 
-    pub fn findNextSplit(me: *Me, pos: var) EditorCore(Me).NextSplit {
+    pub fn edit(
+        me: *Me,
+        a1: Core.CharacterPosition,
+        a2: Core.CharacterPosition,
+        b1: Core.CharacterPosition,
+        b2: Core.CharacterPosition,
+    ) void {
+        std.debug.warn("Noted edit from [{}, {}] => [{}, {}]\n", .{ a1, a2, b1, b2 });
+    }
+    pub fn findNextSplit(me: *Me, pos: var) Core.NextSplit {
         var distance: usize = 1;
         var cpos = pos;
         while (cpos.char()) |chr| {
