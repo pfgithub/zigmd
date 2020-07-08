@@ -515,13 +515,20 @@ pub fn EditorCore(comptime Measurer: type) type {
             }
         };
 
+        pub const NextSplit = struct {
+            style: Measurer.Style,
+            distance: usize,
+        };
+
         pub fn splitNewlines(me: *Core, pos: CharacterPosition) !void {
             if (pos.offset != 0) unreachable; // not ok.
             const start = pos.ref;
             // getDistanceToNextSplit
             // split and merge until that is made
             // this is only necessary if text has been changed since the last frame
-            var distanceToNextSplit: usize = me.measurer.findNextSplit(pos);
+            const splitInfo = me.measurer.findNextSplit(pos);
+            var distanceToNextSplit = splitInfo.distance;
+            if (distanceToNextSplit == 0) unreachable; // distance should be >= 1.
 
             // distance to next split is eg min(end of tree-sitter node, a space, a newline)
 
@@ -659,26 +666,52 @@ const TestingMeasurer = struct {
     someData: u32,
     alloc: *std.mem.Allocator,
 
+    const Style = struct {
+        /// if a newline should be put
+        newlines: bool,
+
+        color: Colrenum,
+        const Colrenum = enum { white, blue };
+
+        pub fn eql(a: Style, b: Style) bool {
+            return std.meta.eql(a, b);
+        }
+    };
+    const Core = EditorCore(Measurer);
+
     pub const Text = struct {
         txt: []const u8,
         alloc: *std.mem.Allocator,
         pub fn deinit(me: *Text) void {
-            // alloc.free(me.txt)
             me.alloc.free(me.txt);
         }
     };
+    // can't be inline because of a zig compiler bug
+    fn pickColor(colrenum: Style.Colrenum) []const u8 {
+        return switch (colrenum) {
+            .white => "\x1b[97m",
+            .blue => "\x1b[96m",
+        };
+    }
     pub fn render(me: *Measurer, text: []const u8, mesur: Measurement) !Text {
         if (me.someData != 5) unreachable;
         var txtCopy = std.ArrayList(u8).init(me.alloc);
-        const strNormal = "\x1B[97m";
+
+        const strNormal = pickColor(.white); //style.color);
         const strControl = "\x1b[36m";
         const strHidden = "\x1b[30m";
         try txtCopy.appendSlice(strNormal);
         for (text) |char| {
             // would prefer some kind of stream transformer so this could be used for measure
             switch (char) {
-                '\n' => try txtCopy.appendSlice(strControl ++ "⌧ " ++ strNormal),
-                ' ' => try txtCopy.appendSlice(strHidden ++ "·" ++ strNormal),
+                '\n' => {
+                    try txtCopy.appendSlice(strControl ++ "⌧ ");
+                    try txtCopy.appendSlice(strNormal);
+                },
+                ' ' => {
+                    try txtCopy.appendSlice(strHidden ++ "·");
+                    try txtCopy.appendSlice(strNormal);
+                },
                 else => try txtCopy.append(char),
             }
         }
@@ -701,18 +734,29 @@ const TestingMeasurer = struct {
             .baseline = 45,
         };
     }
-    pub fn findNextSplit(me: *Measurer, pos: var) usize {
+    pub fn findNextSplit(me: *Measurer, pos: Core.CharacterPosition) Core.NextSplit {
         // std.debug.warn("  - Finding split from {}\n", .{pos.byte});
-        var distance: usize = 0;
+        var style: Style = .{ .newlines = true, .color = undefined };
+        switch (pos.char() orelse 0) {
+            'A'...'Z' => style.color = .blue,
+            else => style.color = .white,
+        }
+
+        var distance: usize = 1;
+
         // defer std.debug.warn("  - Found split at {} (byte {}).\n", .{ distance + 1, pos.byte + distance });
         var cpos = pos;
         while (cpos.char()) |chr| {
-            if (chr == '\n') return distance + 1; // character after the newline. would be useful to split both before and after.
-            if (chr == ' ') return distance + 1; // character after the space
+            if (chr == '\n') break; // character after the newline. would be useful to split both before and after.
+            if (chr == ' ') break; // character after the space
             cpos = cpos.next() orelse break;
             distance += 1;
         }
-        return distance + 1;
+
+        return .{
+            .style = style,
+            .distance = distance,
+        };
     }
     pub fn deinit(me: *Measurer) void {}
 };
