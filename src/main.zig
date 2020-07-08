@@ -18,17 +18,18 @@ pub const DefaultMeasurer = struct {
     imev: *ImEvent = undefined,
 
     pub const Text = win.Text;
+    pub const Style = struct {};
 
-    pub fn findNextSplit(me: *Me, pos: var) usize {
-        var distance: usize = 0;
+    pub fn findNextSplit(me: *Me, pos: var) EditorCore(Me).NextSplit {
+        var distance: usize = 1;
         var cpos = pos;
         while (cpos.char()) |chr| {
-            if (chr == '\n') return distance + 1; // character after the newline. would be useful to split both before and after.
-            if (chr == ' ') return distance + 1; // character after the space
+            if (chr == '\n') break; // character after the newline. would be useful to split both before and after.
+            if (chr == ' ') break; // character after the space
             cpos = cpos.next() orelse break;
             distance += 1;
         }
-        return distance + 1;
+        return .{ .distance = distance, .style = .{} };
     }
     pub fn render(dm: *Me, text: []const u8, measur: Measurement) !Text {
         if (text.len == 0) return @as(Text, undefined);
@@ -663,13 +664,13 @@ pub fn Cache(comptime Key: type, comptime Value: type) type {
             var result = try cache.hashmap.getOrPut(key);
             if (!result.found_existing) {
                 var item = try Value.init(key);
-                result.kv.value = .{
+                result.entry.value = .{
                     .used = true,
                     .value = item,
                 };
             }
-            result.kv.value.used = true;
-            return &result.kv.value.value;
+            result.entry.value.used = true;
+            return &result.entry.value.value;
         }
     };
 }

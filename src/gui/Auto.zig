@@ -118,7 +118,7 @@ pub fn destroy(selfptr: var, comptime fields: var) void {
 pub fn new(auto: *Auto, initmethod: var, args: var) *@typeInfo(@TypeOf(initmethod)).Fn.return_type.? {
     const Type = @typeInfo(@TypeOf(initmethod)).Fn.return_type.?;
     const uniqueID = help.AnyPtr.typeID(struct {});
-    if (auto.items.getValue(uniqueID)) |v| return v.value.readAs(Type);
+    if (auto.items.get(uniqueID)) |v| return v.value.readAs(Type);
     const allocated = auto.alloc.create(Type) catch @panic("oom not handled");
     const deinitfn: DeinitFn = struct {
         fn f(value: help.AnyPtr) void {
@@ -126,10 +126,10 @@ pub fn new(auto: *Auto, initmethod: var, args: var) *@typeInfo(@TypeOf(initmetho
         }
     }.f;
     allocated.* = @call(.{}, initmethod, args);
-    if (auto.items.put(
+    auto.items.putNoClobber(
         uniqueID,
         .{ .deinit = deinitfn, .value = help.AnyPtr.fromPtr(allocated) },
-    ) catch @panic("oom not handled")) |_| @panic("duplicate insert (never)");
+    ) catch @panic("oom not handled");
     return allocated;
 }
 
