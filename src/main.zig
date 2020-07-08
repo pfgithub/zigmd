@@ -18,7 +18,11 @@ pub const DefaultMeasurer = struct {
     imev: *ImEvent = undefined,
 
     pub const Text = win.Text;
-    pub const Style = struct {};
+    pub const Style = struct {
+        pub fn eql(a: Style, b: Style) bool {
+            return std.meta.eql(a, b);
+        }
+    };
 
     pub fn findNextSplit(me: *Me, pos: var) EditorCore(Me).NextSplit {
         var distance: usize = 1;

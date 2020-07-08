@@ -195,6 +195,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             // might need to include individual character sizes too
             // ^ do, not might.
             measure: ?MeasurementData,
+            style: ?Measurer.Style,
 
             pub fn node(me: *CodeText) *RangeList.Node {
                 return @fieldParentPtr(RangeList.Node, "value", me);
@@ -396,7 +397,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             alRemoveRange(&point.text.text, point.offset, point.text.text.items.len);
 
             clearMeasure(point.text);
-            var insertedNode = try point.text.node().insertAfter(.{ .text = al, .measure = null });
+            var insertedNode = try point.text.node().insertAfter(.{ .text = al, .measure = null, .style = null });
             errdefer _ = insertedNode.remove();
 
             if (me.cursor.text == point.text and me.cursor.offset > point.text.len()) {
@@ -530,6 +531,12 @@ pub fn EditorCore(comptime Measurer: type) type {
             var distanceToNextSplit = splitInfo.distance;
             if (distanceToNextSplit == 0) unreachable; // distance should be >= 1.
 
+            // if the style changed, clear the measurement
+            if (pos.ref.style) |styl| {
+                if (!splitInfo.style.eql(styl)) clearMeasure(pos.ref);
+            } else clearMeasure(pos.ref);
+            pos.ref.style = splitInfo.style;
+
             // distance to next split is eg min(end of tree-sitter node, a space, a newline)
 
             // find the next newline
@@ -638,7 +645,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             errdefer snal.deinit();
             const startNode = try RangeList.Node.create(
                 alloc,
-                .{ .text = snal, .measure = null },
+                .{ .text = snal, .measure = null, .style = null },
             );
             errdefer startNode.remove(alloc);
 
