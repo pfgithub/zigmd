@@ -321,23 +321,30 @@ pub fn EditorCore(comptime Measurer: type) type {
             unreachable;
         }
 
+        /// â€™
         pub fn insert(me: *Core, point: TextPoint, text: []const u8) !void {
+            const startPointCopy = point; // because of zig, moving the cursor updates the immutable arg...
+            defer {
+                // note the edit
+                const fromPoint = me.startPosition().advanceToPoint(startPointCopy);
+                const toPoint = fromPoint.advanceToPoint(me.addPoint(startPointCopy, @intCast(i64, text.len)));
+                me.measurer.edit(fromPoint, fromPoint, fromPoint, toPoint);
+            }
+
             try point.text.text.insertSlice(point.offset, text);
             if (text.len != 0) clearMeasure(point.text);
-            // 1. update tree-sitter
-            // 2. remeasure? idk
-            // 3. â€™
-            // also how to make sure eg cursor never has an invalid offset? idk. todo think.
 
-            // update all saved TextPoints at the updated point to the new point.
-            // maybe a fn to handle this?
             if (me.cursor.text == point.text) {
-                // depending on insert direction, choose > or >=
                 if (me.cursor.offset >= point.offset) me.cursor.offset += text.len;
+                // instead of handling this manually here, why not handle it in an edit fn
+                // like eg when something is edited, search within that range and move any
+                // saved things like the cursor position or the scroll top or the highlight
+                // range
             }
         }
 
-        pub fn removeNodeText(me: *Core, node: *RangeList.Node, from: usize, to: usize) void {
+        /// internal use only. DOES NOT note the edit. removes text in a node.
+        fn removeNodeText(me: *Core, node: *RangeList.Node, from: usize, to: usize) void {
             alRemoveRange(&node.value.text, from, to);
             if (to - from != 0) clearMeasure(&node.value);
 
@@ -363,7 +370,20 @@ pub fn EditorCore(comptime Measurer: type) type {
             node.remove().deinit();
         }
 
+        pub fn startPosition(me: *Core) CharacterPosition {
+            return .{ .lyn = 0, .col = 0, .byte = 0, .ref = &me.code.value, .offset = 0 };
+        }
+
         pub fn delete(me: *Core, from: TextPoint, to: TextPoint) void {
+            const fromPoint = me.startPosition().advanceToPoint(from);
+            const toPoint = fromPoint.advanceToPoint(to);
+            defer {
+                // note the edit
+                // is fromPoint still valid if from.text gets deleted because it's empty? no.
+                // scary.
+                me.measurer.edit(fromPoint, toPoint, fromPoint, fromPoint);
+            }
+
             if (from.text == to.text) {
                 me.removeNodeText(from.text.node(), from.offset, to.offset);
                 return;
@@ -436,6 +456,9 @@ pub fn EditorCore(comptime Measurer: type) type {
             byte: usize,
             ref: *CodeText,
             offset: usize,
+            pub fn format(me: CharacterPosition, comptime fmt: []const u8, options: std.fmt.FormatOptions, out: var) !void {
+                return std.fmt.format(out, "{}:{}", .{ me.lyn, me.col });
+            }
             pub fn char(me: CharacterPosition) ?u8 {
                 var ref = me.ref;
                 var offset = me.offset;
@@ -445,15 +468,19 @@ pub fn EditorCore(comptime Measurer: type) type {
                 }
                 return ref.text.items[offset];
             }
-            /// advance to a point. unreachable if the point is behind me
+            /// advance to the start of a text. unreachable if the point is behind me
             pub fn advanceTo(me: CharacterPosition, to: *CodeText) CharacterPosition {
+                return me.advanceToPoint(.{ .text = to, .offset = 0 });
+            }
+            /// advance to a point. unreachable if the point is behind me
+            pub fn advanceToPoint(me: CharacterPosition, to: TextPoint) CharacterPosition {
                 var res = me;
                 while (true) {
-                    if (res.ref == to) {
-                        if (res.offset != 0) unreachable; // to is in the past
+                    // instead of this, we have to advance until reaching res.ref == to.text and res.offset == to.offset
+                    if (to.offset == res.offset and res.ref == to.text) {
                         return res;
                     }
-                    for (res.ref.text.items) |char_| {
+                    for (res.ref.text.items[res.offset..]) |char_| {
                         res.byte += 1;
                         res.offset += 1;
                         if (char_ == '\n') {
@@ -462,7 +489,11 @@ pub fn EditorCore(comptime Measurer: type) type {
                         } else {
                             res.col += 1;
                         }
+                        if (res.ref == to.text and res.offset == to.offset) {
+                            return res;
+                        }
                     }
+                    if (res.ref == to.text and res.offset > to.offset) unreachable; // to is in the past.
                     res.ref = res.ref.next() orelse unreachable; // to is in the past
                     res.offset = 0;
                 }
@@ -637,7 +668,7 @@ pub fn EditorCore(comptime Measurer: type) type {
                 .width = width,
                 .height = height,
                 .core = me,
-                .position = .{ .lyn = 0, .col = 0, .byte = 0, .ref = &me.code.value, .offset = 0 },
+                .position = me.startPosition(),
             };
         }
 
@@ -700,6 +731,15 @@ const TestingMeasurer = struct {
             .white => "\x1b[97m",
             .blue => "\x1b[96m",
         };
+    }
+    pub fn edit(
+        me: *Measurer,
+        a1: Core.CharacterPosition,
+        a2: Core.CharacterPosition,
+        b1: Core.CharacterPosition,
+        b2: Core.CharacterPosition,
+    ) void {
+        std.debug.warn("Noted edit from [{}, {}] => [{}, {}]\n", .{ a1, a2, b1, b2 });
     }
     pub fn render(me: *Measurer, text: []const u8, mesur: Measurement, style: Style) !Text {
         if (me.someData != 5) unreachable;
@@ -910,7 +950,14 @@ test "editor core" {
     });
 
     renderCursorPosition(core);
+    core.delete(core.addPoint(core.cursor, -15), core.cursor);
+    renderCursorPosition(core);
+    try testRenderCore(&core, alloc, &[_][]const []const u8{
+        &[_][]const u8{ "Hello, ", "WoOop!\n" },
+        &[_][]const u8{"newline"},
+    });
 
+    renderCursorPosition(core);
     // std.testing.expectEqual(expected: var, actual: @TypeOf(expected))
 }
 
