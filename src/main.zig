@@ -109,7 +109,8 @@ pub const MultilineTextEditor = struct {
             .Delete => te.core.delete(te.core.cursor, te.core.addPoint(te.core.cursor, 1)),
             else => {},
         };
-        const clickState = imev.hover(te.id, rect);
+        const clickState = imev.hover(te.id, fullRect);
+        if (clickState.mouseDown) imev.rerender();
 
         var riter = te.core.render(rect.w, rect.h + 40, 0);
         while (try riter.next(te.alloc)) |*nxt| {
@@ -119,7 +120,7 @@ pub const MultilineTextEditor = struct {
             const lineRect = rect.down(nxt.y).height(nxt.lineHeight);
 
             for (nxt.pieces) |*piece, i| {
-                if (clickState.click and lineRect.rightCut(piece.x).containsPoint(imev.cursor)) {
+                if (clickState.mouseDown and lineRect.rightCut(piece.x).containsPoint(imev.cursor)) {
                     te.core.cursor = .{ .text = piece.text, .offset = 0 };
                 }
                 if (piece.text == te.core.cursor.text) {

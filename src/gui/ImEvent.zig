@@ -64,6 +64,7 @@ const Internal = struct {
     prevScrollDelta: win.Point = undefined,
     prevMouseDelta: win.Point = undefined, // TODO
     next: Next,
+    mouseDownLastFrame: bool = false,
 
     const Next = struct {
         hoverIDs: Set(u64),
@@ -128,6 +129,7 @@ pub fn newID(imev: *ImEvent) ID {
 pub const Hover = struct {
     click: bool,
     hover: bool,
+    mouseDown: bool,
 };
 /// eg making a window that doesn't allow clicks through but when clicked activates and clicks the selected thing:
 /// hover(auto.id, rect, .take) // take body clicks and do nothing
@@ -156,12 +158,15 @@ pub fn hoverMode(imev: *ImEvent, id: ID, rect_: win.Rect, mode: PassthroughMode)
             addOrReplace(id.id, &imev.internal.next.clickIDs, mode);
         }
     }
+    const hovering = imev.internal.hoverIDs.has(id.id) and if (!imev.internal.clickIDs.isEmpty())
+        imev.internal.clickIDs.has(id.id)
+    else
+        true;
+    const clicking = imev.internal.clickIDs.has(id.id);
     return .{
-        .hover = imev.internal.hoverIDs.has(id.id) and if (!imev.internal.clickIDs.isEmpty())
-            imev.internal.clickIDs.has(id.id)
-        else
-            true,
-        .click = imev.internal.clickIDs.has(id.id),
+        .hover = hovering,
+        .click = clicking,
+        .mouseDown = clicking and imev.internal.mouseDownLastFrame,
     };
 }
 pub fn scroll(imev: *ImEvent, id: ID, rect_: win.Rect) win.Point {
@@ -190,6 +195,7 @@ pub fn tabindex(imev: *ImEvent, id: ID) bool {
 
 pub fn apply(imev: *ImEvent, ev: win.Event, window: *win.Window) void {
     // clear instantanious flags (mouseDown, mouseUp)
+    imev.internal.mouseDownLastFrame = imev.mouseDown;
     if (imev.internal.mouseDown) {
         imev.internal.mouseDown = false;
     }
