@@ -1,6 +1,7 @@
 const std = @import("std");
 pub const win = @import("./render.zig");
 pub const parser = @import("./parser.zig");
+pub const ts = parser;
 pub const gui = @import("./gui.zig");
 const help = @import("./helpers.zig");
 const editor_core = @import("./editor_core.zig");
@@ -17,6 +18,10 @@ pub const DefaultMeasurer = struct {
 
     style: *const gui.Style = undefined,
     imev: *ImEvent = undefined,
+    core: *Core = undefined,
+    tree: ts.Tree,
+    treeEdited: bool = false,
+    treeIter: ?ts.TreeCursor = null,
 
     pub const Text = win.Text;
     pub const Style = struct {
@@ -26,16 +31,54 @@ pub const DefaultMeasurer = struct {
         }
     };
 
+    pub fn init(alloc: *std.mem.Allocator) !Me {
+        // there's another tree-sitter-markdown crash with "_" ** 1000
+        var tree = try parser.Tree.init("");
+        errdefer tree.deinit();
+
+        return Me{ .tree = tree };
+    }
+    pub fn deinit(me: *Me) void {
+        me.tree.deinit();
+    }
+
     pub fn edit(
         me: *Me,
-        a1: Core.CharacterPosition,
-        a2: Core.CharacterPosition,
-        b1: Core.CharacterPosition,
-        b2: Core.CharacterPosition,
+        start: Core.CharacterPosition,
+        oldEnd: Core.CharacterPosition,
+        newEnd: Core.CharacterPosition,
     ) void {
-        std.debug.warn("Noted edit from [{}, {}] => [{}, {}]\n", .{ a1, a2, b1, b2 });
+        std.debug.warn("Noted edit from [{}, {}] => [{}, {}]\n", .{ start, oldEnd, start, newEnd });
+        me.tree.edit(
+            .{ .byte = start.byte, .row = start.lyn, .col = start.col },
+            .{ .byte = oldEnd.byte, .row = oldEnd.lyn, .col = oldEnd.col },
+            .{ .byte = newEnd.byte, .row = newEnd.lyn, .col = newEnd.col },
+        );
+        me.treeEdited = true;
     }
-    pub fn findNextSplit(me: *Me, pos: var) Core.NextSplit {
+    pub fn findNextSplit(me: *Me, pos: Core.CharacterPosition) Core.NextSplit {
+        if (me.treeEdited) {
+            me.treeEdited = false;
+            me.treeIter = null;
+            // I didn't expect this to work first try
+            // this mostly goes right to left so it might be possible to not loop over everything all the time
+            me.tree.reparseFn(me, struct {
+                fn a(me_: *Me, pos_: ts.Point) []const u8 {
+                    var pt: Core.TextPoint = .{ .text = &me_.core.code.value, .offset = 0 };
+                    pt = me_.core.addPoint(pt, @intCast(i64, pos_.byte));
+                    while (pt.offset == pt.text.len()) {
+                        pt.text = pt.text.next() orelse return "";
+                        pt.offset = 0;
+                    }
+                    return pt.text.text.items[pt.offset..];
+                }
+            }.a);
+        }
+
+        if (me.treeIter == null) {
+            me.treeIter = ts.TreeCursor.init(me.tree.root());
+        }
+
         var distance: usize = 1;
         var cpos = pos;
         while (cpos.char()) |chr| {
@@ -44,7 +87,25 @@ pub const DefaultMeasurer = struct {
             cpos = cpos.next() orelse break;
             distance += 1;
         }
-        return .{ .distance = distance, .style = .{ .newlines = true } };
+
+        var node = ts.getNodeAtPosition(pos.byte, &me.treeIter.?);
+        const nodeDistance = if (node.position().to < pos.byte) blk: {
+            // what
+            break :blk std.math.maxInt(u64);
+        } else
+            node.position().to - pos.byte;
+        if (nodeDistance < distance) distance = nodeDistance;
+
+        const style = node.createClassesStruct(pos.byte).renderStyle();
+        const newlines = switch (style) {
+            else => true,
+            .showInvisibles => |si| switch (si) {
+                .all => false,
+                .inlin_ => true,
+            },
+        };
+
+        return .{ .distance = distance, .style = .{ .newlines = newlines } };
     }
     pub fn render(dm: *Me, text: []const u8, measur: Measurement, style: Style) !Text {
         if (text.len == 0) return @as(Text, undefined);
@@ -67,8 +128,6 @@ pub const DefaultMeasurer = struct {
             .baseline = msurment.h,
         };
     }
-
-    pub fn deinit(dm: *Me) void {}
 };
 pub const MultilineTextEditor = struct {
     const Me = @This();
@@ -78,7 +137,7 @@ pub const MultilineTextEditor = struct {
     id: gui.ID,
 
     pub fn init(alloc: *std.mem.Allocator, imev: *ImEvent) !MultilineTextEditor {
-        var core = try EditorCore(DefaultMeasurer).init(alloc, .{});
+        var core = try EditorCore(DefaultMeasurer).init(alloc, try DefaultMeasurer.init(alloc));
         errdefer core.deinit();
 
         var file: []u8 = std.fs.cwd().readFileAlloc(imev.alloc, "tests/medium sized file.md", 10000000) catch |e| blk: {
@@ -106,8 +165,12 @@ pub const MultilineTextEditor = struct {
 
         const rect = fullRect.inset(20, 20, 20, 20);
 
-        te.core.measurer = .{ .style = &style, .imev = imev };
-        defer te.core.measurer = .{};
+        te.core.measurer.style = &style;
+        defer te.core.measurer.style = undefined;
+        te.core.measurer.imev = imev;
+        defer te.core.measurer.imev = undefined;
+        te.core.measurer.core = &te.core;
+        defer te.core.measurer.core = undefined;
 
         if (imev.textInput) |text| {
             try te.core.insert(te.core.cursor, text.slice());
@@ -277,13 +340,11 @@ pub const Action = union(enum) {
                 return; // rip, text could not be inserted. do nothing, do not move cursor.
 
             const clpos = app.findCharacterPosition(app.cursorLocation);
+            const fcp = app.findCharacterPosition(app.cursorLocation + insert.text.len);
             app.tree.edit(
-                app.cursorLocation,
-                app.cursorLocation,
-                insert.text.len,
-                clpos,
-                clpos,
-                app.findCharacterPosition(app.cursorLocation + insert.text.len),
+                .{ .byte = app.cursorLocation, .row = clpos.row, .col = clpos.col },
+                .{ .byte = app.cursorLocation, .row = clpos.row, .col = clpos.col },
+                .{ .byte = insert.text.len, .row = fcp.row, .col = fcp.col },
             );
             app.textChanged = true;
 
@@ -318,13 +379,11 @@ pub const Action = union(enum) {
                 app.text.items.len -= right - left;
 
                 const clpos = app.findCharacterPosition(left);
+                const rght = app.findCharacterPosition(right);
                 app.tree.edit(
-                    left,
-                    right,
-                    left,
-                    clpos,
-                    app.findCharacterPosition(right),
-                    clpos,
+                    .{ .byte = left, .row = clpos.row, .col = clpos.col },
+                    .{ .byte = right, .row = rght.row, .col = rght.col },
+                    .{ .byte = left, .row = clpos.row, .col = clpos.col },
                 );
                 app.textChanged = true;
 

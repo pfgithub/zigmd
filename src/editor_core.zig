@@ -328,7 +328,7 @@ pub fn EditorCore(comptime Measurer: type) type {
                 // note the edit
                 const fromPoint = me.startPosition().advanceToPoint(startPointCopy);
                 const toPoint = fromPoint.advanceToPoint(me.addPoint(startPointCopy, @intCast(i64, text.len)));
-                me.measurer.edit(fromPoint, fromPoint, fromPoint, toPoint);
+                me.measurer.edit(fromPoint, fromPoint, toPoint);
             }
 
             try point.text.text.insertSlice(point.offset, text);
@@ -381,7 +381,7 @@ pub fn EditorCore(comptime Measurer: type) type {
                 // note the edit
                 // is fromPoint still valid if from.text gets deleted because it's empty? no.
                 // scary.
-                me.measurer.edit(fromPoint, toPoint, fromPoint, fromPoint);
+                me.measurer.edit(fromPoint, toPoint, fromPoint);
             }
 
             if (from.text == to.text) {
@@ -734,12 +734,11 @@ const TestingMeasurer = struct {
     }
     pub fn edit(
         me: *Measurer,
-        a1: Core.CharacterPosition,
-        a2: Core.CharacterPosition,
-        b1: Core.CharacterPosition,
-        b2: Core.CharacterPosition,
+        start: Core.CharacterPosition,
+        oldEnd: Core.CharacterPosition,
+        newEnd: Core.CharacterPosition,
     ) void {
-        std.debug.warn("Noted edit from [{}, {}] => [{}, {}]\n", .{ a1, a2, b1, b2 });
+        std.debug.warn("Noted edit from [{}, {}] => [{}, {}]\n", .{ start, oldEnd, start, newEnd });
     }
     pub fn render(me: *Measurer, text: []const u8, mesur: Measurement, style: Style) !Text {
         if (me.someData != 5) unreachable;

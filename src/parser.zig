@@ -68,6 +68,7 @@ const Class = struct {
     html_attribute_key: bool = false,
     html_attribute_value: bool = false,
     html_block: bool = false,
+    loose_list: bool = false,
     ERROR: bool = false,
     IS_CHAR_0: bool,
 
@@ -243,14 +244,31 @@ pub fn getNodeAtPosition(char: u64, cursor: *TreeCursor) Node {
     return bestMatch;
 }
 
+/// don't use this
 pub const RowCol = struct {
     row: u64,
     col: u64,
-    fn point(cp: RowCol) TSPoint {
-        return .{ .row = @intCast(u32, cp.row), .column = @intCast(u32, cp.col) };
-    }
     pub fn format(
         cp: RowCol,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        out_stream: var,
+    ) !void {
+        try std.fmt.format(out_stream, "{}:{}", .{ cp.row + 1, cp.col + 1 });
+    }
+};
+pub const Point = struct {
+    row: u64,
+    col: u64,
+    byte: u64,
+    fn toPoint(cp: Point) TSPoint {
+        return .{ .row = @intCast(u32, cp.row), .column = @intCast(u32, cp.col) };
+    }
+    fn fromPoint(point: TSPoint, byte: u32) Point {
+        return .{ .row = point.row, .col = point.column, .byte = byte };
+    }
+    pub fn format(
+        cp: Point,
         comptime fmt: []const u8,
         options: std.fmt.FormatOptions,
         out_stream: var,
@@ -292,12 +310,34 @@ pub const Tree = struct {
         if (!ts.locked) unreachable;
         ts.locked = false;
     }
+    pub fn reparseFn(ts: *Tree, data: var, comptime read: fn (
+        data: @TypeOf(data),
+        pos: Point,
+    ) []const u8) void {
+        const Data = @TypeOf(data);
+        // write .length is return.len and return return.ptr
+        var tsinput: TSInput = .{
+            .payload = @intToPtr(*c_void, @ptrToInt(&data)),
+            .read = struct {
+                fn read(data_: ?*c_void, byte: u32, point: TSPoint, outLen: [*c]u32) callconv(.C) [*c]const u8 {
+                    const result = read(@intToPtr(*const Data, @ptrToInt(data_)).*, Point.fromPoint(point, byte));
+                    outLen.* = @intCast(u32, result.len);
+                    return result.ptr;
+                }
+            }.read,
+            .encoding = .TSInputEncodingUTF8,
+        };
+
+        var newTree = ts_parser_parse(ts.parser, ts.tree, tsinput).?;
+        ts_tree_delete(ts.tree);
+        ts.tree = newTree;
+    }
     pub fn reparse(ts: *Tree, sourceCode: []const u8) void {
         // not sure if it is necessary to reassign tree
         // this line crashes sometimes at some character counts:
         var newTree = ts_parser_parse_string(
             ts.parser,
-            null,
+            ts.tree,
             sourceCode.ptr,
             @intCast(u32, sourceCode.len),
         ).?;
@@ -313,21 +353,18 @@ pub const Tree = struct {
     /// because tree-sitter, caller must calculate row and column of text. how do you calculate this when you don't know the start row? idk, glhf.
     pub fn edit(
         ts: *Tree,
-        startByte: u64,
-        oldEndByte: u64,
-        newEndByte: u64,
-        start: RowCol,
-        oldEnd: RowCol,
-        newEnd: RowCol,
+        start: Point,
+        oldEnd: Point,
+        newEnd: Point,
     ) void {
         if (ts.locked) unreachable;
         ts_tree_edit(ts.tree, &TSInputEdit{
-            .start_byte = @intCast(u32, startByte),
-            .old_end_byte = @intCast(u32, oldEndByte),
-            .new_end_byte = @intCast(u32, newEndByte),
-            .start_point = start.point(), // why do TSPoints exist, who needed this
-            .old_end_point = oldEnd.point(), // who why
-            .new_end_point = newEnd.point(), // can I get rid of this
+            .start_byte = @intCast(u32, start.byte),
+            .old_end_byte = @intCast(u32, oldEnd.byte),
+            .new_end_byte = @intCast(u32, newEnd.byte),
+            .start_point = start.toPoint(),
+            .old_end_point = oldEnd.toPoint(),
+            .new_end_point = newEnd.toPoint(),
         });
     }
 };
