@@ -19,6 +19,7 @@ pub const DefaultMeasurer = struct {
     style: *const gui.Style = undefined,
     imev: *ImEvent = undefined,
     core: *Core = undefined,
+    alloc: *std.mem.Allocator = undefined,
     tree: ts.Tree,
     treeEdited: bool = false,
     treeIter: ?ts.TreeCursor = null,
@@ -26,6 +27,7 @@ pub const DefaultMeasurer = struct {
     pub const Text = win.Text;
     pub const Style = struct {
         newlines: bool,
+        renderStyle: ts.RenderStyle,
         pub fn eql(a: Style, b: Style) bool {
             return std.meta.eql(a, b);
         }
@@ -105,15 +107,36 @@ pub const DefaultMeasurer = struct {
             },
         };
 
-        return .{ .distance = distance, .style = .{ .newlines = newlines } };
+        return .{ .distance = distance, .style = .{ .newlines = newlines, .renderStyle = style } };
+    }
+    fn styledText(alloc: *std.mem.Allocator, text: []const u8, style: Style) ![]const u8 {
+        var result = std.ArrayList(u8).init(alloc);
+        for (text) |char| {
+            switch (style.renderStyle) {
+                .showInvisibles => |si| switch (char) {
+                    '\n' => switch (si) {
+                        .all => try result.appendSlice("⏎"),
+                        else => try result.append(char),
+                    },
+                    ' ' => try result.appendSlice("·"),
+                    '\x09' => try result.appendSlice("⭲   "),
+                    else => try result.append(char),
+                },
+                else => try result.append(char),
+            }
+        }
+        return result.toOwnedSlice();
     }
     pub fn render(dm: *Me, text: []const u8, measur: Measurement, style: Style) !Text {
         if (text.len == 0) return @as(Text, undefined);
 
+        const styld = try styledText(dm.alloc, text, style);
+        defer dm.alloc.free(styld);
+
         return try win.Text.init(
             dm.style.fonts.standard,
             dm.style.colors.text,
-            text,
+            styld,
             win.TextSize{ .w = measur.width, .h = measur.height },
             dm.imev.window,
         );
@@ -121,7 +144,10 @@ pub const DefaultMeasurer = struct {
     pub fn measure(dm: *Me, text: []const u8, style: Style) !Measurement {
         if (text.len == 0) return Measurement{ .width = 0, .height = 10, .baseline = 0 };
 
-        const msurment = try win.Text.measure(dm.style.fonts.standard, text);
+        const styld = try styledText(dm.alloc, text, style);
+        defer dm.alloc.free(styld);
+
+        const msurment = try win.Text.measure(dm.style.fonts.standard, styld);
         return Measurement{
             .width = msurment.w,
             .height = msurment.h,
@@ -171,6 +197,8 @@ pub const MultilineTextEditor = struct {
         defer te.core.measurer.imev = undefined;
         te.core.measurer.core = &te.core;
         defer te.core.measurer.core = undefined;
+        te.core.measurer.alloc = te.alloc;
+        defer te.core.measurer.alloc = undefined;
 
         if (imev.textInput) |text| {
             try te.core.insert(te.core.cursor, text.slice());
