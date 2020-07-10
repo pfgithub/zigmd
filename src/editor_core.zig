@@ -179,7 +179,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             characters: std.ArrayList(CharacterMeasure),
             measure: Measurement,
             data: Measurer.Text, // measurer.render
-            version: u64,
+            measurementVersion: u64,
             pub fn deinit(md: *MeasurementData) void {
                 md.characters.deinit();
                 md.data.deinit();
@@ -196,6 +196,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             // ^ do, not might.
             measure: ?MeasurementData,
             style: ?Measurer.Style,
+            splitVersion: u64 = 0, // node must be split to have this changed
 
             pub fn node(me: *CodeText) *RangeList.Node {
                 return @fieldParentPtr(RangeList.Node, "value", me);
@@ -238,6 +239,13 @@ pub fn EditorCore(comptime Measurer: type) type {
         cursor: TextPoint,
 
         measurementVersion: u64 = 0,
+        splitVersion: u64 = 1,
+
+        /// call this any time the output of findNextSplit might change on existing text
+        /// called automatically when text is edited.
+        pub fn markResplit(me: *Core) void {
+            me.splitVersion += 1;
+        }
 
         pub const TextPoint = struct { text: *CodeText, offset: u64 };
 
@@ -268,7 +276,7 @@ pub fn EditorCore(comptime Measurer: type) type {
                 .measure = measurement,
                 .data = data,
                 .characters = charactersAl,
-                .version = me.measurementVersion,
+                .measurementVersion = me.measurementVersion,
             };
         }
         /// after calling this function, text.measure is not null
@@ -276,7 +284,7 @@ pub fn EditorCore(comptime Measurer: type) type {
         fn remeasureIfNeeded(me: *Core, text: *CodeText) !void {
             // when editing nodes, any affected will have measure reset to null
             if (text.measure) |measure| {
-                if (measure.version != me.measurementVersion) return me.remeasureForce(text);
+                if (measure.measurementVersion != me.measurementVersion) return me.remeasureForce(text);
             } else return me.remeasureForce(text);
         }
 
@@ -325,6 +333,7 @@ pub fn EditorCore(comptime Measurer: type) type {
         pub fn insert(me: *Core, point: TextPoint, text: []const u8) !void {
             const startPointCopy = point; // because of zig, moving the cursor updates the immutable arg...
             defer {
+                me.markResplit();
                 // note the edit
                 const fromPoint = me.startPosition().advanceToPoint(startPointCopy);
                 const toPoint = fromPoint.advanceToPoint(me.addPoint(startPointCopy, @intCast(i64, text.len)));
@@ -378,6 +387,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             const fromPoint = me.startPosition().advanceToPoint(from);
             const toPoint = fromPoint.advanceToPoint(to);
             defer {
+                me.markResplit();
                 // note the edit
                 // is fromPoint still valid if from.text gets deleted because it's empty? no.
                 // scary.
@@ -556,6 +566,7 @@ pub fn EditorCore(comptime Measurer: type) type {
         pub fn splitNewlines(me: *Core, pos: CharacterPosition) !void {
             if (pos.offset != 0) unreachable; // not ok.
             const start = pos.ref;
+            start.splitVersion = me.splitVersion;
             // getDistanceToNextSplit
             // split and merge until that is made
             // this is only necessary if text has been changed since the last frame
@@ -626,9 +637,10 @@ pub fn EditorCore(comptime Measurer: type) type {
                 while (currentNode) |node| {
                     var text: *CodeText = &node.value;
 
-                    ri.position = ri.position.advanceTo(text);
-
-                    try ri.core.splitNewlines(ri.position);
+                    if (text.splitVersion != ri.core.splitVersion) {
+                        ri.position = ri.position.advanceTo(text);
+                        try ri.core.splitNewlines(ri.position);
+                    }
                     try ri.core.remeasureIfNeeded(text);
 
                     const measure = text.measure.?;
