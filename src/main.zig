@@ -91,11 +91,17 @@ pub const DefaultMeasurer = struct {
         }
 
         var node = ts.getNodeAtPosition(pos.byte, &me.treeIter.?);
-        const nodeDistance = if (node.position().to < pos.byte) blk: {
-            // what
-            break :blk std.math.maxInt(u64);
-        } else
+        const nodeDistance = if (node.position().to < pos.byte)
+        // what
+            std.math.maxInt(u64)
+        else
             node.position().to - pos.byte;
+        // uh oh! the issue is that:
+        // eg [   [      ]  | [ ]     ] the outer area can be selected and it doesn't know of
+        // the inner area
+        // instead of getting the node end position, we need to get the start position of the next node after this node
+        // or this node's end node, whichever comes first. that sounds difficult
+        // std.debug.warn("Byte: {}, Node Position: {}\n", .{ pos.byte, node.position() });
         if (nodeDistance < distance) distance = nodeDistance;
 
         const style = node.createClassesStruct(pos.byte).renderStyle();
@@ -127,15 +133,36 @@ pub const DefaultMeasurer = struct {
         }
         return result.toOwnedSlice();
     }
+    fn getStyle(style: gui.Style, renderStyle: parser.RenderStyle) TextHLStyleReal {
+        const colors = &style.colors;
+        const fonts = &style.fonts;
+        return switch (renderStyle) {
+            .control => .{ .font = fonts.monospace, .color = colors.control },
+            .text => |txt| switch (txt) {
+                .bolditalic => TextHLStyleReal{ .font = fonts.bolditalic, .color = colors.text },
+                .bold => TextHLStyleReal{ .font = fonts.bold, .color = colors.text },
+                .italic => TextHLStyleReal{ .font = fonts.italic, .color = colors.text },
+                .normal => TextHLStyleReal{ .font = fonts.standard, .color = colors.text },
+            },
+            .heading => .{ .font = fonts.heading, .color = colors.text },
+            .codeLanguage => .{ .font = fonts.standard, .color = colors.inlineCode },
+            .code => .{ .font = fonts.monospace, .color = colors.text },
+            .inlineCode => .{ .font = fonts.monospace, .color = colors.inlineCode, .bg = colors.codeBackground },
+            .showInvisibles => .{ .font = fonts.monospace, .color = colors.control },
+            .errort => .{ .font = fonts.monospace, .color = colors.errorc },
+        };
+    }
     pub fn render(dm: *Me, text: []const u8, measur: Measurement, style: Style) !Text {
         if (text.len == 0) return @as(Text, undefined);
 
         const styld = try styledText(dm.alloc, text, style);
         defer dm.alloc.free(styld);
 
+        const hlStyle = getStyle(dm.style.*, style.renderStyle);
+
         return try win.Text.init(
-            dm.style.fonts.standard,
-            dm.style.colors.text,
+            hlStyle.font,
+            hlStyle.color,
             styld,
             win.TextSize{ .w = measur.width, .h = measur.height },
             dm.imev.window,
@@ -147,7 +174,9 @@ pub const DefaultMeasurer = struct {
         const styld = try styledText(dm.alloc, text, style);
         defer dm.alloc.free(styld);
 
-        const msurment = try win.Text.measure(dm.style.fonts.standard, styld);
+        const hlStyle = getStyle(dm.style.*, style.renderStyle);
+
+        const msurment = try win.Text.measure(hlStyle.font, styld);
         return Measurement{
             .width = msurment.w,
             .height = msurment.h,
@@ -214,12 +243,17 @@ pub const MultilineTextEditor = struct {
         const clickState = imev.hover(te.id, fullRect);
         if (clickState.mouseDown) imev.rerender();
 
+        // quick tips: how to literally double performance without any effort
+        if (!clickState.click and !imev.render) return;
+
         var riter = te.core.render(rect.w, rect.h + 40, 0);
         while (try riter.next(te.alloc)) |*nxt| {
             defer nxt.deinit();
 
             var cursorX: ?i64 = null;
             const lineRect = rect.down(nxt.y).height(nxt.lineHeight);
+
+            const debugShowNode = true;
 
             for (nxt.pieces) |*piece, i| {
                 if (clickState.mouseDown and lineRect.rightCut(piece.x).containsPoint(imev.cursor)) {
@@ -230,10 +264,11 @@ pub const MultilineTextEditor = struct {
                     if (te.core.cursor.offset != 0) {
                         cursorX.? += piece.measure.characters.items[te.core.cursor.offset - 1].width;
                     }
+                    if (debugShowNode) try win.renderRect(imev.window, style.colors.linebg, lineRect.right(piece.x).width(piece.measure.measure.width));
                 }
             }
 
-            if (cursorX != null) {
+            if (!debugShowNode and cursorX != null) {
                 try win.renderRect(imev.window, style.colors.linebg, lineRect.inset(0, -20, 0, -20));
             }
 

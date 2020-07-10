@@ -229,6 +229,43 @@ pub const TreeCursor = struct {
     }
 };
 
+pub const TreeCursorCustom = struct {
+    deepest: Node,
+    next: Node,
+
+    /// eg:
+    /// - `[   [      ]  | [ ]     ]` :: node is the outer one, nextByte is lbracket of [ ].
+    /// - `[   [    | ]    [ ]     ]` :: node is [      ], nextByte is rbracket of [      ].
+    /// tcc is left in a state where it is easy to go to the next node
+    pub fn find(tcc: *TreeCursorCustom, byte: u64) struct { node: Node, nextByte: u64 } {
+        if (byte >= next.position().from) {
+            // find deepest, find next, save.
+        }
+    }
+    // so
+    // [#####################] .
+    //    [####]     [#]       .
+    //    [#] []     []        .
+    //     []        []        .
+    //           | <-- when here, it needs to return
+    //                 the large node while also
+    //                 giving the distance to the next
+    //                 node.
+    //   best case: [####] is the saved node so next time
+    //   it can go nextChild and then go deepest and it's there.
+    //   idk==
+    //
+    // so deepest starts as [          ]
+    // next starts as [    ]
+    // that continues until byte >= next
+    // then go down and find the deepest
+    // that is deepest
+    // set next too
+    //
+    // what about exiting?
+    // ok I have no idea how to do this
+};
+
 pub fn getNodeAtPosition(char: u64, cursor: *TreeCursor) Node {
     var bestMatch: Node = cursor.node();
     while (char < cursor.node().position().from) {
