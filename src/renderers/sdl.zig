@@ -214,7 +214,7 @@ pub const Window = struct {
             sdl.SDL_WINDOWPOS_UNDEFINED,
             640,
             480,
-            sdl.SDL_WINDOW_SHOWN | sdl.SDL_WINDOW_RESIZABLE,
+            sdl.SDL_WINDOW_SHOWN | sdl.SDL_WINDOW_RESIZABLE | sdl.SDL_WINDOW_ALLOW_HIGHDPI,
         );
         if (window == null) return sdlError();
         errdefer sdl.SDL_DestroyWindow(window);
@@ -451,13 +451,22 @@ pub fn renderRect(window: *const Window, color: Color, rect: Rect) ER!void {
 }
 
 pub fn init() RenderingError!void {
-    if (sdl.SDL_Init(sdl.SDL_INIT_VIDEO) < 0) return sdlError();
+    if (sdl.SDL_Init(sdl.SDL_INIT_VIDEO | sdl.SDL_INIT_EVENTS) < 0) return sdlError();
     errdefer sdl.SDL_Quit();
 
     if (sdl.TTF_Init() < 0) return sdlError();
     errdefer sdl.TTF_Quit();
 
-    sdl.SDL_StartTextInput(); // todo
+    sdl.SDL_StartTextInput();
+
+    sdl.SDL_EnableScreenSaver(); // allow os to go to screensaver with editor running
+    _ = sdl.SDL_EventState(sdl.SDL_DROPFILE, sdl.SDL_ENABLE); // drop file support
+    if (@hasDecl(sdl, "SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR")) {
+        _ = sdl.SDL_SetHint(sdl.SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR, "0"); // something idk
+    }
+    if (sdl.SDL_VERSION_ATLEAST(2, 0, 5)) {
+        _ = sdl.SDL_SetHint(sdl.SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1"); // when focusing the window with a click, send the click too.
+    }
 }
 
 pub fn deinit() void {
