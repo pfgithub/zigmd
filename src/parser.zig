@@ -229,19 +229,72 @@ pub const TreeCursor = struct {
     }
 };
 
+/// TODO: finish this
+/// required for rendering properly in editor core
 pub const TreeCursorCustom = struct {
     deepest: Node,
     next: Node,
 
-    /// eg:
-    /// - `[   [      ]  | [ ]     ]` :: node is the outer one, nextByte is lbracket of [ ].
-    /// - `[   [    | ]    [ ]     ]` :: node is [      ], nextByte is rbracket of [      ].
-    /// tcc is left in a state where it is easy to go to the next node
     pub fn find(tcc: *TreeCursorCustom, byte: u64) struct { node: Node, nextByte: u64 } {
-        if (byte >= next.position().from) {
+        // node is past next. effort required.
+        if (byte >= tcc.next.position().from) {
+            // if next is inside node, do something idk
+            // I have no idea what I'm doing here really
+            var ndeepest = tcc.next;
+            var nnext = ndeepest;
+            while (true) {
+                if (nnext.next()) |nxt| {
+                    nnext = nxt;
+                    break;
+                }
+                nnext = ndeepest.parent();
+            }
+            // ok. ndeepest is the new value for deepest,
+            // nnext is the new value for next.
+            // issues:
+            // nnext does not go to deepest first
+            // it only goes right and up
+            // never down
+            // it needs to go down
+            // how do you program help
+
             // find deepest, find next, save.
+            // then do something idk
+            // ok.
+            // ok idk
+            // help what
+            // deepest, next, save
+            // what does this mean I have to find something
+            // ok so check if it's inside next
+            // then search down to find it, and set next.
+            // what is this
+            // this seems complicated
+            // I don't want to do this
+            // ok time to do this
+            return find(tcc, byte);
+            // this should be tail called so it doesn't increase the stack size
+            // is there a way to force that?
+            // or will zig just complian after the recursion update
+            // idk doesn't matter yet
         }
+        // if lucky, node will be within deepest
+        const deepestPos = tcc.deepest.position();
+        if (byte < deepestPos.from) {
+            // uh oh! going back in time
+            unreachable; // TODO;
+        }
+        if (byte < deepestPos.to) {
+            return .{ .node = ts.deepest, .nextByte = ts.deepest.to };
+        }
+        var nde = tcc.deepest;
+        while (byte >= nde.position().to) nde = nde.parent().?;
+        return .{ .node = ts.deepest, .nextByte = std.math.min(nde.position().to, tcc.next.position().to) };
     }
+
+    // eg:
+    // - `[   [      ]  | [ ]     ]` :: node is the outer one, nextByte is lbracket of [ ].
+    // - `[   [    | ]    [ ]     ]` :: node is [      ], nextByte is rbracket of [      ].
+    // tcc is left in a state where it is easy to go to the next node
     // so
     // [#####################] .
     //    [####]     [#]       .
