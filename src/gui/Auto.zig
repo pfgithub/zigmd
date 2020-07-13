@@ -70,7 +70,7 @@ pub fn create(
     comptime Container: type,
     event: *gui.ImEvent,
     alloc: *std.mem.Allocator,
-    remaining: var,
+    remaining: anytype,
 ) Container {
     const ti = @typeInfo(Container).Struct;
     var result: Container = undefined;
@@ -100,7 +100,7 @@ pub fn create(
 // instead of the current thing, what if we looped over all and autoDeinitted
 // fields that would be user deinitted or did not need deinitting would be
 // provided as a list
-pub fn destroy(selfptr: var, comptime fields: var) void {
+pub fn destroy(selfptr: anytype, comptime fields: anytype) void {
     inline for (fields) |ft| {
         const fieldName = @tagName(ft);
         const FieldType = help.FieldType(@TypeOf(selfptr).Child, fieldName);
@@ -115,7 +115,7 @@ pub fn destroy(selfptr: var, comptime fields: var) void {
 
 /// something must be a unique type every time otherwise the wrong id will be made!
 /// don't use this in a loop (todo support loops)
-pub fn new(auto: *Auto, initmethod: var, args: var) *@typeInfo(@TypeOf(initmethod)).Fn.return_type.? {
+pub fn new(auto: *Auto, initmethod: anytype, args: anytype) *@typeInfo(@TypeOf(initmethod)).Fn.return_type.? {
     const Type = @typeInfo(@TypeOf(initmethod)).Fn.return_type.?;
     const uniqueID = help.AnyPtr.typeID(struct {});
     if (auto.items.get(uniqueID)) |v| return v.value.readAs(Type);

@@ -109,7 +109,7 @@ fn colorFromSDL(color: sdl.SDL_Color) Color {
 fn colorToSDL(color: Color) sdl.SDL_Color {
     return sdl.SDL_Color{ .r = color.r, .g = color.g, .b = color.b, .a = color.a };
 }
-fn keyFromSDL(sdlKey: var) Key {
+fn keyFromSDL(sdlKey: anytype) Key {
     return switch (sdlKey) {
         .SDL_SCANCODE_LEFT => .Left,
         .SDL_SCANCODE_RIGHT => .Right,

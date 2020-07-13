@@ -44,7 +44,7 @@ pub const CursorPos = struct {
 };
 
 // this should be built into arraylist
-pub fn alRemoveRange(al: var, start: usize, end: usize) void {
+pub fn alRemoveRange(al: anytype, start: usize, end: usize) void {
     if (@typeInfo(@TypeOf(al)) != .Pointer) @compileError("must be *std.ArrayList(...)");
     const ChildT = @typeInfo(@TypeOf(al).Child.Slice).Pointer.child;
     std.mem.copy(ChildT, al.items[start..], al.items[end..]);
@@ -466,7 +466,7 @@ pub fn EditorCore(comptime Measurer: type) type {
             byte: usize,
             ref: *CodeText,
             offset: usize,
-            pub fn format(me: CharacterPosition, comptime fmt: []const u8, options: std.fmt.FormatOptions, out: var) !void {
+            pub fn format(me: CharacterPosition, comptime fmt: []const u8, options: std.fmt.FormatOptions, out: anytype) !void {
                 return std.fmt.format(out, "{}:{}", .{ me.lyn, me.col });
             }
             pub fn char(me: CharacterPosition) ?u8 {
@@ -820,7 +820,7 @@ const TestingMeasurer = struct {
     pub fn deinit(me: *Measurer) void {}
 };
 
-pub fn tcflags(comptime itms: var) std.os.tcflag_t {
+pub fn tcflags(comptime itms: anytype) std.os.tcflag_t {
     comptime {
         var res: std.os.tcflag_t = 0;
         for (itms) |itm| res |= @as(std.os.tcflag_t, @field(std.os, @tagName(itm)));
@@ -969,7 +969,7 @@ test "editor core" {
     });
 
     renderCursorPosition(core);
-    // std.testing.expectEqual(expected: var, actual: @TypeOf(expected))
+    // std.testing.expectEqual(expected: anytype, actual: @TypeOf(expected))
 }
 
 const CPOptions = struct {
@@ -977,17 +977,17 @@ const CPOptions = struct {
     cursor: CursorEnum = CursorEnum.drawn,
 };
 
-pub fn renderCursorPosition(core: var) void {
+pub fn renderCursorPosition(core: anytype) void {
     return renderCursorPositionOptions(core, .{});
 }
-pub fn renderCursorPositionOptions(core: var, options: CPOptions) void {
+pub fn renderCursorPositionOptions(core: anytype, options: CPOptions) void {
     return renderPointPositionOptions(core, core.cursor, options);
 }
 
-pub fn renderPointPosition(core: var, point: var) void {
+pub fn renderPointPosition(core: anytype, point: anytype) void {
     return renderPointPositionOptions(core, point, .{});
 }
-pub fn renderPointPositionOptions(core: var, point: var, options: CPOptions) void {
+pub fn renderPointPositionOptions(core: anytype, point: anytype, options: CPOptions) void {
     const reset = "\x1B(B\x1B[m";
     const cursor = switch (options.cursor) {
         .drawn => @as([]const u8, "\x1B[94m|" ++ reset),
@@ -1038,7 +1038,7 @@ pub fn failPass(boole: bool) []const u8 {
     return "\x1b[32m√" ++ reset;
 }
 
-pub fn testRenderCore(core: var, alloc: var, expected: []const []const []const u8) !void {
+pub fn testRenderCore(core: anytype, alloc: anytype, expected: []const []const []const u8) !void {
     var gi: usize = 0;
     std.debug.warn("Testing\n", .{});
     var fail = false;

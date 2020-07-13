@@ -137,7 +137,7 @@ pub const Hover = struct {
 /// sidenote: should auto.id.next be removed in favor of the react style "just call everything every time"?
 /// that can be safety-checked
 pub const PassthroughMode = enum { take, passthrough };
-fn addOrReplace(item: var, list: *Set(@TypeOf(item)), mode: PassthroughMode) void {
+fn addOrReplace(item: anytype, list: *Set(@TypeOf(item)), mode: PassthroughMode) void {
     switch (mode) {
         .take => list.clear(),
         .passthrough => {},

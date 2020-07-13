@@ -138,7 +138,7 @@ pub const VAlign = enum { top, vcenter, bottom };
 /// pub const Point = AutoRectType(.{.x, .y});
 /// what about BottomRect/RightRect? those need x2, y2 and are needed to create
 /// auto-sized tabs starting on the right side.
-fn RectType(comptime Extends: type, comptime sets: var, comptime takes: var) type {}
+fn RectType(comptime Extends: type, comptime sets: anytype, comptime takes: anytype) type {}
 fn RectFns(comptime This: type) type {
     return struct {
         pub fn x2(rect: This) i64 {
@@ -165,7 +165,7 @@ fn RectFns(comptime This: type) type {
         }
         // fn copySetReturn()
         // copySet(rect, .{.h = null}) // remove h (returns noHeight)
-        fn copySet(rect: This, set: var) This {
+        fn copySet(rect: This, set: anytype) This {
             // var return type would be nice here
             // so copyset could set .h on a toprect
             // without a mess of return logic

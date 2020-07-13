@@ -97,7 +97,7 @@ const Class = struct {
         classesStruct: Class,
         comptime fmt: []const u8,
         options: std.fmt.FormatOptions,
-        out_stream: var,
+        out_stream: anytype,
     ) !void {
         inline for (@typeInfo(Class).Struct.fields) |field| {
             if (@field(classesStruct, field.name)) {
@@ -342,7 +342,7 @@ pub const RowCol = struct {
         cp: RowCol,
         comptime fmt: []const u8,
         options: std.fmt.FormatOptions,
-        out_stream: var,
+        out_stream: anytype,
     ) !void {
         try std.fmt.format(out_stream, "{}:{}", .{ cp.row + 1, cp.col + 1 });
     }
@@ -361,7 +361,7 @@ pub const Point = struct {
         cp: Point,
         comptime fmt: []const u8,
         options: std.fmt.FormatOptions,
-        out_stream: var,
+        out_stream: anytype,
     ) !void {
         try std.fmt.format(out_stream, "{}:{}", .{ cp.row + 1, cp.col + 1 });
     }
@@ -400,7 +400,7 @@ pub const Tree = struct {
         if (!ts.locked) unreachable;
         ts.locked = false;
     }
-    pub fn reparseFn(ts: *Tree, data: var, comptime read: fn (
+    pub fn reparseFn(ts: *Tree, data: anytype, comptime read: fn (
         data: @TypeOf(data),
         pos: Point,
     ) []const u8) void {

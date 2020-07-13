@@ -377,9 +377,9 @@ pub const indentWidth = 20;
 pub const textGap = 5;
 pub const textWidth = 100;
 
-pub fn StructDataHelper(comptime Struct: type) fn (var) type {
+pub fn StructDataHelper(comptime Struct: type) fn (anytype) type {
     return struct {
-        pub fn g(arg: var) type {
+        pub fn g(arg: anytype) type {
             return Part(help.FieldType(Struct, @tagName(arg)));
         }
     }.g;
@@ -530,9 +530,9 @@ fn StructEditor(comptime Struct: type) type {
     };
 }
 
-pub fn UnionDataHelper(comptime Union: type) fn (var) type {
+pub fn UnionDataHelper(comptime Union: type) fn (anytype) type {
     return struct {
-        pub fn g(arg: var) type {
+        pub fn g(arg: anytype) type {
             if (@TypeOf(arg) == type) return @TagType(Union);
             return UnionPart(help.FieldType(Union, @tagName(arg)));
         }
@@ -650,7 +650,7 @@ fn UnionEditor(comptime Union: type) type {
     };
 }
 
-fn tagNameTerminated(thing: var, comptime terminator: []const u8) []const u8 {
+fn tagNameTerminated(thing: anytype, comptime terminator: []const u8) []const u8 {
     const TI = @typeInfo(@TypeOf(thing)).Enum;
     inline for (TI.fields) |fld| {
         if (@enumToInt(thing) == fld.value) {
@@ -1052,7 +1052,7 @@ pub fn ScrollView(comptime Child: type) type {
 
         pub fn render(
             me: *Me,
-            childArgs: var,
+            childArgs: anytype,
             style: Style,
             imev: *ImEvent,
             pos: win.Rect,

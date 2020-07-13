@@ -454,7 +454,7 @@ fn structImplements(
     return null;
 }
 
-pub fn CustomTypeCompare(comptime comparisonFn: fn (type, var, ImplCtx) ?ImplErr) type {
+pub fn CustomTypeCompare(comptime comparisonFn: fn (type, anytype, ImplCtx) ?ImplErr) type {
     return struct {
         const __SOURCE_LOCATION = @TypeOf(comparisonFn);
         const __custom_type_compare = comparisonFn;
@@ -622,7 +622,7 @@ test "fn this arg recursion" {
 test "" {
     comptime expectEqual(testingImplements(struct {
         a: CustomTypeCompare(struct {
-            pub fn a(comptime Other: type, comptime compare: var, comptime ctx: ImplCtx) ?ImplErr {
+            pub fn a(comptime Other: type, comptime compare: anytype, comptime ctx: ImplCtx) ?ImplErr {
                 return if (Other == u64) null else ctx.err("Expected u64", @This(), Other);
             }
         }.a),
@@ -633,7 +633,7 @@ test "" {
 test "" {
     comptime conformsTo(struct {
         a: CustomTypeCompare(struct {
-            pub fn a(comptime Other: type, comptime compare: var, comptime ctx: ImplCtx) ?ImplErr {
+            pub fn a(comptime Other: type, comptime compare: anytype, comptime ctx: ImplCtx) ?ImplErr {
                 return if (Other == u64) null else ctx.err("Expected u64", @This(), Other);
             }
         }.a),
@@ -644,7 +644,7 @@ test "" {
 test "" {
     comptime conformsTo(struct {
         a: CustomTypeCompare(struct {
-            pub fn a(comptime Other: type, comptime compare: var, comptime ctx: ImplCtx) ?ImplErr {
+            pub fn a(comptime Other: type, comptime compare: anytype, comptime ctx: ImplCtx) ?ImplErr {
                 if (compare(struct { one: u64 }, Other, ctx)) |err| return err;
                 return null;
             }
@@ -659,7 +659,7 @@ test "" {
 test "" {
     comptime expectEqual(testingImplements(struct {
         a: CustomTypeCompare(struct {
-            pub fn a(comptime Other: type, comptime compare: var, comptime ctx: ImplCtx) ?ImplErr {
+            pub fn a(comptime Other: type, comptime compare: anytype, comptime ctx: ImplCtx) ?ImplErr {
                 if (compare(struct { one: u64 }, Other, ctx)) |err| return err;
                 return null;
             }
@@ -673,10 +673,10 @@ test "" {
 }
 
 /// UniqueType can only be header matched once!
-pub fn UniqueType(nomemo: var) type {
+pub fn UniqueType(nomemo: anytype) type {
     var saved: ?type = null;
     return CustomTypeCompare(struct {
-        pub fn a(comptime Other: type, comptime compare: var, comptime ctx: ImplCtx) ?ImplErr {
+        pub fn a(comptime Other: type, comptime compare: anytype, comptime ctx: ImplCtx) ?ImplErr {
             if (saved == null) {
                 saved = Other;
                 return null;
@@ -690,7 +690,7 @@ pub fn UniqueType(nomemo: var) type {
 }
 
 pub const AnyType = CustomTypeCompare(struct {
-    pub fn a(comptime Other: type, comptime compare: var, comptime ctx: ImplCtx) ?ImplErr {
+    pub fn a(comptime Other: type, comptime compare: anytype, comptime ctx: ImplCtx) ?ImplErr {
         return null;
     }
 }.a);

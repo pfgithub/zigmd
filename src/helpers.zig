@@ -3,7 +3,7 @@ const std = @import("std");
 // these might be in the standard library already but I don't know how to describe what they do well enough to ask.
 // nice to have things
 
-fn interpolateInt(a: var, b: @TypeOf(a), progress: f64) @TypeOf(a) {
+fn interpolateInt(a: anytype, b: @TypeOf(a), progress: f64) @TypeOf(a) {
     const OO = @TypeOf(a);
 
     const floa = @intToFloat(f64, a);
@@ -13,7 +13,7 @@ fn interpolateInt(a: var, b: @TypeOf(a), progress: f64) @TypeOf(a) {
 }
 
 /// interpolate between two values. clamps to edges.
-pub fn interpolate(a: var, b: @TypeOf(a), progress: f64) @TypeOf(a) {
+pub fn interpolate(a: anytype, b: @TypeOf(a), progress: f64) @TypeOf(a) {
     const Type = @TypeOf(a);
     if (progress < 0) return a;
     if (progress > 1) return b;
@@ -83,7 +83,7 @@ pub fn EnumArray(comptime Enum: type, comptime Value: type) type {
         const V = @This();
         data: [fieldCount]Value,
 
-        pub fn init(values: var) V {
+        pub fn init(values: anytype) V {
             const ValuesType = @TypeOf(values);
             const valuesInfo = @typeInfo(ValuesType).Struct;
             ensureAllDefined(ValuesType, Enum);
@@ -160,7 +160,7 @@ pub fn vtable(comptime Vtable: type) type {
             var result: Vtable = undefined;
             inline for (ti.fields) |field| {
                 @field(result, field.name) = struct {
-                    // pub fn a(...args: var)
+                    // pub fn a(...args: anytype)
                 }.a;
             }
         }
@@ -186,7 +186,7 @@ pub fn DePointer(comptime Type: type) type {
     };
 }
 
-pub fn unionCall(comptime Union: type, comptime method: []const u8, enumValue: @TagType(Union), args: var) UnionCallReturnType(Union, method) {
+pub fn unionCall(comptime Union: type, comptime method: []const u8, enumValue: @TagType(Union), args: anytype) UnionCallReturnType(Union, method) {
     const typeInfo = @typeInfo(Union).Union;
     const TagType = std.meta.TagType(Union);
 
@@ -199,7 +199,7 @@ pub fn unionCall(comptime Union: type, comptime method: []const u8, enumValue: @
     @panic("Did not match any enum value");
 }
 
-pub fn unionCallReturnsThis(comptime Union: type, comptime method: []const u8, enumValue: @TagType(Union), args: var) Union {
+pub fn unionCallReturnsThis(comptime Union: type, comptime method: []const u8, enumValue: @TagType(Union), args: anytype) Union {
     const typeInfo = @typeInfo(Union).Union;
     const TagType = std.meta.TagType(Union);
 
@@ -213,7 +213,7 @@ pub fn unionCallReturnsThis(comptime Union: type, comptime method: []const u8, e
 }
 
 // should it be unionCallThis(unionv, .deinit, .{args})? feels better imo.
-pub fn unionCallThis(comptime method: []const u8, unionValue: var, args: var) UnionCallReturnType(DePointer(@TypeOf(unionValue)), method) {
+pub fn unionCallThis(comptime method: []const u8, unionValue: anytype, args: anytype) UnionCallReturnType(DePointer(@TypeOf(unionValue)), method) {
     const isPtr = @typeInfo(@TypeOf(unionValue)) == .Pointer;
     const Union = DePointer(@TypeOf(unionValue));
     const typeInfo = @typeInfo(Union).Union;
@@ -244,7 +244,7 @@ pub fn FieldType(comptime Container: type, comptime fieldName: []const u8) type 
     unreachable;
 }
 
-pub fn Function(comptime Args: var, comptime Return: type) type {
+pub fn Function(comptime Args: anytype, comptime Return: type) type {
     return struct {
         data: usize,
         call: fn (thisArg: usize, args: Args) Return,
@@ -267,12 +267,12 @@ fn FunctionReturn(comptime Type: type) type {
         pub const ReturnType = ReturnType;
     };
 }
-pub fn function(data: var) FunctionReturn(@typeInfo(@TypeOf(data)).Pointer.child).All {
+pub fn function(data: anytype) FunctionReturn(@typeInfo(@TypeOf(data)).Pointer.child).All {
     const Type = @typeInfo(@TypeOf(data)).Pointer.child;
     comptime if (@TypeOf(data) != *const Type) unreachable;
     const FnReturn = FunctionReturn(Type);
     const CallFn = struct {
-        pub fn call(thisArg: FnReturn.All, args: var) FnReturn.Return {
+        pub fn call(thisArg: FnReturn.All, args: anytype) FnReturn.Return {
             return @call(data.call, .{@intToPtr(@TypeOf(data), thisArg.data)} ++ args);
         }
     }.call;
@@ -376,7 +376,7 @@ pub const AnyPtr = comptime blk: {
     break :blk struct {
         pointer: usize,
         typeID: u64,
-        pub fn fromPtr(value: var) AnyPtr {
+        pub fn fromPtr(value: anytype) AnyPtr {
             const ti = @typeInfo(@TypeOf(value));
             if (ti != .Pointer) @compileError("must be *ptr");
             if (ti.Pointer.size != .One) @compileError("must be ptr to one item");
@@ -407,7 +407,7 @@ pub fn expectEqualStrings(str1: []const u8, str2: []const u8) void {
     std.debug.panic("\nExpected `{}`, got `{}`\n", .{ str1, str2 });
 }
 
-pub fn fixedCoerce(comptime Container: type, asl: var) Container {
+pub fn fixedCoerce(comptime Container: type, asl: anytype) Container {
     if (@typeInfo(@TypeOf(asl)) != .Struct) {
         return @as(Container, asl);
     }

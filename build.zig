@@ -3,7 +3,7 @@ const Builder = std.build.Builder;
 
 pub const Renderer = enum { sdl, raylib };
 
-pub fn addBuildOptions(b: *Builder, renderer: Renderer, mode: var, exe: var) void {
+pub fn addBuildOptions(b: *Builder, renderer: Renderer, mode: anytype, exe: anytype) void {
     exe.linkLibC();
 
     switch (renderer) {
