@@ -1,4 +1,5 @@
 const std = @import("std");
+const help = @import("../helpers.zig");
 
 pub const Tile = union(enum) {
     floor,
@@ -22,19 +23,14 @@ pub const Surface = struct {
     pub fn fromText(text: []const u8) !Surface {
         var res: Surface = .{ .tiles = undefined };
         var y: SSInt = 0;
-        var x: SSInt = 0;
         @setEvalBranchQuota(10000000);
-        for (text) |char| {
-            x += 1;
-            if (char == '\n') {
-                if (x != SURFACE_SIZE) return error.TooWide;
-                x = 0;
-                y += 1;
-                continue;
-            }
-            if (x >= SURFACE_SIZE) return error.TooWide;
+        var iter = help.StringSplitIterator.split(text, "\n");
+        while (iter.next()) |line| : (y += 1) {
             if (y >= SURFACE_SIZE) return error.TooTall;
-            res.tiles[y][x] = try Tile.fromChar(char);
+            for (line) |char, x| {
+                if (x >= SURFACE_SIZE) return error.TooWide;
+                res.tiles[y][x] = try Tile.fromChar(char);
+            }
         }
         return res;
     }
@@ -115,7 +111,7 @@ pub const Game = struct {
     pub fn init() Game {
         return .{
             .surface = Surface.fromText(@embedFile("map.txt")) catch @panic("bad map"),
-            .camera = .{ .topLeft = .{ .x = 0, .y = 0 }, .tileSize = 65 },
+            .camera = .{ .topLeft = .{ .x = 0, .y = 0 }, .tileSize = 12 },
         };
     }
 };
