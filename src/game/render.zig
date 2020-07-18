@@ -35,6 +35,9 @@ pub const GameRender = struct {
                 .as(ScreenPoint));
         }
 
+        if (!imev.render) return;
+        // RENDER =============
+
         var ul = game.camera.toWorldPoint(.{ .x = 0, .y = 0 }).toTilePoint();
         var dr = game.camera.toWorldPoint(.{ .x = @intToFloat(f64, rect.w), .y = @intToFloat(f64, rect.h) }).toTilePoint();
 
