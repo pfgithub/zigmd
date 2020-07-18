@@ -4,7 +4,7 @@ zigmd is a markdown editor
 
 ## build
 
-linux only, might support mac maybe if you're lucky
+linux/mac only right now.
 
 - install sdl
 - run `./deps/download.sh`

@@ -1,23 +1,30 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 
-pub const Renderer = enum { sdl, raylib };
+pub const Renderer = enum { sdl, raylib, skia, sokol };
 
 pub fn addBuildOptions(b: *Builder, renderer: Renderer, mode: anytype, exe: anytype) void {
     exe.linkLibC();
 
     switch (renderer) {
         .sdl => {
-            // sdl
             exe.linkSystemLibrary("SDL2");
             exe.linkSystemLibrary("SDL2_ttf");
             exe.linkSystemLibrary("fontconfig");
         },
         .raylib => {
-            // raylib
             exe.linkSystemLibrary("raylib");
             exe.addIncludeDir("src/renderers/raylib");
             exe.addCSourceFile("src/renderers/raylib/abi_workaround.c", &[_][]const u8{});
+        },
+        .skia => {
+            // todo
+            // skia is c++ so everything requires bindings
+            // and a seperate opengl thing is required like glfw or something
+            unreachable;
+        },
+        .sokol => {
+            unreachable;
         },
     }
 
