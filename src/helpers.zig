@@ -614,14 +614,21 @@ test "FieldType" {
     comptime std.testing.expectEqual(FieldType(Union, "b"), bool);
 }
 
-pub const StringSplit = struct {
+pub fn IteratorFns(comptime Iter: type) type {
+    return struct {
+        // pub fn pipe(other: anytype, args: anytype) anytype {}
+    };
+}
+
+pub const StringSplitIterator = struct {
+    pub const ItItem = []const u8;
     string: []const u8,
     split: []const u8,
     /// split a string at at. if at == "", split at every byte (not codepoint).
-    pub fn split(string: []const u8, at: []const u8) StringSplit {
+    pub fn split(string: []const u8, at: []const u8) StringSplitIterator {
         return .{ .string = string, .split = at };
     }
-    pub fn next(me: *StringSplit) ?[]const u8 {
+    pub fn next(me: *StringSplitIterator) ?[]const u8 {
         var res = me.string;
         while (!std.mem.startsWith(u8, me.string, me.split)) {
             if (me.string.len == 0) {
@@ -640,20 +647,78 @@ pub const StringSplit = struct {
         defer me.string = me.string[me.split.len..];
         return res[0 .. res.len - me.string.len];
     }
+    usingnamespace IteratorFns(@This());
 };
+/// you own the returned slice
+pub fn stringMerge(alloc: *std.mem.Allocator, striter: anytype) ![]const u8 {
+    var res = std.ArrayList(u8).init(alloc);
+    errdefer res.deinit();
+    var itcpy = striter;
+    while (itcpy.next()) |itm| try res.appendSlice(itm);
+    return res.toOwnedSlice();
+}
+
+fn IteratorJoinType(comptime OITQ: type) type {
+    return struct {
+        pub const ItItem = OITQ.ItItem;
+        const Me = @This();
+        oiter: OITQ,
+        join: ItItem,
+        nextv: ?ItItem = null,
+        mode: enum { oiter, join } = .oiter,
+        pub fn next(me: *Me) ?ItItem {
+            switch (me.mode) {
+                .oiter => {
+                    me.mode = .join;
+                    if (me.nextv == null) me.nextv = me.oiter.next();
+                    defer me.nextv = me.oiter.next();
+                    return me.nextv;
+                },
+                .join => {
+                    if (me.nextv == null) return null;
+                    me.mode = .oiter;
+                    return me.join;
+                },
+            }
+        }
+        usingnamespace IteratorFns(@This());
+    };
+}
+/// Join every other item of an iterator with a value
+/// EG iteratorJoin(iteratorArray("One", "Two", "Three"), ", ") == ["One", ", ", "Two", ", ", "Three"]
+pub fn iteratorJoin(oiter: anytype, join: @TypeOf(oiter).ItItem) IteratorJoinType(@TypeOf(oiter)) {
+    return IteratorJoinType(@TypeOf(oiter)){ .oiter = oiter, .join = join };
+}
 
 fn testStringSplit(comptime str: []const u8, comptime at: []const u8, comptime expdt: []const []const u8) void {
-    var split = StringSplit.split(str, at);
+    var split = StringSplitIterator.split(str, at);
     var i: usize = 0;
-    while(split.next()) |section| : (i += 1) {
-        std.debug.warn("\n\nSection: {}\n\n", .{section});
-        if(!std.mem.eql(u8, section, expdt[i])) {
-            std.debug.panic("Expected `{}`, got `{}`\n", .{expdt[i], section});
+    while (split.next()) |section| : (i += 1) {
+        if (!std.mem.eql(u8, section, expdt[i])) {
+            std.debug.panic("Expected `{}`, got `{}`\n", .{ expdt[i], section });
         }
     }
 }
 
 test "string split" {
-    testStringSplit("testing:-:string:-huh:-:interesting:-::-:a", ":-:", &[_][]const u8{"testing", "string:-huh", "interesting", "", "a"});
-    testStringSplit("evrychar", "", &[_][]const u8{"e", "v", "r", "y", "c", "h", "a", "r"});
+    testStringSplit("testing:-:string:-huh:-:interesting:-::-:a", ":-:", &[_][]const u8{ "testing", "string:-huh", "interesting", "", "a" });
+    testStringSplit("evrychar", "", &[_][]const u8{ "e", "v", "r", "y", "c", "h", "a", "r" });
 }
+
+test "string join" {
+    const alloc = std.testing.allocator;
+    const res = try stringMerge(alloc, iteratorJoin(StringSplitIterator.split("testing", ""), ","));
+    defer alloc.free(res);
+    std.testing.expectEqualStrings("t,e,s,t,i,n,g", res);
+}
+
+// goal: integrate this with my printing lib
+// so you can print a string iterator
+// want to replace some text and print it? print(split("some text", "e").pipe(join, .{"E"}))
+// or even better, replace("some text", "e", "E")
+
+// want to print every item of an arraylist with each item <one>, <two>?
+// sliceIter(al.items).pipe(map, fn(out, value) void {out("<"); out(value); out(">")} ).pipe(join, ", ")
+// remove the items starting with a capital letter?
+// .pipe(filter, fn(value) bool (value.len > 0 and !std.text.isCapital(value[0]) ))
+// fun with streams
