@@ -53,7 +53,7 @@ const ImevInitAllocHeader = struct {
     pub const __h_ALLOW_EXTRA = true;
 };
 
-pub fn autoInitAnyThing(comptime Thing: type, event: *gui.ImEvent, alloc: *std.mem.Allocator) Thing {
+pub fn autoInitAnyThing(comptime Thing: type, comptime fieldName: []const u8, event: *gui.ImEvent, alloc: *std.mem.Allocator) Thing {
     return if (comptime header_match.conformsToBool(AutoInitHeader, Thing))
         Thing.autoInit(event, alloc)
     else if (comptime header_match.conformsToBool(ImevInitHeader, Thing))
@@ -62,7 +62,7 @@ pub fn autoInitAnyThing(comptime Thing: type, event: *gui.ImEvent, alloc: *std.m
         Thing.init(event, alloc)
     else {
         // comptime header_match.conformsTo(AutoInitHeader, curfld.field_type);
-        @compileError("Field `" ++ curfld.name ++ "` was not initialized.");
+        @compileError("Field `" ++ fieldName ++ "` was not initialized.");
     };
 }
 
@@ -91,7 +91,7 @@ pub fn create(
             @field(result, curfld.name) = defltv;
             continue;
         }
-        @field(result, curfld.name) = autoInitAnyThing(curfld.field_type, event, alloc);
+        @field(result, curfld.name) = autoInitAnyThing(curfld.field_type, curfld.name, event, alloc);
     }
 
     return result;

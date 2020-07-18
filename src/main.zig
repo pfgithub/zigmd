@@ -3,6 +3,7 @@ pub const win = @import("./render.zig");
 pub const parser = @import("./parser.zig");
 pub const ts = parser;
 pub const gui = @import("./gui.zig");
+const game = @import("game/render.zig");
 const help = @import("./helpers.zig");
 const editor_core = @import("./editor_core.zig");
 const EditorCore = editor_core.EditorCore;
@@ -1426,6 +1427,7 @@ const DisplayMode = enum {
     gui,
     window,
     mte,
+    game,
     pub const title_editor = "Editor";
     pub const title_gui = "GUI Demo";
     pub const title_window = "Window Demo";
@@ -1440,6 +1442,7 @@ pub const MainPage = struct {
             .app = App.init(alloc, "tests/medium sized file.md", imev) catch
                 @panic("oom not handled"),
             .mte = MultilineTextEditor.init(alloc, imev) catch @panic("oom not handled"),
+            .game = game.Game.init(),
         });
     }
     pub fn deinit(page: *MainPage) void {
@@ -1454,6 +1457,9 @@ pub const MainPage = struct {
     mte: MultilineTextEditor,
     displayedtr: gui.DataEditor(DisplayMode),
     windowDemo: WindowDemo,
+
+    game: game.Game,
+    gameRender: game.GameRender,
 
     displayMode: DisplayMode = .gui,
 
@@ -1492,6 +1498,9 @@ pub const MainPage = struct {
             },
             .mte => {
                 try page.mte.render(contentRect, imev, style);
+            },
+            .game => {
+                try page.gameRender.render(&page.game, imev, contentRect);
             },
         }
     }
