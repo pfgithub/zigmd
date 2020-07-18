@@ -27,11 +27,13 @@ pub const Surface = struct {
         var iter = help.StringSplitIterator.split(text, "\n");
         while (iter.next()) |line| : (y += 1) {
             if (y >= SURFACE_SIZE) return error.TooTall;
+            if (line.len != SURFACE_SIZE) return error.TooThin;
             for (line) |char, x| {
                 if (x >= SURFACE_SIZE) return error.TooWide;
                 res.tiles[y][x] = try Tile.fromChar(char);
             }
         }
+        if (y != SURFACE_SIZE) return error.TooShort;
         return res;
     }
     pub fn getTile(surf: *Surface, pt: TilePoint) !Tile {
