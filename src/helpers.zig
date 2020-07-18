@@ -613,3 +613,47 @@ test "FieldType" {
     comptime std.testing.expectEqual(FieldType(Union, "a"), f64);
     comptime std.testing.expectEqual(FieldType(Union, "b"), bool);
 }
+
+pub const StringSplit = struct {
+    string: []const u8,
+    split: []const u8,
+    /// split a string at at. if at == "", split at every byte (not codepoint).
+    pub fn split(string: []const u8, at: []const u8) StringSplit {
+        return .{ .string = string, .split = at };
+    }
+    pub fn next(me: *StringSplit) ?[]const u8 {
+        var res = me.string;
+        while (!std.mem.startsWith(u8, me.string, me.split)) {
+            if (me.string.len == 0) {
+                if (res.len > 0) return res;
+                return null;
+            }
+            me.string = me.string[1..];
+        }
+        if (me.string.len == 0) {
+            if (res.len > 0) return res;
+            return null;
+        }
+        if (me.split.len == 0) {
+            me.string = me.string[1..]; // split("something", "");
+        }
+        defer me.string = me.string[me.split.len..];
+        return res[0 .. res.len - me.string.len];
+    }
+};
+
+fn testStringSplit(comptime str: []const u8, comptime at: []const u8, comptime expdt: []const []const u8) void {
+    var split = StringSplit.split(str, at);
+    var i: usize = 0;
+    while(split.next()) |section| : (i += 1) {
+        std.debug.warn("\n\nSection: {}\n\n", .{section});
+        if(!std.mem.eql(u8, section, expdt[i])) {
+            std.debug.panic("Expected `{}`, got `{}`\n", .{expdt[i], section});
+        }
+    }
+}
+
+test "string split" {
+    testStringSplit("testing:-:string:-huh:-:interesting:-::-:a", ":-:", &[_][]const u8{"testing", "string:-huh", "interesting", "", "a"});
+    testStringSplit("evrychar", "", &[_][]const u8{"e", "v", "r", "y", "c", "h", "a", "r"});
+}
