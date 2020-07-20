@@ -6,6 +6,8 @@ const help = @import("helpers.zig");
 pub const Auto = @import("gui/Auto.zig");
 pub const ImEvent = @import("gui/ImEvent.zig");
 
+const BUTTON_MODE: enum { angle, down } = .angle;
+
 pub const Style = struct {
     colors: struct {
         // syntax highlighting
@@ -321,7 +323,10 @@ pub const Button = struct {
         btn.bumpOffset.set(imev, if (click) 0 else if (settings.active and !settings.forceUp) @as(i64, 2) else @as(i64, 4), timing.EaseIn, .negative);
         const bumpOffset = btn.bumpOffset.get(imev);
 
-        const buttonPos: win.Rect = pos.addHeight(-bumpHeight).down(bumpHeight - bumpOffset);
+        const buttonPos: win.Rect = switch (BUTTON_MODE) {
+            .angle => pos.addHeight(-bumpHeight).addHeight(bumpHeight - bumpOffset),
+            .down => pos.addHeight(-bumpHeight).down(bumpHeight - bumpOffset),
+        };
         const bumpPos: win.Rect = pos.downCut(pos.h - bumpHeight);
 
         btn.bumpColor.set(imev, if (settings.active)
