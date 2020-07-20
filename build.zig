@@ -1,7 +1,7 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 
-pub const Renderer = enum { sdl, raylib, skia, sokol };
+pub const Renderer = enum { sdl, raylib, skia, sokol, cairo };
 
 pub fn addBuildOptions(b: *Builder, renderer: Renderer, mode: anytype, exe: anytype) void {
     exe.linkLibC();
@@ -25,6 +25,12 @@ pub fn addBuildOptions(b: *Builder, renderer: Renderer, mode: anytype, exe: anyt
         },
         .sokol => {
             unreachable;
+        },
+        .cairo => {
+            exe.linkSystemLibrary("cairo");
+            exe.linkSystemLibrary("gtk+-3.0");
+            exe.addIncludeDir("src/renderers/cairo");
+            exe.addCSourceFile("src/renderers/cairo/cairo_cbind.c", &[_][]const u8{});
         },
     }
 
@@ -56,7 +62,9 @@ pub fn build(b: *Builder) void {
 
     const mode = b.standardReleaseOptions();
 
-    const exe = b.addExecutable("zigmd", "src/main.zig");
+    const rdemo = b.option(bool, "render-demo", "enable renderer demo mode") orelse false;
+
+    const exe = b.addExecutable("zigmd", if (rdemo) "src/renderer_demo.zig" else "src/main.zig");
     exe.setBuildMode(mode);
     addBuildOptions(b, renderer, mode, exe);
     exe.install();
