@@ -35,6 +35,10 @@ pub const GameRender = struct {
                 .as(ScreenPoint));
         }
 
+        // const point = game.camera.toWorldPoint(.{ .x = @intToFloat(f64, hs.mouseX), .y = @intToFloat(f64, hs.mouseY) });
+        // render a box around that point
+        // on click or something, change the value
+
         if (!imev.render) return;
         // RENDER =============
 
