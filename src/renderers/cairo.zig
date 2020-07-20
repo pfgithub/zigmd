@@ -6,25 +6,26 @@ const help = @import("../helpers.zig");
 
 pub usingnamespace @import("./common.zig");
 
-var nextEventFrame: anyframe = undefined;
-var eventResult: struct { cr: *cairo_t } = undefined;
+var nextEventFrame: ?anyframe = null;
+const RawEvent = struct { cr: *cairo_t };
+var eventResult: ?RawEvent = undefined;
 
-pub fn waitNextEvent() ?*cairo_t {
+pub fn waitNextEvent() ?RawEvent {
     suspend {
         nextEventFrame = @frame();
     }
-    return eventResult.cr;
+    nextEventFrame = null;
+    return eventResult;
 }
 
 export fn zig_on_draw_event(widget: *GtkWidget, cr: *cairo_t) callconv(.C) void {
-    // going to resume an async function in order to pretend to have an event loop
     eventResult = .{ .cr = cr };
-    resume nextEventFrame;
+    resume nextEventFrame orelse @panic("no one is waiting for an event");
 }
 
 pub fn asyncMain() void {
-    // waitNextEvent must be called
-    while (waitNextEvent()) |cr| {
+    while (waitNextEvent()) |ev| {
+        const cr = ev.cr;
         cairo_set_source_rgb(cr, 0, 0, 0);
         cairo_select_font_face(cr, "Sans", .CAIRO_FONT_SLANT_NORMAL, .CAIRO_FONT_WEIGHT_NORMAL);
         cairo_set_font_size(cr, 40.0);
@@ -35,6 +36,7 @@ pub fn asyncMain() void {
 }
 
 pub fn main() !void {
-    _ = async asyncMain();
+    _ = async asyncMain(); // run until first suspend
+    _ = nextEventFrame orelse @panic("main fn did not suspend at waitNextEvent");
     if (start_gtk(0, undefined) != 0) return error.Failure;
 }
