@@ -6,10 +6,29 @@ const help = @import("../helpers.zig");
 
 pub usingnamespace @import("./common.zig");
 
+// has bitfield
+const GdkEventKey_f = extern struct {
+    type_: GdkEventType,
+    window: *GdkWindow,
+    send_event: gint8,
+    time: gint32,
+    state: guint,
+    keyval: guint,
+    length: gint,
+    string: [*]gchar,
+    hardware_keycode: guint16,
+    group: guint8,
+    is_modifier: u8, // bitfield u1
+    fn c(me: *GdkEventKey_f) *GdkEventKey {
+        return @ptrCast(*GdkEventKey, me);
+    }
+};
+
 var nextEventFrame: ?anyframe = null;
 const RawEvent = union(enum) {
     render: *cairo_t,
-    keypress: *GdkEventKey,
+    keypress: *GdkEventKey_f,
+    keyrelease: *GdkEventKey_f,
 };
 var eventResult: ?RawEvent = undefined;
 
@@ -21,13 +40,32 @@ pub fn waitNextEvent() ?RawEvent {
     return eventResult;
 }
 
-export fn zig_on_draw_event(cr: *cairo_t) callconv(.C) void {
-    eventResult = .{ .render = cr };
-    resume nextEventFrame orelse @panic("no one is waiting for an event");
+fn pushEvent(event: RawEvent) void {
+    eventResult = event;
+    resume nextEventFrame orelse @panic("No one is waiting for an event. TODO event queue thing.");
 }
-export fn zig_on_keypress_event(evk: *GdkEventKey) callconv(.C) void {
-    eventResult = .{ .keypress = evk };
-    resume nextEventFrame orelse @panic("no one is waiting for an event");
+
+export fn zig_on_draw_event(cr: *cairo_t) callconv(.C) void {
+    pushEvent(.{ .render = cr });
+}
+export fn zig_on_keypress_event(evk: *GdkEventKey_f, im_context: *GtkIMContext) callconv(.C) gboolean {
+    pushEvent(.{ .keypress = evk });
+    return gtk_im_context_filter_keypress(im_context, evk.c()); // don't do this for modifier keys obv
+}
+export fn zig_on_keyrelease_event(evk: *GdkEventKey_f) callconv(.C) void {
+    pushEvent(.{ .keyrelease = evk });
+}
+export fn zig_on_commit_event(context: *GtkIMContext, str: [*:0]gchar, user_data: gpointer) callconv(.C) void {
+    std.debug.warn("On commit event `{s}`\n", .{str});
+}
+export fn zig_on_delete_surrounding_event(context: *GtkIMContext, offset: gint, n_chars: gint, user_data: gpointer) callconv(.C) gboolean {
+    @panic("TODO implement IME support");
+}
+export fn zig_on_preedit_changed_event(context: *GtkIMContext, user_data: gpointer) callconv(.C) void {
+    @panic("TODO implement IME support");
+}
+export fn zig_on_retrieve_surrounding_event(context: *GtkIMContext, user_data: gpointer) callconv(.C) gboolean {
+    @panic("TODO implement IME support");
 }
 
 pub fn asyncMain() void {
@@ -45,6 +83,9 @@ pub fn asyncMain() void {
             },
             .keypress => |kp| {
                 std.debug.warn("Keypress: {}\n", .{kp});
+            },
+            .keyrelease => |kp| {
+                std.debug.warn("Keyrelease: {}\n", .{kp});
             },
         }
     }
