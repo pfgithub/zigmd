@@ -614,6 +614,10 @@ test "FieldType" {
     comptime std.testing.expectEqual(FieldType(Union, "b"), bool);
 }
 
+// ====
+// iteration experiments
+// ====
+
 pub fn IteratorFns(comptime Iter: type) type {
     return struct {
         // pub fn pipe(other: anytype, args: anytype) anytype {}
@@ -684,6 +688,46 @@ fn IteratorJoinType(comptime OITQ: type) type {
         usingnamespace IteratorFns(@This());
     };
 }
+
+fn suspendIterator(string: []const u8, out: *[]const u8, resfr: *anyframe) void {
+    std.debug.warn("Suspend Iterator Preinit\n", .{});
+    suspend resfr.* = @frame(); // suspend immediately without writing to out first
+    std.debug.warn("Suspend Iterator Started\n", .{});
+    for (string) |_, i| {
+        std.debug.warn("Suspend Iterator Suspended\n", .{});
+        out.* = string[i .. i + 1];
+        suspend resfr.* = @frame();
+    }
+}
+
+const SuspIterCllr = struct {
+    frame: anyframe,
+    out: []const u8,
+    text: []const u8,
+    pub fn init(text: []const u8) SuspIterCllr {
+        return .{ .frame = undefined, .out = undefined, .text = text };
+    }
+    pub fn start(sic: *SuspIterCllr) void {
+        _ = async suspendIterator(sic.text, &sic.out, &sic.frame);
+    }
+
+    pub fn next(sic: *SuspIterCllr) ?[]const u8 {
+        resume sic.frame;
+        const res = sic.out;
+        return res;
+    }
+};
+
+test "suspend iterator" {
+    var si = SuspIterCllr.init("Hello, World!");
+    si.start();
+    std.debug.warn("Suspend Iterator\n", .{});
+    while (si.next()) |v| {
+        std.debug.warn("V: `{}`\n", .{v});
+    }
+    std.debug.warn("Suspend Iterator Over\n", .{});
+}
+
 /// Join every other item of an iterator with a value
 /// EG iteratorJoin(iteratorArray("One", "Two", "Three"), ", ") == ["One", ", ", "Two", ", ", "Three"]
 pub fn iteratorJoin(oiter: anytype, join: @TypeOf(oiter).ItItem) IteratorJoinType(@TypeOf(oiter)) {
