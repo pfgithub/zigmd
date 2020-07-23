@@ -717,11 +717,13 @@ const SuspIterCllr = struct {
         return .{ .frame = undefined, .funcfram = undefined, .out = undefined, .text = text };
     }
     pub fn start(sic: *SuspIterCllr) void {
+        // this cannot be done in init until @resultLocation is available I think
         sic.funcfram = async iteratorCaller(sic.text, &sic.out, &sic.frame);
     }
 
     pub fn next(sic: *SuspIterCllr) ?[]const u8 {
         resume sic.frame orelse return null;
+        _ = sic.frame orelse return null;
         const res = sic.out;
         return res;
     }
