@@ -689,30 +689,39 @@ fn IteratorJoinType(comptime OITQ: type) type {
     };
 }
 
-fn suspendIterator(string: []const u8, out: *[]const u8, resfr: *anyframe) void {
-    std.debug.warn("Suspend Iterator Preinit\n", .{});
-    suspend resfr.* = @frame(); // suspend immediately without writing to out first
-    std.debug.warn("Suspend Iterator Started\n", .{});
+fn suspendIterator(string: []const u8, out: anytype) void {
     for (string) |_, i| {
-        std.debug.warn("Suspend Iterator Suspended\n", .{});
-        out.* = string[i .. i + 1];
-        suspend resfr.* = @frame();
+        out.emit(string[i .. i + 1]);
     }
 }
 
+fn iteratorCaller(string: []const u8, out: *[]const u8, resfr: *?anyframe) void {
+    suspend resfr.* = @frame();
+    suspendIterator(string, struct {
+        out: *[]const u8,
+        resfr: *?anyframe,
+        fn emit(me: @This(), val: []const u8) void {
+            me.out.* = val;
+            suspend me.resfr.* = @frame();
+        }
+    }{ .out = out, .resfr = resfr });
+    resfr.* = null;
+}
+
 const SuspIterCllr = struct {
-    frame: anyframe,
+    frame: ?anyframe,
+    funcfram: @Frame(iteratorCaller),
     out: []const u8,
     text: []const u8,
     pub fn init(text: []const u8) SuspIterCllr {
-        return .{ .frame = undefined, .out = undefined, .text = text };
+        return .{ .frame = undefined, .funcfram = undefined, .out = undefined, .text = text };
     }
     pub fn start(sic: *SuspIterCllr) void {
-        _ = async suspendIterator(sic.text, &sic.out, &sic.frame);
+        sic.funcfram = async iteratorCaller(sic.text, &sic.out, &sic.frame);
     }
 
     pub fn next(sic: *SuspIterCllr) ?[]const u8 {
-        resume sic.frame;
+        resume sic.frame orelse return null;
         const res = sic.out;
         return res;
     }
