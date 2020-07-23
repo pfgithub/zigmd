@@ -29,6 +29,7 @@ const RawEvent = union(enum) {
     render: *cairo_t,
     keypress: *GdkEventKey_f,
     keyrelease: *GdkEventKey_f,
+    textcommit: []const u8,
 };
 var eventResult: ?RawEvent = undefined;
 
@@ -56,7 +57,7 @@ export fn zig_on_keyrelease_event(evk: *GdkEventKey_f) callconv(.C) void {
     pushEvent(.{ .keyrelease = evk });
 }
 export fn zig_on_commit_event(context: *GtkIMContext, str: [*:0]gchar, user_data: gpointer) callconv(.C) void {
-    std.debug.warn("On commit event `{s}`\n", .{str});
+    pushEvent(.{ .textcommit = std.mem.span(str) });
 }
 export fn zig_on_delete_surrounding_event(context: *GtkIMContext, offset: gint, n_chars: gint, user_data: gpointer) callconv(.C) gboolean {
     @panic("TODO implement IME support");
@@ -72,6 +73,7 @@ pub fn asyncMain() void {
     while (waitNextEvent()) |ev| {
         switch (ev) {
             .render => |cr| {
+                std.debug.warn("Render\n", .{});
                 cairo_set_source_rgb(cr, 0, 0, 0);
                 cairo_select_font_face(cr, "Sans", .CAIRO_FONT_SLANT_NORMAL, .CAIRO_FONT_WEIGHT_NORMAL); // you're supposed to use backend specific fns
                 cairo_set_font_size(cr, 40.0);
@@ -82,10 +84,13 @@ pub fn asyncMain() void {
                 // so I need to use cairo_show_glyphs
             },
             .keypress => |kp| {
-                std.debug.warn("Keypress: {}\n", .{kp});
+                std.debug.warn("Key↓: {}\n", .{kp.keyval});
             },
             .keyrelease => |kp| {
-                std.debug.warn("Keyrelease: {}\n", .{kp});
+                std.debug.warn("Key↑: {}\n", .{kp.keyval});
+            },
+            .textcommit => |str| {
+                std.debug.warn("On commit event `{}`\n", .{str});
             },
         }
     }

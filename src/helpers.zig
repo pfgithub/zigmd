@@ -766,3 +766,14 @@ test "string join" {
 // remove the items starting with a capital letter?
 // .pipe(filter, fn(value) bool (value.len > 0 and !std.text.isCapital(value[0]) ))
 // fun with streams
+
+pub fn scale(val: anytype, from: [2]@TypeOf(val), to: [2]@TypeOf(val)) @TypeOf(val) {
+    std.debug.assert(from[0] < from[1]);
+    std.debug.assert(to[0] < to[1]);
+    return (val - from[0]) * (to[1] - to[0]) / (from[1] - from[0]) + to[0];
+}
+
+test "math.scale" {
+    std.testing.expectEqual(scale(@as(f64, 25), [_]f64{ 0, 100 }, [_]f64{ 0, 1 }), 0.25);
+    std.testing.expectEqual(scale(@as(f64, 25), [_]f64{ 0, 100 }, [_]f64{ 10, 11 }), 10.25);
+}
