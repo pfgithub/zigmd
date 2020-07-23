@@ -695,48 +695,50 @@ fn suspendIterator(string: []const u8, out: anytype) void {
     }
 }
 
-fn iteratorCaller(string: []const u8, out: *[]const u8, resfr: *?anyframe) void {
-    suspend resfr.* = @frame();
-    suspendIterator(string, struct {
-        out: *[]const u8,
-        resfr: *?anyframe,
-        fn emit(me: @This(), val: []const u8) void {
-            me.out.* = val;
-            suspend me.resfr.* = @frame();
+pub fn FunctionIterator(comptime fnction: anytype) type {
+    return struct {
+        const SuspIterCllr = @This();
+
+        fn iteratorCaller(string: []const u8, out: *[]const u8, resfr: *?anyframe) void {
+            suspend resfr.* = @frame();
+            fnction(string, struct {
+                out: *[]const u8,
+                resfr: *?anyframe,
+                fn emit(me: @This(), val: []const u8) void {
+                    me.out.* = val;
+                    suspend me.resfr.* = @frame();
+                }
+            }{ .out = out, .resfr = resfr });
+            resfr.* = null;
         }
-    }{ .out = out, .resfr = resfr });
-    resfr.* = null;
+
+        frame: ?anyframe,
+        funcfram: @Frame(iteratorCaller),
+        out: []const u8,
+        text: []const u8,
+        pub fn init(text: []const u8) SuspIterCllr {
+            return .{ .frame = undefined, .funcfram = undefined, .out = undefined, .text = text };
+        }
+        pub fn start(sic: *SuspIterCllr) void {
+            // this cannot be done in init until @resultLocation is available I think
+            sic.funcfram = async iteratorCaller(sic.text, &sic.out, &sic.frame);
+        }
+
+        pub fn next(sic: *SuspIterCllr) ?[]const u8 {
+            resume sic.frame orelse return null;
+            _ = sic.frame orelse return null;
+            const res = sic.out;
+            return res;
+        }
+    };
 }
 
-const SuspIterCllr = struct {
-    frame: ?anyframe,
-    funcfram: @Frame(iteratorCaller),
-    out: []const u8,
-    text: []const u8,
-    pub fn init(text: []const u8) SuspIterCllr {
-        return .{ .frame = undefined, .funcfram = undefined, .out = undefined, .text = text };
-    }
-    pub fn start(sic: *SuspIterCllr) void {
-        // this cannot be done in init until @resultLocation is available I think
-        sic.funcfram = async iteratorCaller(sic.text, &sic.out, &sic.frame);
-    }
-
-    pub fn next(sic: *SuspIterCllr) ?[]const u8 {
-        resume sic.frame orelse return null;
-        _ = sic.frame orelse return null;
-        const res = sic.out;
-        return res;
-    }
-};
-
 test "suspend iterator" {
-    var si = SuspIterCllr.init("Hello, World!");
+    var si = FunctionIterator(suspendIterator).init("Hello, World!");
     si.start();
-    std.debug.warn("Suspend Iterator\n", .{});
     while (si.next()) |v| {
         std.debug.warn("V: `{}`\n", .{v});
     }
-    std.debug.warn("Suspend Iterator Over\n", .{});
 }
 
 /// Join every other item of an iterator with a value
