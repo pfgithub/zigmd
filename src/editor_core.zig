@@ -897,7 +897,7 @@ pub fn main() !void {
                     else => |esch| std.debug.warn("Unknown Escape Type {}\n", .{esch}),
                 }
             },
-            10, 32...126 => {
+            10, 32...126, 128...255 => {
                 try core.insert(core.cursor, &[_]u8{rb});
             },
             127 => {
