@@ -707,6 +707,7 @@ pub fn FunctionIterator(comptime fnction: anytype) type {
                 fn emit(me: @This(), val: []const u8) void {
                     me.out.* = val;
                     suspend me.resfr.* = @frame();
+                    me.out.* = undefined; // in case any other suspends happen, eg async io
                 }
             }{ .out = out, .resfr = resfr });
             resfr.* = null;
