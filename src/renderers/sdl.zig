@@ -254,7 +254,7 @@ pub const Window = struct {
             .alloc = alloc,
         };
     }
-    pub fn destroyTextures(window: *Window) void {
+    fn destroyTextures(window: *Window) void {
         for (window.destroyTextureList.items) |destroytex| {
             sdl.SDL_DestroyTexture(destroytex);
         }
@@ -385,7 +385,7 @@ pub const Text = struct {
     pub fn init(
         font: *const Font,
         color: Color,
-        text: []const u8, // 0-terminated
+        text: []const u8,
         size: ?TextSize,
         window: *Window,
     ) ER!Text {
