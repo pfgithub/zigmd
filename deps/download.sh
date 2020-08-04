@@ -9,9 +9,4 @@ cd deps/build
     git clone https://github.com/tree-sitter/tree-sitter.git
 	git clone https://github.com/ikatyang/tree-sitter-markdown.git
 	git clone https://github.com/tree-sitter/tree-sitter-json.git
-    cd tree-sitter-markdown/src
-		echo "Building markdown scanner..."
-        zig c++ scanner.cc -I ../../tree-sitter/lib/include -c -o scanner.o
-		echo "Done building markdown scanner."
-    cd ../..
 cd ../..

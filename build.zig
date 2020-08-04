@@ -45,7 +45,7 @@ pub fn addBuildOptions(b: *Builder, renderer: Renderer, mode: anytype, exe: anyt
 
     // tree-sitter-markdown
     exe.addCSourceFile("deps/build/tree-sitter-markdown/src/parser.c", &[_][]const u8{});
-    exe.addObjectFile("deps/build/tree-sitter-markdown/src/scanner.o");
+    exe.addCSourceFile("deps/build/tree-sitter-markdown/src/scanner.cc", &[_][]const u8{});
 
     // tree-sitter-json
     // exe.addCSourceFile("deps/build/tree-sitter-json/src/parser.c", &[_][]const u8{});
