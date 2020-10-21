@@ -46,7 +46,7 @@ pub const CursorPos = struct {
 // this should be built into arraylist
 pub fn alRemoveRange(al: anytype, start: usize, end: usize) void {
     if (@typeInfo(@TypeOf(al)) != .Pointer) @compileError("must be *std.ArrayList(...)");
-    const ChildT = @typeInfo(@TypeOf(al).Child.Slice).Pointer.child;
+    const ChildT = std.meta.Child(std.meta.Child(@TypeOf(al)).Slice);
     std.mem.copy(ChildT, al.items[start..], al.items[end..]);
     al.items.len -= end - start;
 }

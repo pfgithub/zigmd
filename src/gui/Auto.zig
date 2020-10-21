@@ -103,7 +103,7 @@ pub fn create(
 pub fn destroy(selfptr: anytype, comptime fields: anytype) void {
     inline for (fields) |ft| {
         const fieldName = @tagName(ft);
-        const FieldType = help.FieldType(@TypeOf(selfptr).Child, fieldName);
+        const FieldType = help.FieldType(std.meta.Child(@TypeOf(selfptr)), fieldName);
         if (@hasDecl(FieldType, "autoDeinit"))
             @field(selfptr, fieldName).autoDeinit()
         else if (@hasDecl(FieldType, "deinit"))

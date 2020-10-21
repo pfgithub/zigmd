@@ -69,7 +69,7 @@ pub const ID = struct {
 pub const Text = struct {
     id: ID,
     text: ?struct {
-        hash: u32, // std.hash.autoHash("text")
+        hash: u64, // std.hash.autoHash("text")
         text: win.Text,
         color: win.Color,
         font: *win.Font,
@@ -227,10 +227,10 @@ pub fn Interpolation(comptime Kind: type) type {
         pub fn animationProgress(cinterp: Interp, imev: *ImEvent) f64 {
             const dat = cinterp.value.started;
             const timeOffset = cinterp.animationProgressLinear(imev);
-            return switch (dat.easeMode) {
-                .forward => dat.timingFunction(timeOffset),
-                .reverse => 1 - dat.timingFunction(1 - timeOffset),
-                .positive, .negative => blk: {
+            switch (dat.easeMode) {
+                .forward => return dat.timingFunction(timeOffset),
+                .reverse => return 1 - dat.timingFunction(1 - timeOffset),
+                .positive, .negative => {
                     if (!isInt) @panic(".positive is only available for integer types");
                     const target = cinterp.final();
                     return if (if (dat.easeMode == .positive) dat.base > target else dat.base < target)
@@ -238,7 +238,7 @@ pub fn Interpolation(comptime Kind: type) type {
                     else
                         1 - dat.timingFunction(1 - timeOffset);
                 },
-            };
+            }
         }
         pub fn get(cinterp: Interp, imev: *ImEvent) Kind {
             const dat = cinterp.value.started; // only call get after value has been set at least once
@@ -630,7 +630,7 @@ fn UnionEditor(comptime Union: type) type {
 
             const callOptions: std.builtin.CallOptions = .{};
             inline for (typeInfo.fields) |field| {
-                if (@enumToInt(activeTag) == field.enum_field.?.value) {
+                if (activeTag == @field(Union, field.name)) {
                     var addY = (try @call(
                         callOptions,
                         help.FieldType(ModeData, field.name).render,

@@ -205,7 +205,7 @@ pub fn unionCallReturnsThis(comptime Union: type, comptime method: []const u8, e
 
     const callOpts: std.builtin.CallOptions = .{};
     inline for (typeInfo.fields) |field| {
-        if (@enumToInt(enumValue) == field.enum_field.?.value) {
+        if (enumValue == @field(Union, field.name)) {
             return @unionInit(Union, field.name, @call(callOpts, @field(field.field_type, method), args));
         }
     }
@@ -221,7 +221,7 @@ pub fn unionCallThis(comptime method: []const u8, unionValue: anytype, args: any
 
     const callOpts: std.builtin.CallOptions = .{};
     inline for (typeInfo.fields) |field| {
-        if (@enumToInt(std.meta.activeTag(if (isPtr) unionValue.* else unionValue)) == field.enum_field.?.value) {
+        if (std.meta.activeTag(if (isPtr) unionValue.* else unionValue) == @field(Union, field.name)) {
             return @call(callOpts, @field(field.field_type, method), .{if (isPtr) &@field(unionValue, field.name) else @field(unionValue, field.name)} ++ args);
         }
     }

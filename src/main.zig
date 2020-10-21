@@ -1079,25 +1079,25 @@ pub const App = struct {
 
     // this should probably accept the starting location as an argument
     fn findStop(app: *App, stop: CharacterStop, direction: Direction) usize {
-        return switch (stop) {
+        switch (stop) {
             .byte => switch (direction) {
-                .left => blk: {
+                .left => {
                     if (app.cursorLocation > 0) {
-                        break :blk app.cursorLocation - 1;
+                        return app.cursorLocation - 1;
                     } else {
-                        break :blk 0;
+                        return 0;
                     }
                 },
-                .right => blk: {
+                .right => {
                     if (app.cursorLocation + 1 < app.text.items.len) {
-                        break :blk app.cursorLocation + 1;
+                        return app.cursorLocation + 1;
                     } else {
-                        break :blk app.text.items.len;
+                        return app.text.items.len;
                     }
                 },
             },
             .codepoint => switch (direction) {
-                .left => blk: {
+                .left => {
                     var i = app.cursorLocation;
                     while (i > 0) {
                         i -= 1;
@@ -1105,9 +1105,9 @@ pub const App = struct {
                         if (char <= 0b01111111) break;
                         if (char & 0b01000000 != 0) break;
                     }
-                    break :blk i;
+                    return i;
                 },
-                .right => blk: {
+                .right => {
                     var i = app.cursorLocation;
                     while (i < app.text.items.len - 1) {
                         i += 1;
@@ -1115,12 +1115,12 @@ pub const App = struct {
                         if (char <= 0b01111111) break;
                         if (char & 0b01000000 != 0) break;
                     }
-                    break :blk i;
+                    return i;
                 },
             },
             .lowestLevelNode => switch (direction) {
                 .left => @panic("niy"),
-                .right => blk: {
+                .right => {
                     var i = app.cursorLocation;
                     // find last node ending <= i
                     // move one node right, go to max depth
@@ -1147,7 +1147,7 @@ pub const App = struct {
             else => {
                 std.debug.panic("not implemented", .{});
             },
-        };
+        }
     }
 
     /// measure a single line. do not mesaure if the line has not changed.
@@ -1459,7 +1459,7 @@ pub const App = struct {
                 window,
             );
             defer text.deinit();
-            if (std.builtin.os.tag != .macosx)
+            if (std.builtin.os.tag != .macos)
                 try text.render(.{
                     .x = fullArea.x + fullArea.w - text.size.w,
                     .y = fullArea.y + fullArea.h - text.size.h,
