@@ -91,17 +91,17 @@ pub const Camera = struct {
     pub fn toScreenPoint(camera: Camera, worldPoint: WorldPoint) ScreenPoint {
         return Point.from(worldPoint)
         // 1: untranslate
-        .subVec(camera.topLeft)
+            .subVec(camera.topLeft)
         // 2: unscale
-        .mul(camera.tileSize) //
+            .mul(camera.tileSize) //
             .as(ScreenPoint);
     }
     pub fn toWorldPoint(camera: Camera, screenPoint: ScreenPoint) WorldPoint {
         return Point.from(screenPoint)
         // 1: scale
-        .div(camera.tileSize)
+            .div(camera.tileSize)
         // 2: translate
-        .addVec(camera.topLeft) //
+            .addVec(camera.topLeft) //
             .as(WorldPoint);
     }
 };

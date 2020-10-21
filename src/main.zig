@@ -13,6 +13,138 @@ const ArrayList = std.ArrayList;
 const Auto = gui.Auto;
 const ImEvent = gui.ImEvent;
 
+pub const SyntaxHighlighter = union(enum) {
+    const Core = EditorCore(DefaultMeasurer);
+
+    pub fn edit(me: *SyntaxHighlighter, start: Core.CharacterPosition, oldEnd: Core.Character, newEnd: Core.CharacterPosition) void {
+        return help.unionCallThis("edit", me, .{ start, oldEnd, newEnd });
+    }
+    pub fn findNextSplit(me: *SyntaxHighlighter, pos: Core.CharacterPosition) Core.NextSplit {
+        return help.unionCallThis("findNextSplit", me, .{pos});
+    }
+
+    treeSitter: struct {
+        language: enum { markdown },
+        tree: ts.Tree,
+        treeEdited: bool = false,
+        treeIter: ?ts.TreeCursor = null,
+
+        const Me = @This();
+        pub fn edit(
+            me: *Me,
+            start: Core.CharacterPosition,
+            oldEnd: Core.CharacterPosition,
+            newEnd: Core.CharacterPosition,
+        ) void {
+            std.debug.warn("Noted edit from [{}, {}] => [{}, {}]\n", .{ start, oldEnd, start, newEnd });
+            me.tree.edit(
+                .{ .byte = start.byte, .row = start.lyn, .col = start.col },
+                .{ .byte = oldEnd.byte, .row = oldEnd.lyn, .col = oldEnd.col },
+                .{ .byte = newEnd.byte, .row = newEnd.lyn, .col = newEnd.col },
+            );
+            me.treeEdited = true;
+        }
+        pub fn findNextSplit(me: *Me, pos: Core.CharacterPosition) Core.NextSplit {
+            if (me.treeEdited) {
+                me.treeEdited = false;
+                me.treeIter = null;
+                // I didn't expect this to work first try
+                // this mostly goes right to left so it might be possible to not loop over everything all the time
+                me.tree.reparseFn(me, struct {
+                    fn a(me_: *Me, pos_: ts.Point) []const u8 {
+                        var pt: Core.TextPoint = .{ .text = &me_.core.code.value, .offset = 0 };
+                        pt = me_.core.addPoint(pt, @intCast(i64, pos_.byte));
+                        while (pt.offset == pt.text.len()) {
+                            pt.text = pt.text.next() orelse return "";
+                            pt.offset = 0;
+                        }
+                        return pt.text.text.items[pt.offset..];
+                    }
+                }.a);
+            }
+
+            if (me.treeIter == null) {
+                me.treeIter = ts.TreeCursor.init(me.tree.root());
+            }
+
+            var distance: usize = 1;
+            var cpos = pos;
+            while (cpos.char()) |chr| {
+                if (chr == '\n') break; // character after the newline. would be useful to split both before and after.
+                if (chr == ' ') break; // character after the space
+                cpos = cpos.next() orelse break;
+                distance += 1;
+            }
+
+            var node = ts.getNodeAtPosition(pos.byte, &me.treeIter.?);
+            const nodeDistance = if (node.position().to < pos.byte)
+                // what
+                std.math.maxInt(u64)
+            else
+                node.position().to - pos.byte;
+            // uh oh! the issue is that:
+            // eg [   [      ]  | [ ]     ] the outer area can be selected and it doesn't know of
+            // the inner area
+            // instead of getting the node end position, we need to get the start position of the next node after this node
+            // or this node's end node, whichever comes first. that sounds difficult
+            // std.debug.warn("Byte: {}, Node Position: {}\n", .{ pos.byte, node.position() });
+            if (nodeDistance < distance) distance = nodeDistance;
+
+            const style = node.createClassesStruct(pos.byte).renderStyle();
+            const newlines = switch (style) {
+                else => true,
+                .showInvisibles => |si| switch (si) {
+                    .all => false,
+                    .inlin_ => true,
+                },
+            };
+
+            return .{ .distance = distance, .style = .{ .newlines = newlines, .renderStyle = style } };
+        }
+    },
+    zig: struct {
+        // std.zig.tokenizer. only changed lines need to update. strings
+        // have to be parsed manually because that's how the tokenizer
+        // works. maybe it's faster or something, maybe it's just easier, idk
+        tokenizer: ?std.zig.Tokenizer = null,
+
+        const Me = @This();
+        pub fn edit(
+            me: *Me,
+            start: Core.CharacterPosition,
+            oldEnd: Core.CharacterPosition,
+            newEnd: Core.CharacterPosition,
+        ) void {
+            // mark these lines as edited
+            // only edited lines need to be retokenized
+        }
+        pub fn findNextSplit(me: *Me, pos: Core.CharacterPosition) Core.NextSplit {
+            // either start a tokenizer (pos is at beginning of line) or continue the existing one
+            // assert that the first call of this function is at the beginning of a line
+            // fetch one line of text
+            // tokenize
+            var distance: usize = 1;
+            var cpos = pos;
+            while (cpos.char()) |chr| {
+                if (chr == '\n') break; // character after the newline. would be useful to split both before and after.
+                if (chr == ' ') break; // character after the space
+                cpos = cpos.next() orelse break;
+                distance += 1;
+            }
+            const style = node.createClassesStruct(pos.byte).renderStyle();
+            const newlines = switch (style) {
+                else => true,
+                .showInvisibles => |si| switch (si) {
+                    .all => false,
+                    .inlin_ => true,
+                },
+            };
+
+            return .{ .distance = distance, .style = .{ .newlines = newlines, .renderStyle = style } };
+        }
+    },
+};
+
 pub const DefaultMeasurer = struct {
     const Me = @This();
     const Core = EditorCore(Me);
@@ -93,7 +225,7 @@ pub const DefaultMeasurer = struct {
 
         var node = ts.getNodeAtPosition(pos.byte, &me.treeIter.?);
         const nodeDistance = if (node.position().to < pos.byte)
-        // what
+            // what
             std.math.maxInt(u64)
         else
             node.position().to - pos.byte;

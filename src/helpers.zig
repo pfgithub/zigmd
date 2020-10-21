@@ -268,15 +268,18 @@ fn FunctionReturn(comptime Type: type) type {
     };
 }
 pub fn function(data: anytype) FunctionReturn(@typeInfo(@TypeOf(data)).Pointer.child).All {
-    const Type = @typeInfo(@TypeOf(data)).Pointer.child;
+    return undefined;
+}
+pub fn function_(data: anytype) FunctionReturn(@typeInfo(@TypeOf(data)).Pointer.child).All {
+    comptime const Type = comptime @typeInfo(@TypeOf(data)).Pointer.child;
     comptime if (@TypeOf(data) != *const Type) unreachable;
-    const FnReturn = FunctionReturn(Type);
-    const CallFn = struct {
+    comptime const FnReturn = comptime FunctionReturn(Type);
+    comptime const CallFn = struct {
         pub fn call(thisArg: FnReturn.All, args: anytype) FnReturn.Return {
             return @call(data.call, .{@intToPtr(@TypeOf(data), thisArg.data)} ++ args);
         }
     }.call;
-    @compileLog(FnReturn.All);
+    //@compileLog(FnReturn.All);
     return .{
         .data = @ptrToInt(data),
         .call = &CallFn,
@@ -285,8 +288,8 @@ pub fn function(data: anytype) FunctionReturn(@typeInfo(@TypeOf(data)).Pointer.c
 test "function" {
     // oops Unreachable at /deps/zig/src/analyze.cpp:5922 in type_requires_comptime. This is a bug in the Zig compiler.
     // zig compiler bug + something is wrong in my code
-    if (false) {
-        const Position = struct { x: i64, y: i64 };
+    if (true) {
+        comptime const Position = struct { x: i64, y: i64 };
         const testFn: Function(.{ f64, Position }, f32) = function(&struct {
             number: f64,
             pub fn call(data: *@This(), someValue: f64, argOne: Position) f32 {
@@ -300,6 +303,8 @@ test "function" {
         // unfortunately there is no varargs or way to comptime set custom fn args so this has to be a .{array}
     }
 }
+
+test "function v2" {}
 
 /// the stdlib comptime hashmap is only created once and makes a "perfect hash"
 /// so this works I guess.
