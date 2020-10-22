@@ -32,6 +32,63 @@ test "demo tree" {
     header.setChildNode(try header.createNode(.{ .number = 25 }));
 
     std.testing.expectEqual(ComputedProperty{ .index = 1, .total = 26 }, header.total());
+
+    const findIndexEqual = struct {
+        fn imfn(value: ComputedProperty, expected: usize) Tree.Compare {
+            // std.debug.warn("Index: {}, Data: {}\n", .{ value.index, expected });
+            if (expected < value.index) return .left;
+            if (expected > value.index) return .right;
+            return .equal;
+        }
+    }.imfn;
+
+    printTree(header);
+
+    if (header.find(findIndexEqual, 0)) |_| @panic("Was supposed to not find");
+    if (header.find(findIndexEqual, 1)) |found| std.testing.expect(25 == found.data.number) else @panic("Did not find");
+    if (header.find(findIndexEqual, 2)) |_| @panic("Was supposed to not find");
+
+    {
+        // std.debug.warn("Inserting node 15… ", .{});
+        const new_node = try header.createNode(.{ .number = 15 });
+        (header.find(findIndexEqual, 1) orelse @panic("Did not find")).insert(.left, new_node);
+        // std.debug.warn("Done\n", .{});
+    }
+
+    printTree(header);
+
+    {
+        // std.debug.warn("Inserting node 25… ", .{});
+        const new_node = try header.createNode(.{ .number = 20 });
+        const found_node = header.find(findIndexEqual, 2) orelse @panic("Did not find");
+        // std.debug.warn("Found… ", .{});
+        found_node.insert(.right, new_node);
+        // std.debug.warn("Done\n", .{});
+    }
+
+    printTree(header);
+
+    if (header.find(findIndexEqual, 0)) |_| @panic("Was supposed to not find");
+    if (header.find(findIndexEqual, 1)) |found| std.testing.expect(15 == found.data.number) else @panic("Did not find");
+    if (header.find(findIndexEqual, 2)) |found| std.testing.expect(25 == found.data.number) else @panic("Did not find");
+    if (header.find(findIndexEqual, 3)) |found| std.testing.expect(20 == found.data.number) else @panic("Did not find");
+    if (header.find(findIndexEqual, 4)) |_| @panic("Was supposed to not find");
+}
+
+fn printTree(header: anytype) void {
+    std.debug.warn("Printing Tree!\n", .{});
+    std.debug.warn("Tree: […]", .{});
+    var iter = header.firstNode() orelse @panic("No start node");
+    std.debug.warn("\x1b[D\x1b[D", .{});
+    var first = true;
+    while (true) {
+        iter.validate();
+        if (!first) std.debug.warn("\x1b[K", .{});
+        first = false;
+        std.debug.warn("{}: {}, …]\x1b[D\x1b[D", .{ iter.computeAbsolute().index, iter.data.number });
+        iter = iter.next() orelse break;
+    }
+    std.debug.warn("\x1b[D\x1b[D\x1b[K]\n", .{});
 }
 
 // must be defined out here to avoid shadowing rules
@@ -44,7 +101,10 @@ const Direction = enum(u1) {
     right,
     const all = [_]Direction{ .left, .right };
     fn next(comptime dir: Direction) Direction {
-        comptime return @intToEnum(@typeOf(direction), @enumToInt(direction) +% 1);
+        comptime return switch (dir) {
+            .left => .right,
+            .right => .left,
+        };
     }
     fn name(comptime dir: Direction) []const u8 {
         comptime return @tagName(dir);
@@ -69,7 +129,7 @@ const DataHeader = struct {
     pub fn deinit(me: *DataHeader) void {}
 };
 
-/// A balanced(TODO) binary tree
+/// an avl(TODO) binary tree
 ///
 /// Data must match DataHeader, ComputedProperty must match ComputedPropertyHeader
 fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
@@ -125,10 +185,57 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
                 header.treetop = child_node;
                 if (child_node) |chn| chn.parent = .{ .header = header };
             }
-            pub fn total(header: Header) ComputedProperty {
+            pub fn total(header: *const Header) ComputedProperty {
                 return if (header.treetop) |top| top.total() else ComputedProperty.zero;
             }
+            pub fn find(header: *const Header, comptime findfn: anytype, data: FindFnDataArg(findfn)) ?*Node {
+                if (header.treetop) |top| return top.find(ComputedProperty.zero, findfn, data) //
+                else return null;
+            }
+            pub fn firstNode(header: *Header) ?*Node {
+                if (header.treetop) |top| return top.firstNode() //
+                else return null;
+            }
+            pub fn lastNode(header: *Header) ?*Node {
+                if (header.treetop) |top| return top.lastNode() //
+                else return null;
+            }
         };
+
+        const Compare = enum { left, right, equal };
+        fn FindFnDataArg(comptime findfn: anytype) type {
+            // header match fn(a: computed, data: header_match.any) Compare {return undefined}
+            return @typeInfo(@TypeOf(findfn)).Fn.args[1].arg_type.?;
+        }
+
+        /// node.find(ComputedProperty.zero,
+        ///     fn(v: ComputedProperty, data: usize) Tree.Compare {
+        ///         if (lhs.index < rhs.index) return .lt;
+        ///         if (lhs.index > rhs.index) return .gt;
+        ///         return .eq;
+        ///     }, 1);
+        ///
+        /// note that the type of the second arg to the find function is used as the third arg in find
+        pub fn find(node: *Node, base: ComputedProperty, comptime findfn: anytype, data: FindFnDataArg(findfn)) ?*Node {
+            // eg to find the node with index: 1
+            // check base + lhs_computed + ComputedProperty.copute(node.data)
+            // if <, enter lhs
+            // if =, return node
+            // if >, enter rhs
+            const computed = base.add(node.left_computed).add(ComputedProperty.compute(node.data));
+            switch (findfn(computed, data)) {
+                .left => if (node.left) |left| {
+                    // TODO this should be able to tail but f
+                    // return @call(.{ .modifier = .always_tail }, find, .{ node, base, findfn, data });
+                    return find(left, base, findfn, data);
+                } else return null,
+                .equal => return node,
+                .right => if (node.right) |right| {
+                    // return @call(.{ .modifier = .always_tail }, find, .{ node, computed, findfn, data });
+                    return find(right, computed, findfn, data);
+                } else return null,
+            }
+        }
 
         /// set the data of this node
         fn setData(node: *Node, data: Data) void {
@@ -152,12 +259,13 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
             var current: *Node = start;
             while (true) {
                 const parent = current.parent.as(.node) orelse break;
-                if (current == parent.right) break;
+                defer current = parent;
+                if (current == parent.right) continue; // I think
                 if (current != parent.left) unreachable;
-                current = parent;
-                current.left_computed = switch (add_sub) {
-                    .add => current.left_computed.add(total_),
-                    .sub => current.left_computed.sub(total_),
+
+                parent.left_computed = switch (add_sub) {
+                    .add => parent.left_computed.add(total_),
+                    .sub => parent.left_computed.sub(total_),
                 };
             }
         }
@@ -179,14 +287,28 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
         }
 
         /// compute the total computed property of this tree. O(log n)
-        fn total(node: *Node) ComputedProperty {
+        fn total(node: *const Node) ComputedProperty {
             var total_ = ComputedProperty.zero; // wow these shadowing rules are bad
-            var deepest_right: ?*Node = node;
+            var deepest_right: ?*const Node = node;
             while (deepest_right) |right| {
                 total_ = total_.add(right.left_computed).add(ComputedProperty.compute(right.data));
                 deepest_right = right.right;
             }
             return total_;
+        }
+
+        // compute the absolute property before this node
+        fn computeAbsolute(node: *const Node) ComputedProperty {
+            var current = node.left_computed;
+            var highest = node;
+            while (true) {
+                const parent = highest.parent.as(.node) orelse break;
+                defer highest = parent;
+                if (highest == parent.right) current = current.add(parent.left_computed).add(ComputedProperty.compute(parent.data)) //
+                else if (highest == parent.left) {} //
+                else unreachable;
+            }
+            return current;
         }
 
         /// unseat this tree to move it elsewhere
@@ -261,14 +383,16 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
         }
 
         /// set node.[direction] to new and propagate compute
-        fn insertInternal(node: *Node, comptime direction: Direction, new: ?*Node) void {
+        fn insertInternal(parent: *Node, comptime direction: Direction, new: ?*Node) void {
             // code written for setting left field
             comptime const left = direction;
 
-            if (node.c(left) == null) unreachable; // error, trying to overwrite an existing tree. use unseatSwap instead.
-            node.s(left).* = new;
-            if (new) |nw| nw.parent = .{ .node = node.c(left).? };
-            if (new) |nw| nw.propagate(.add, nw.total());
+            if (parent.c(left) != null) unreachable; // error, trying to overwrite an existing tree. use unseatSwap instead.
+            parent.s(left).* = new;
+            if (new) |nw| {
+                nw.parent = .{ .node = parent };
+                nw.propagate(.add, nw.total());
+            }
         }
 
         // insert new to the left or right of this node. TODO avl auto balancing
@@ -276,13 +400,63 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
             node.insertInternal(direction, new); // TODO support inserting left if node.left already exists
         }
 
+        fn edge(node: *Node, comptime direction: Direction) *Node {
+            comptime const left = direction;
+
+            var deepest = node.c(left) orelse return node;
+            while (true) deepest = deepest.c(left) orelse return deepest;
+        }
+        fn firstNode(node: *Node) *Node {
+            return node.edge(.left);
+        }
+        fn lastNode(node: *Node) *Node {
+            return node.edge(.right);
+        }
+
+        fn validateChild(node: *Node, comptime direction: Direction) void {
+            comptime const left = direction;
+
+            if (node.c(left)) |left_child| {
+                switch (left_child.parent) {
+                    .none => unreachable, // error: child does not have parent
+                    .header => unreachable, // error: child's parent is header when it should be node
+                    .node => |child_parent| if (child_parent != node) unreachable, // error: child's parent is the wrong onde
+                }
+            }
+        }
+
+        /// assert that connections are ok
+        fn validate(node: *Node) void {
+            // inline for is crashing f
+            node.validateChild(.left);
+            node.validateChild(.right);
+            switch (node.parent) {
+                .none => {}, // OK
+                .header => |header| if (header.treetop != node) unreachable, // error: header's child is not this node
+                .node => |parent_node| if (parent_node.left != node and parent_node.right != node) unreachable, // error: neither of this node's parent's children are this node
+            }
+            // TODO confirm left_comptued == left.total()?
+        }
+
         /// sequential node left or right
         fn sequential(node: *Node, comptime direction: Direction) ?*Node {
             comptime const right = direction;
-            comptime const left = directon.next();
+            comptime const left = direction.next();
 
-            var deepest = node.c(right) orelse return node.parent.as(.node); // if parent is header/none, return null
-            while (true) deepest = node.c(left) orelse return deepest;
+            var deepest = node.c(right) orelse {
+                // go up to the nearest parent where this is the left child
+                var deepest = node;
+                while (deepest.parent.as(.node)) |parent| {
+                    if (parent.c(left) == deepest) return parent;
+                    if (parent.c(right) == deepest) {
+                        deepest = parent;
+                        continue;
+                    }
+                    unreachable; // bad tree
+                }
+                return null;
+            };
+            while (true) deepest = deepest.c(left) orelse return deepest;
         }
 
         /// sequential next line
