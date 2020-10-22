@@ -73,19 +73,26 @@ test "demo tree" {
         (header.find(findIndexEqual, i) orelse @panic("Did not find")).insert(.left, new_node);
     }
     printTree(header);
-    printTreeRecursive(header.treetop.?);
+    printTreeRecursive(header);
+    header.find(findIndexEqual, 5).?.rotate(.right);
+    printTreeRecursive(header);
 }
 
 fn range(max: usize) []const void {
     return @as([]const void, &[_]void{}).ptr[0..max];
 }
 
-fn printTreeRecursive(node: anytype) void {
+fn printTreeRecursive(header: anytype) void {
+    printTreeRecursiveInternal(header.treetop.?);
+    std.debug.warn("\n", .{});
+}
+
+fn printTreeRecursiveInternal(node: anytype) void {
     std.debug.warn("[", .{});
-    if (node.left) |left| printTreeRecursive(left) //
+    if (node.left) |left| printTreeRecursiveInternal(left) //
     else std.debug.warn("∅", .{});
     std.debug.warn(", {}, ", .{node.data.number});
-    if (node.right) |right| printTreeRecursive(right) //
+    if (node.right) |right| printTreeRecursiveInternal(right) //
     else std.debug.warn("∅", .{});
     std.debug.warn("]", .{});
 }
@@ -180,6 +187,7 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
         left: ?*Node = null,
         right: ?*Node = null,
         left_computed: ComputedProperty = ComputedProperty.zero,
+        height: usize = 1, // = max(left.height, right.height)
         data: Data,
 
         const Header = struct {
@@ -317,7 +325,7 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
             return total_;
         }
 
-        // compute the absolute property before this node
+        /// compute the absolute property before this node
         fn computeAbsolute(node: *const Node) ComputedProperty {
             var current = node.left_computed;
             var highest = node;
@@ -339,6 +347,7 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
         /// unseat this tree and put replacement in its place
         fn unseatSwap(node: *Node, replacement: ?*Node) *Node {
             node.propagate(.sub, node.total());
+            if (replacement) |r| if (r.parent != .none) unreachable; // replacement node must be unseated
             // connect parent ↔ replacement
             switch (node.parent) {
                 .none => {},
@@ -382,8 +391,8 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
         /// in the opposite of direction.
         fn rotate(node: *Node, comptime direction: Direction) void {
             // code written for right rotation
-            comptime const right = @tagName(direction);
-            comptime const left = @tagName(directon.next());
+            comptime const right = direction;
+            comptime const left = direction.next();
 
             //   node    |  node               |   x_tree           |  x_tree            |  x_tree      //
             //    …      |  …                  |    …               |    …               |    …         //
@@ -394,14 +403,32 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
             //   / \     |            T1 T2    |                T3  |         \          |       / \    //
             //  T1 T2    |                     |                    |          T3        |      T2  T3  //
 
-            if (@field(node, left) == null) unreachable; // this operation is not allowed without a vaild tree to operate on
-            const x_tree = @field(node, left).?.unseatTree();
+            if (node.c(left) == null) unreachable; // this operation is not allowed without a vaild tree to operate on
+            const x_tree = node.c(left).?.unseatTree();
             const y_tree = node.unseatSwap(x_tree);
-            const t2 = if (@field(x_tree, right)) |t2| t2.unseatSwap(y_tree) else null;
-            y_tree.insertInternal(.left, t2);
+            const t2 = x_tree.swapChild(right, y_tree);
+            if (t2) |v| y_tree.insertInternal(left, v);
         }
 
-        /// set node.[direction] to new and propagate compute
+        fn updateHeight(node: *Node) void {
+            var current = node;
+            while (true) {
+                current.height = std.math.max(if (current.left) |l| l.height else 0, if (current.right) |r| r.height else 0) + 1;
+                current = current.parent.as(.node) orelse break;
+            }
+        }
+
+        fn swapChild(parent: *Node, comptime direction: Direction, new: ?*Node) ?*Node {
+            comptime const right = direction;
+            if (parent.c(right)) |right_child| {
+                return right_child.unseatSwap(new);
+            } else {
+                if (new) |n| parent.insertInternal(right, n);
+                return null;
+            }
+        }
+
+        /// set node.[direction] to new and propagate compute and update height
         fn insertInternal(parent: *Node, comptime direction: Direction, new: *Node) void {
             // code written for setting left field
             comptime const left = direction;
@@ -413,6 +440,7 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
 
             new.parent = .{ .node = parent };
             new.propagate(.add, new.total());
+            parent.updateHeight();
         }
 
         // insert new to the left or right of this node. TODO avl auto balancing
@@ -426,6 +454,11 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
             } else {
                 parent.insertInternal(left, new);
             }
+
+            // go up until the first unbalanced node
+            // rotate
+            // oh it looks like node heights have to be stored
+            // I'll store it with the other computed properties so it just auto updates when using the placement primitives (unseatSwap and insertInternal)
         }
 
         fn edge(node: *Node, comptime direction: Direction) *Node {
