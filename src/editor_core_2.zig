@@ -44,35 +44,28 @@ test "demo tree" {
 
     printTree(header);
 
-    if (header.find(findIndexEqual, 0)) |_| @panic("Was supposed to not find");
-    if (header.find(findIndexEqual, 1)) |found| std.testing.expect(25 == found.data.number) else @panic("Did not find");
-    if (header.find(findIndexEqual, 2)) |_| @panic("Was supposed to not find");
+    if (header.find(findIndexEqual, 0)) |found| std.testing.expect(25 == found.data.number) else @panic("Did not find");
+    if (header.find(findIndexEqual, 1)) |_| @panic("Was supposed to not find");
 
     {
-        // std.debug.warn("Inserting node 15… ", .{});
         const new_node = try header.createNode(.{ .number = 15 });
-        (header.find(findIndexEqual, 1) orelse @panic("Did not find")).insert(.left, new_node);
-        // std.debug.warn("Done\n", .{});
+        (header.find(findIndexEqual, 0) orelse @panic("Did not find")).insert(.left, new_node);
     }
 
     printTree(header);
 
     {
-        // std.debug.warn("Inserting node 25… ", .{});
         const new_node = try header.createNode(.{ .number = 20 });
-        const found_node = header.find(findIndexEqual, 2) orelse @panic("Did not find");
-        // std.debug.warn("Found… ", .{});
+        const found_node = header.find(findIndexEqual, 1) orelse @panic("Did not find");
         found_node.insert(.right, new_node);
-        // std.debug.warn("Done\n", .{});
     }
 
     printTree(header);
 
-    if (header.find(findIndexEqual, 0)) |_| @panic("Was supposed to not find");
-    if (header.find(findIndexEqual, 1)) |found| std.testing.expect(15 == found.data.number) else @panic("Did not find");
-    if (header.find(findIndexEqual, 2)) |found| std.testing.expect(25 == found.data.number) else @panic("Did not find");
-    if (header.find(findIndexEqual, 3)) |found| std.testing.expect(20 == found.data.number) else @panic("Did not find");
-    if (header.find(findIndexEqual, 4)) |_| @panic("Was supposed to not find");
+    if (header.find(findIndexEqual, 0)) |found| std.testing.expect(15 == found.data.number) else @panic("Did not find");
+    if (header.find(findIndexEqual, 1)) |found| std.testing.expect(25 == found.data.number) else @panic("Did not find");
+    if (header.find(findIndexEqual, 2)) |found| std.testing.expect(20 == found.data.number) else @panic("Did not find");
+    if (header.find(findIndexEqual, 3)) |_| @panic("Was supposed to not find");
 }
 
 fn printTree(header: anytype) void {
@@ -218,11 +211,11 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
         /// note that the type of the second arg to the find function is used as the third arg in find
         pub fn find(node: *Node, base: ComputedProperty, comptime findfn: anytype, data: FindFnDataArg(findfn)) ?*Node {
             // eg to find the node with index: 1
-            // check base + lhs_computed + ComputedProperty.copute(node.data)
+            // check base + lhs_computed
             // if <, enter lhs
             // if =, return node
-            // if >, enter rhs
-            const computed = base.add(node.left_computed).add(ComputedProperty.compute(node.data));
+            // if >, enter rhs + ComputedProperty.copute(node.data)
+            const computed = base.add(node.left_computed);
             switch (findfn(computed, data)) {
                 .left => if (node.left) |left| {
                     // TODO this should be able to tail but f
@@ -232,7 +225,7 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
                 .equal => return node,
                 .right => if (node.right) |right| {
                     // return @call(.{ .modifier = .always_tail }, find, .{ node, computed, findfn, data });
-                    return find(right, computed, findfn, data);
+                    return find(right, computed.add(ComputedProperty.compute(node.data)), findfn, data);
                 } else return null,
             }
         }
