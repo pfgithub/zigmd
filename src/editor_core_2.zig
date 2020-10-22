@@ -55,7 +55,7 @@ test "demo tree" {
     printTree(header);
 
     {
-        const new_node = try header.createNode(.{ .number = 20 });
+        const new_node = try header.createNode(.{ .number = 35 });
         const found_node = header.find(findIndexEqual, 1) orelse @panic("Did not find");
         found_node.insert(.right, new_node);
     }
@@ -64,22 +64,49 @@ test "demo tree" {
 
     if (header.find(findIndexEqual, 0)) |found| std.testing.expect(15 == found.data.number) else @panic("Did not find");
     if (header.find(findIndexEqual, 1)) |found| std.testing.expect(25 == found.data.number) else @panic("Did not find");
-    if (header.find(findIndexEqual, 2)) |found| std.testing.expect(20 == found.data.number) else @panic("Did not find");
+    if (header.find(findIndexEqual, 2)) |found| std.testing.expect(35 == found.data.number) else @panic("Did not find");
     if (header.find(findIndexEqual, 3)) |_| @panic("Was supposed to not find");
+
+    // balancing test
+    for (range(10)) |_, i| {
+        const new_node = try header.createNode(.{ .number = i });
+        (header.find(findIndexEqual, i) orelse @panic("Did not find")).insert(.left, new_node);
+    }
+    printTree(header);
+    printTreeRecursive(header.treetop.?);
+}
+
+fn range(max: usize) []const void {
+    return @as([]const void, &[_]void{}).ptr[0..max];
+}
+
+fn printTreeRecursive(node: anytype) void {
+    std.debug.warn("[", .{});
+    if (node.left) |left| printTreeRecursive(left) //
+    else std.debug.warn("∅", .{});
+    std.debug.warn(", {}, ", .{node.data.number});
+    if (node.right) |right| printTreeRecursive(right) //
+    else std.debug.warn("∅", .{});
+    std.debug.warn("]", .{});
 }
 
 fn printTree(header: anytype) void {
     std.debug.warn("Printing Tree!\n", .{});
     std.debug.warn("Tree: […]", .{});
+    // a real iterator would keep track of the absolute value for you rather
+    // than requiring a worst case O(log n) for each item in the list
     var iter = header.firstNode() orelse @panic("No start node");
     std.debug.warn("\x1b[D\x1b[D", .{});
     var first = true;
+    var i: usize = 0;
     while (true) {
         iter.validate();
         if (!first) std.debug.warn("\x1b[K", .{});
         first = false;
-        std.debug.warn("{}: {}, …]\x1b[D\x1b[D", .{ iter.computeAbsolute().index, iter.data.number });
+        if (iter.computeAbsolute().index != i) @panic("Index mismatch");
+        std.debug.warn("{}, …]\x1b[D\x1b[D", .{iter.data.number});
         iter = iter.next() orelse break;
+        i += 1;
     }
     std.debug.warn("\x1b[D\x1b[D\x1b[K]\n", .{});
 }
@@ -312,24 +339,23 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
         /// unseat this tree and put replacement in its place
         fn unseatSwap(node: *Node, replacement: ?*Node) *Node {
             node.propagate(.sub, node.total());
-            // connect replacement → parent
-            if (replacement) |replcmnt| {
-                if (replcmnt.parent != .none) unreachable; // replacement must be unseated too
-                replcmnt.parent = node.parent;
-            }
-            // connect parent → replacement
+            // connect parent ↔ replacement
             switch (node.parent) {
                 .none => {},
                 .header => |header| {
-                    header.treetop = replacement;
+                    header.treetop = null;
+                    header.setChildNode(replacement);
                 },
-                .node => |parent| inline for (Direction.all) |dir| {
-                    if (parent.c(dir) == node) {
-                        parent.s(dir).* = null;
-                        parent.insertInternal(dir, replacement);
-                        break;
-                    }
-                } else unreachable, // node's parent did not have node as left or right child. if this catches, it might be the fault of the inline for, idk.
+                .node => |parent| {
+                    // inline for(Direction.all) {} else unreachable
+                    if (parent.left == node) {
+                        parent.left = null;
+                        if (replacement) |nw| parent.insertInternal(.left, nw);
+                    } else if (parent.right == node) {
+                        parent.right = null;
+                        if (replacement) |nw| parent.insertInternal(.right, nw);
+                    } else unreachable; // node's parent did not have node as a left or right child.
+                },
             }
             // disconnect node → parent
             node.parent = .none;
@@ -376,21 +402,30 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
         }
 
         /// set node.[direction] to new and propagate compute
-        fn insertInternal(parent: *Node, comptime direction: Direction, new: ?*Node) void {
+        fn insertInternal(parent: *Node, comptime direction: Direction, new: *Node) void {
             // code written for setting left field
             comptime const left = direction;
 
             if (parent.c(left) != null) unreachable; // error, trying to overwrite an existing tree. use unseatSwap instead.
             parent.s(left).* = new;
-            if (new) |nw| {
-                nw.parent = .{ .node = parent };
-                nw.propagate(.add, nw.total());
-            }
+
+            if (new.parent != .none) unreachable; // new node is already parented. it must be unseated before insertion.
+
+            new.parent = .{ .node = parent };
+            new.propagate(.add, new.total());
         }
 
         // insert new to the left or right of this node. TODO avl auto balancing
-        fn insert(node: *Node, comptime direction: Direction, new: ?*Node) void {
-            node.insertInternal(direction, new); // TODO support inserting left if node.left already exists
+        fn insert(parent: *Node, comptime direction: Direction, new: *Node) void {
+            comptime const left = direction;
+            if (new.left != null or new.right != null) unreachable; // new node is not an orphan
+
+            if (parent.c(left)) |prev_left| {
+                const old_left = prev_left.unseatSwap(new);
+                new.insertInternal(left, old_left);
+            } else {
+                parent.insertInternal(left, new);
+            }
         }
 
         fn edge(node: *Node, comptime direction: Direction) *Node {
