@@ -429,11 +429,7 @@ fn structImplements(
                 if (implements(fndecl.fn_type, fnimpl.fn_type, namedContext, memo)) |err|
                     return err;
             },
-            else => |v| return namedContext.err(
-                "Not supported yet: " ++ @tagName(headerDataType),
-                Header,
-                Implementation,
-            ),
+            .Var => |typ| if (implements(typ, @TypeOf(@field(Implementation, decl.name)), namedContext, memo)) |err| return err,
         }
     }
     for (implementation.decls) |decl| {
