@@ -25,6 +25,8 @@ test "demo tree" {
         }
     };
     const Tree = CreateTree(Data, ComputedProperty);
+    // var arena_alloc = std.heap.ArenaAllocator.init(std.testing.allocator);
+    // const alloc = &arena_alloc.allocator;
     const alloc = std.testing.allocator;
 
     var header = try Tree.Header.create(alloc);
@@ -72,15 +74,35 @@ test "demo tree" {
     // balancing test
 
     const node_count_to_add = 1_000; // 100_000 takes too long to insert. I should profile this and see if it's memory allocation or if it's a real issue
+    const nodes_per_print = 100_000;
+
+    var future_nodes: []*Tree.Node = try header.alloc.alloc(*Tree.Node, node_count_to_add);
+    defer header.alloc.free(future_nodes);
+
+    std.debug.warn("allocating…\n", .{});
+
     var timer = std.time.Timer.start() catch @panic("bad");
     for (range(node_count_to_add)) |_, i| {
-        const new_node = try header.createNode(.{ .number = i });
+        future_nodes[i] = try header.createNode(.{ .number = i });
+
+        if (i % nodes_per_print == 0) {
+            const time = timer.read();
+            std.debug.warn("{},{d:.6}\n", .{ i, @intToFloat(f64, time) / std.time.ns_per_ms / nodes_per_print });
+            timer.reset();
+        }
+    }
+
+    std.debug.warn("inserting…\n", .{});
+
+    timer.reset();
+    for (range(node_count_to_add)) |_, i| {
+        const new_node = future_nodes[i];
         (header.find(findIndexEqual, i) orelse @panic("Did not find")).insert(.left, new_node);
         if (header.find(findIndexEqual, i)) |found| std.testing.expect(i == found.data.number) else @panic("Did not find");
 
-        if (i % 100_000 == 0) {
+        if (i % nodes_per_print == 0) {
             const time = timer.read();
-            std.debug.warn("{},{d:.6}\n", .{ i, @intToFloat(f64, time) / std.time.ns_per_ms / 10_000 });
+            std.debug.warn("{},{d:.6}\n", .{ i, @intToFloat(f64, time) / std.time.ns_per_ms / nodes_per_print });
             timer.reset();
         }
     }
@@ -100,6 +122,7 @@ test "demo tree" {
     const expected_height = std.math.log2_int(usize, array_len) + 3;
     std.debug.warn("array len is: {}\n", .{array_len});
     std.debug.warn("expected height is: {}\n", .{expected_height});
+    std.debug.warn("real height is: {}\n", .{header.treetop.?.height});
     std.testing.expect(header.treetop.?.height <= expected_height);
 
     for (range(node_count_to_add)) |_, i| {
@@ -195,6 +218,8 @@ const DataHeader = struct {
 };
 
 // note the avl balancing is not correct
+// TODO: fix avl balancing
+// TODO: fix insertion to not be slow
 
 /// an avl auto-balancing binary tree
 ///
