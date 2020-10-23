@@ -70,12 +70,29 @@ test "demo tree" {
     printTreeRecursive(header);
 
     // balancing test
-    for (range(100)) |_, i| {
+
+    const node_count_to_add = 1000;
+    for (range(node_count_to_add)) |_, i| {
         const new_node = try header.createNode(.{ .number = i });
         (header.find(findIndexEqual, i) orelse @panic("Did not find")).insert(.left, new_node);
+        if (header.find(findIndexEqual, i)) |found| std.testing.expect(i == found.data.number) else @panic("Did not find");
+    }
+
+    for (range(node_count_to_add)) |_, i| {
+        if (header.find(findIndexEqual, i)) |found| std.testing.expect(i == found.data.number) else @panic("Did not find");
+    }
+
+    for (range(node_count_to_add)) |_, i| {
+        (header.find(findIndexEqual, node_count_to_add - i - 1) orelse @panic("Did not find")).unseat().destroySelf(header.alloc);
     }
     printTree(header);
-    printTreeRecursive(header);
+    // printTree(header);
+    // printTreeRecursive(header);
+
+    if (header.find(findIndexEqual, 0)) |found| std.testing.expect(15 == found.data.number) else @panic("Did not find");
+    if (header.find(findIndexEqual, 1)) |found| std.testing.expect(25 == found.data.number) else @panic("Did not find");
+    if (header.find(findIndexEqual, 2)) |found| std.testing.expect(35 == found.data.number) else @panic("Did not find");
+    if (header.find(findIndexEqual, 3)) |_| @panic("Was supposed to not find");
 }
 
 fn range(max: usize) []const void {
@@ -184,6 +201,31 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
                     @field(Parent, @tagName(tag)) => return @as(Expres, @field(value, @tagName(tag))),
                     else => return @as(?Expres, null),
                 }
+            }
+            pub fn replaceChild(parent: Parent, prev_child: *Node, new_child: ?*Node) void {
+                if (new_child) |newch| if (newch.parent != .none) unreachable; // expected unseated new_child
+                // subtract prev child value so it can be unlinked without issues
+                prev_child.propagate(.sub, prev_child.total());
+                // link parent ⭤ new_child
+                switch (parent) {
+                    .none => {},
+                    .header => |header| {
+                        if (header.treetop != prev_child) unreachable;
+                        header.treetop = null;
+                        header.setChildNode(new_child);
+                    },
+                    .node => |pnode| {
+                        if (pnode.left == prev_child) {
+                            pnode.left = null;
+                            pnode.insertInternal(.left, new_child);
+                        } else if (pnode.right == prev_child) {
+                            pnode.right = null;
+                            pnode.insertInternal(.right, new_child);
+                        } else unreachable; // broken node oops
+                    },
+                }
+                // disconnect prev_child → parent
+                prev_child.parent = .none;
             }
         };
         // would be nice if ends could have empty "node slots" rather than being null. I guess I can do union(enum) rather than ?*Node for that.
@@ -351,44 +393,34 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
 
         /// unseat this tree and put replacement in its place
         fn unseatSwap(node: *Node, replacement: ?*Node) *Node {
-            node.propagate(.sub, node.total());
             if (replacement) |r| if (r.parent != .none) unreachable; // replacement node must be unseated
-            // connect parent ↔ replacement
-            switch (node.parent) {
-                .none => {},
-                .header => |header| {
-                    header.treetop = null;
-                    header.setChildNode(replacement);
-                },
-                .node => |parent| {
-                    // inline for(Direction.all) {} else unreachable
-                    if (parent.left == node) {
-                        parent.left = null;
-                        parent.insertInternal(.left, replacement);
-                    } else if (parent.right == node) {
-                        parent.right = null;
-                        parent.insertInternal(.right, replacement);
-                    } else unreachable; // node's parent did not have node as a left or right child.
-                },
-            }
-            // disconnect node → parent
-            node.parent = .none;
+            // connect parent ↔ replacement and disconnect node from parent
+            node.parent.replaceChild(node, replacement);
+            return node;
+        }
+
+        /// unlink this node and link replacement in its place, without modifying the rest of the tree
+        fn unseatSwapOne(node: *Node, replacement: *Node) *Node {
+            const left = if (node.left) |left| left.unseatSwap(null) else null;
+            const right = if (node.right) |right| right.unseatSwap(null) else null;
+            replacement.insertInternal(.left, left);
+            replacement.insertInternal(.right, right);
+            node.parent.replaceChild(node, replacement);
             return node;
         }
 
         /// unseat this node and reconfigure the tree to still be valid
         fn unseat(node: *Node) *Node {
             if (node.left != null and node.right != null) {
-                const next = node.next() orelse unreachable;
-                if (next.right) |right| {
-                    // unbalanced tree. this might be impossible, idk.
-                    return next.unseatSwap(right.unseatTree());
+                const next_ = node.next() orelse unreachable;
+                if (next_.right) |right| {
+                    return node.unseatSwapOne(next_.unseatSwap(right.unseatTree()));
                 } else {
-                    return next.unseatTree();
+                    return node.unseatSwapOne(next_.unseatTree());
                 }
             } else {
-                const not_null_node = if (node.left) |n| n else if (node.right) |r| r else null;
-                node.unseatSwap(not_null_node);
+                const not_null_node = if (node.left) |n| n.unseatTree() else if (node.right) |r| r.unseatTree() else null;
+                return node.unseatSwap(not_null_node);
             }
         }
 
