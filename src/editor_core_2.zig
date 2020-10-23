@@ -67,14 +67,14 @@ test "demo tree" {
     if (header.find(findIndexEqual, 2)) |found| std.testing.expect(35 == found.data.number) else @panic("Did not find");
     if (header.find(findIndexEqual, 3)) |_| @panic("Was supposed to not find");
 
+    printTreeRecursive(header);
+
     // balancing test
-    for (range(10)) |_, i| {
+    for (range(100)) |_, i| {
         const new_node = try header.createNode(.{ .number = i });
         (header.find(findIndexEqual, i) orelse @panic("Did not find")).insert(.left, new_node);
     }
     printTree(header);
-    printTreeRecursive(header);
-    header.find(findIndexEqual, 5).?.rotate(.right);
     printTreeRecursive(header);
 }
 
@@ -83,6 +83,7 @@ fn range(max: usize) []const void {
 }
 
 fn printTreeRecursive(header: anytype) void {
+    std.debug.warn("Depth: {}, Tree: ", .{header.treetop.?.height});
     printTreeRecursiveInternal(header.treetop.?);
     std.debug.warn("\n", .{});
 }
@@ -156,7 +157,11 @@ const DataHeader = struct {
     pub fn deinit(me: *DataHeader) void {}
 };
 
-/// an avl(TODO) binary tree
+// note I don't think avl is right but whatever
+// actually nvm it is, I just spend a bit longer on it than necessary
+// but that's ok because for like 1mil elements this should only be depth 16 so who cares
+
+/// an avl auto-balancing binary tree
 ///
 /// Data must match DataHeader, ComputedProperty must match ComputedPropertyHeader
 fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
@@ -187,7 +192,7 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
         left: ?*Node = null,
         right: ?*Node = null,
         left_computed: ComputedProperty = ComputedProperty.zero,
-        height: usize = 1, // = max(left.height, right.height)
+        height: isize = 1, // = max(left.height, right.height)
         data: Data,
 
         const Header = struct {
@@ -359,10 +364,10 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
                     // inline for(Direction.all) {} else unreachable
                     if (parent.left == node) {
                         parent.left = null;
-                        if (replacement) |nw| parent.insertInternal(.left, nw);
+                        parent.insertInternal(.left, replacement);
                     } else if (parent.right == node) {
                         parent.right = null;
-                        if (replacement) |nw| parent.insertInternal(.right, nw);
+                        parent.insertInternal(.right, replacement);
                     } else unreachable; // node's parent did not have node as a left or right child.
                 },
             }
@@ -407,7 +412,7 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
             const x_tree = node.c(left).?.unseatTree();
             const y_tree = node.unseatSwap(x_tree);
             const t2 = x_tree.swapChild(right, y_tree);
-            if (t2) |v| y_tree.insertInternal(left, v);
+            y_tree.insertInternal(left, t2);
         }
 
         fn updateHeight(node: *Node) void {
@@ -423,27 +428,30 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
             if (parent.c(right)) |right_child| {
                 return right_child.unseatSwap(new);
             } else {
-                if (new) |n| parent.insertInternal(right, n);
+                parent.insertInternal(right, new);
                 return null;
             }
         }
 
         /// set node.[direction] to new and propagate compute and update height
-        fn insertInternal(parent: *Node, comptime direction: Direction, new: *Node) void {
+        fn insertInternal(parent: *Node, comptime direction: Direction, new: ?*Node) void {
             // code written for setting left field
             comptime const left = direction;
 
             if (parent.c(left) != null) unreachable; // error, trying to overwrite an existing tree. use unseatSwap instead.
             parent.s(left).* = new;
 
-            if (new.parent != .none) unreachable; // new node is already parented. it must be unseated before insertion.
+            if (new) |nw| {
+                if (nw.parent != .none) unreachable; // new node is already parented. it must be unseated before insertion.
 
-            new.parent = .{ .node = parent };
-            new.propagate(.add, new.total());
+                nw.parent = .{ .node = parent };
+                nw.propagate(.add, nw.total());
+            }
             parent.updateHeight();
         }
 
-        // insert new to the left or right of this node. TODO avl auto balancing
+        // insert new to the left or right of this node.
+        // what's fun is you can even insert while an iterator is running. neat.
         fn insert(parent: *Node, comptime direction: Direction, new: *Node) void {
             comptime const left = direction;
             if (new.left != null or new.right != null) unreachable; // new node is not an orphan
@@ -453,6 +461,25 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
                 new.insertInternal(left, old_left);
             } else {
                 parent.insertInternal(left, new);
+            }
+
+            var current = parent;
+            while (true) {
+                const bal_fac = (if (current.left) |l| l.height else 0) - (if (current.right) |r| r.height else 0);
+                if (bal_fac > 0) {
+                    // left left or left right
+                    // std.debug.warn("rotate ←.\n", .{});
+                    current.rotate(.right); // should rotate be called on the pivot rather than here? maybe idk
+                    current = current.parent.as(.node) orelse break;
+                } else if (bal_fac < 0) {
+                    // right right or right left
+                    // std.debug.warn("rotate →.\n", .{});
+                    // To check whether it is left left case or not, compare the newly inserted key with the key in left subtree root.
+                    // uuh?? I don't have that
+                    current.rotate(.left);
+                    current = current.parent.as(.node) orelse break;
+                }
+                current = current.parent.as(.node) orelse break;
             }
 
             // go up until the first unbalanced node
