@@ -71,16 +71,36 @@ test "demo tree" {
 
     // balancing test
 
-    const node_count_to_add = 1000;
+    const node_count_to_add = 1_000; // 100_000 takes too long to insert. I should profile this and see if it's memory allocation or if it's a real issue
+    var timer = std.time.Timer.start() catch @panic("bad");
     for (range(node_count_to_add)) |_, i| {
         const new_node = try header.createNode(.{ .number = i });
         (header.find(findIndexEqual, i) orelse @panic("Did not find")).insert(.left, new_node);
         if (header.find(findIndexEqual, i)) |found| std.testing.expect(i == found.data.number) else @panic("Did not find");
+
+        if (i % 100_000 == 0) {
+            const time = timer.read();
+            std.debug.warn("{},{d:.6}\n", .{ i, @intToFloat(f64, time) / std.time.ns_per_ms / 10_000 });
+            timer.reset();
+        }
     }
+    // the time it takes to insert things seems to grow linearly when it should grow not linearly
+
+    std.debug.warn("done inserting\n", .{});
 
     for (range(node_count_to_add)) |_, i| {
         if (header.find(findIndexEqual, i)) |found| std.testing.expect(i == found.data.number) else @panic("Did not find");
     }
+
+    std.debug.warn("done comparing\n", .{});
+
+    const array_len = node_count_to_add + 3;
+    std.testing.expect(header.total().index == array_len);
+
+    const expected_height = std.math.log2_int(usize, array_len) + 3;
+    std.debug.warn("array len is: {}\n", .{array_len});
+    std.debug.warn("expected height is: {}\n", .{expected_height});
+    std.testing.expect(header.treetop.?.height <= expected_height);
 
     for (range(node_count_to_add)) |_, i| {
         (header.find(findIndexEqual, node_count_to_add - i - 1) orelse @panic("Did not find")).unseat().destroySelf(header.alloc);
@@ -174,9 +194,7 @@ const DataHeader = struct {
     pub fn deinit(me: *DataHeader) void {}
 };
 
-// note I don't think avl is right but whatever
-// actually nvm it is, I just spend a bit longer on it than necessary
-// but that's ok because for like 1mil elements this should only be depth 16 so who cares
+// note the avl balancing is not correct
 
 /// an avl auto-balancing binary tree
 ///
