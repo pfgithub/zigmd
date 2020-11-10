@@ -648,54 +648,196 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
 
 const TextBuffer = struct {
     const Line = struct {
-        id: usize,
-        update: usize = 0,
         text: std.ArrayList(u8),
-    };
-    // TODO this could be made generic if there were "computed properties"
-    const Node = struct {
-        fn print(node: Node, os: anytype) @TypeOf(os).Error!void {
-            if (node.left) |left| try node.left.print(os);
-            try os.writeAll(line);
-            try os.writeAll("\n");
-            if (node.right) |right| try node.right.print(os);
+        pub fn init(alloc: *Alloc) Line {
+            return .{ .text = std.ArrayList(u8).init(alloc) };
+        }
+        pub fn deinit(line: *Line) void {
+            line.text.deinit();
+            line.* = undefined;
         }
     };
-    const IDCount = struct {
-        id: usize = 0,
-        fn next(idc: *IDCount) usize {
-            idc.id += 1;
-            return idc.id;
+    const Computed = struct {
+        byte: usize,
+        line: usize,
+        pub const zero = Computed{ .line = 0, .byte = 0 };
+        pub fn add(l: Computed, r: Computed) Computed {
+            return .{ .line = l.line + r.line, .byte = l.byte + r.byte };
+        }
+        pub fn sub(l: Computed, r: Computed) Computed {
+            return .{ .line = l.line - r.line, .byte = l.byte - r.byte };
+        }
+        pub fn compute(line: Line) Computed {
+            return .{ .byte = line.text.items.len + 1, .line = 1 };
         }
     };
 
-    lines: ?*Node,
+    const Tree = CreateTree(Line, Computed);
+
+    root: *Tree.Header,
     alloc: *std.mem.Allocator,
-    id: IDCount,
 
     pub fn init(alloc: *std.mem.Allocator) TextBuffer {
-        var idc: IDCount = .{};
-        const top_node = alloc.create(Node) catch @panic("oom");
-        top_node.initialize(null, &idc);
+        const root = Tree.Header.create(alloc) catch @panic("oom");
+        errdefer root.destroy();
+        const line = root.createNode(Line.init(alloc)) catch @panic("oom");
+        root.setChildNode(line); // no errdefer needed
         return .{
-            .lines = top_node,
+            .root = root,
             .alloc = alloc,
-            .id = idc,
         };
     }
-
-    fn print(tb: *const TextBuffer, os: anytype) !void {
-        if (tb.lines) |lines| try lines.print(os);
+    pub fn deinit(tb: *TextBuffer) void {
+        tb.root.destroy();
+        tb.* = undefined;
     }
+    pub const Point = union(enum) {
+        byte: usize,
+        row_col: struct { lyn: usize, col: usize },
+    };
+    pub fn replaceRange(tb: *TextBuffer, start: Point, end: Point, new: []const u8) void {
+        tb.deleteRange(start, end);
+        tb.insert(start, new);
+    }
+    pub fn insert(tb: *TextBuffer, start: Point, new: []const u8) void {
+        const start_node = tb.getNodeAt(start);
+        const local_offset = start_node.colOffset(Point);
+        // insert at local_offset
+        // if a newline is found,
+        // split the node
+        // and continue inserting with local_offset = 0
 
-    fn readRangeAlloc(tb: *TextBuffer, start: RowCol, end: RowCol, alloc: *std.mem.Allocator) []const u8 {}
-
-    fn replaceRange(tb: *TextBuffer, start: RowCol, end: RowCol, text: []const u8) void {
-        // search tree to find start line
-        // search tree to find end line
-        // delete any nodes between the two
+        // basically for(std.mem.split(new, '\t'))
+    }
+    pub fn deleteRange(tb: *TextBuffer, start: Point, end: Point) void {
+        const start_node = tb.getNodeAt(start);
+        const end_node = tb.getNodeAt(end);
+        if (start_node == end_node) {
+            return;
+        }
+        var current_node = start_node;
+        // uuh what if start is →|
+        // |← and end is there
+        // the nodes have to get merged
+        while (true) {
+            if (current_node == start_node) {
+                // find start
+            }
+            if (current_node == end_node) break;
+        }
     }
 };
+
+test "textbuffer" {
+    const alloc = std.testing.allocator;
+    var tb = TextBuffer.init(alloc);
+    defer tb.deinit();
+}
+
+// const TextBuffer = struct {
+//     const textblk_len = 64000;
+//     const Piece = struct {
+//         buffer: TextBufferArea,
+//     };
+//     const Computed = struct {
+//         line: usize,
+//         byte: usize,
+//         last_line_byte: usize, // instead of char: usize. it requires some changes to Tree but should be easier to compute
+//         // char: usize,
+//         pub const zero = Computed{ .line = 0, .byte = 0 };
+//         pub fn add(l: Computed, r: Computed) Computed {
+//             // l and r need meaning to know how to change last_line_byte
+//             // because last_line_byte should subtract l's byte or something and add l's byte
+//             // but that depends on what l is
+//             return .{ .line = l.line + r.line, .byte = l.byte + r.byte };
+//         }
+//         pub fn sub(l: Computed, r: Computed) Computed {
+//             return .{ .line = l.line - r.line, .byte = l.byte - r.byte };
+//         }
+//         pub fn compute(piece: Piece) Computed {
+//             // uh oh I need TextBuffer for lbrkSlice
+//             const lbrk_slice = piece.buffer.lbrkSlice();
+//             // const last_
+//             // TODO figure out how to calculate char (the problem is add/subtract. maybe add should take a piece rather than a computed. idk. or maybe I'll switch to the ^textbuffer. idk)
+//             return .{ .byte = piece.buffer.len, .line = lbrk_slice.len };
+//         }
+//     };
+//     const TextBufferArea = struct {
+//         buffer: usize,
+//         start: usize,
+//         len: usize,
+//         lbrk_start: usize,
+//         lbrk_len: usize,
+//         fn slice(piece: Piece, tb: TextBuffer) []const u8 {
+//             return tb.buffers[piece.buffer].items[piece.start..][0..piece.len];
+//         }
+//         fn lbrkSlice(piece: Piece, tb: TextBuffer) []const usize {
+//             return tb.buffers[piece.buffer].line_starts.items[piece.lbrk_start..][0..piece.lbrk_len];
+//         }
+//     };
+//     const TextBuffer = struct {
+//         index: usize,
+//         items: []u8,
+//         line_starts: std.ArrayList(usize),
+//         pub fn append(buffer: *TextBuffer, text: []const u8) ?TextBufferArea {
+//             if (buffer.items.len + text.len >= textblk_len) return null;
+//         }
+//     };
+
+//     buffers: std.ArrayList(TextBuffer),
+//     alloc: *std.mem.Allocator,
+// };
+
+// const TextBuffer = struct {
+//     const Line = struct {
+//         id: usize,
+//         update: usize = 0,
+//         text: std.ArrayList(u8),
+//     };
+//     // TODO this could be made generic if there were "computed properties"
+//     const Node = struct {
+//         fn print(node: Node, os: anytype) @TypeOf(os).Error!void {
+//             if (node.left) |left| try node.left.print(os);
+//             try os.writeAll(line);
+//             try os.writeAll("\n");
+//             if (node.right) |right| try node.right.print(os);
+//         }
+//     };
+//     const IDCount = struct {
+//         id: usize = 0,
+//         fn next(idc: *IDCount) usize {
+//             idc.id += 1;
+//             return idc.id;
+//         }
+//     };
+
+//     lines: ?*Node,
+//     alloc: *std.mem.Allocator,
+//     id: IDCount,
+
+//     pub fn init(alloc: *std.mem.Allocator) TextBuffer {
+//         var idc: IDCount = .{};
+//         const top_node = alloc.create(Node) catch @panic("oom");
+//         top_node.initialize(null, &idc);
+//         return .{
+//             .lines = top_node,
+//             .alloc = alloc,
+//             .id = idc,
+//         };
+//     }
+
+//     fn print(tb: *const TextBuffer, os: anytype) !void {
+//         if (tb.lines) |lines| try lines.print(os);
+//     }
+
+//     fn readRangeAlloc(tb: *TextBuffer, start: RowCol, end: RowCol, alloc: *std.mem.Allocator) []const u8 {}
+
+//     fn replaceRange(tb: *TextBuffer, start: RowCol, end: RowCol, text: []const u8) void {
+//         // search tree to find start line
+//         // search tree to find end line
+//         // delete any nodes between the two
+//     }
+// };
 
 test "" {
     // const alloc = std.testing.allocator;
