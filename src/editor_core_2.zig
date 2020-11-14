@@ -52,7 +52,7 @@ test "demo tree with row/col/byte" {
                 return .{ .byte = lhs.byte - rhs.byte, .line = lhs.line - rhs.line, .char = char };
             }
             pub fn format(value: ComputedProperty, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-                try writer.print("[{} :: {}:{}]", .{ value.byte, value.line, value.char });
+                try writer.print("r{}:c{}.b{}", .{ value.byte, value.line, value.char });
             }
         };
         //      5
