@@ -3,6 +3,158 @@
 const std = @import("std");
 const header_match = @import("header_match.zig");
 
+test "demo tree with row/col/byte" {
+    const Ns = struct {
+        const Data = struct {
+            // this makes more sense in a piece table because the piece table is both []const u8 and []const usize
+            text: []const u8,
+            newlines: []const usize,
+            // codepoints: []usize // maybe that takes too much space nvm. it would take less space to do []u21
+            pub fn deinit(data: *Data) void {}
+            pub fn comptimeInit(comptime text: []const u8) Data {
+                comptime {
+                    var newlines: []const usize = &[_]usize{};
+                    for (text) |char, i| if (char == '\n') {
+                        newlines = newlines ++ &[_]usize{i};
+                    };
+                    const res = Data{ .text = text, .newlines = newlines };
+                    return res; // zig c++ compiler sometimes
+                }
+            }
+        };
+        const ComputedProperty = struct {
+            byte: usize,
+            line: usize,
+            char: usize, // TODO unicode
+            pub const zero = ComputedProperty{ .byte = 0, .line = 0, .char = 0 };
+
+            pub fn compute(data: Data) ComputedProperty {
+                const char = if (data.newlines.len > 0) blk: {
+                    const char_start = data.newlines[data.newlines.len - 1] + 1;
+                    break :blk data.text[char_start..].len;
+                } else blk: {
+                    break :blk data.text.len;
+                };
+
+                return .{ .byte = data.text.len, .line = data.newlines.len, .char = char };
+            }
+            /// note that right must be to the right of left
+            pub fn add(lhs: ComputedProperty, rhs: ComputedProperty) ComputedProperty {
+                const char = if (rhs.line == 0) lhs.char + rhs.char else rhs.char;
+                return .{ .byte = lhs.byte + rhs.byte, .line = lhs.line + rhs.line, .char = char };
+            }
+            /// note that right must be to the right of left
+            /// uuh. left or right? idk
+            /// this is wrong oops
+            pub fn sub(lhs: ComputedProperty, rhs: ComputedProperty) ComputedProperty {
+                std.debug.warn("Subtracting {} - {}\n", .{ lhs, rhs });
+                const char = if (lhs.line == rhs.line) lhs.char - rhs.char else lhs.char;
+                return .{ .byte = lhs.byte - rhs.byte, .line = lhs.line - rhs.line, .char = char };
+            }
+            pub fn format(value: ComputedProperty, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+                try writer.print("[{} :: {}:{}]", .{ value.byte, value.line, value.char });
+            }
+        };
+        //      5
+        //     /
+        //    1
+        //   / \
+        //  0   3
+        //     / \
+        //    2   4
+    };
+    const Data = Ns.Data;
+    const ComputedProperty = Ns.ComputedProperty;
+    const Tree = CreateTree(Data, ComputedProperty);
+    const alloc = std.testing.allocator;
+
+    const findByteEqual = struct {
+        fn imfn(value: ComputedProperty, data: Data, expected: usize) Tree.Compare {
+            if (expected < value.byte) return .left;
+            if (expected > value.byte + data.text.len) return .right;
+            return .equal;
+        }
+    }.imfn;
+
+    var header = try Tree.Header.create(alloc);
+    defer header.destroy();
+    header.setChildNode(try header.createNode(Data.comptimeInit("Hello, World!")));
+
+    std.testing.expectEqual(ComputedProperty{ .byte = 13, .line = 0, .char = 13 }, header.total());
+
+    header.find(findByteEqual, 0).?.insert(.right, try header.createNode(Data.comptimeInit("Hmm\nHi!")));
+
+    std.testing.expectEqual(ComputedProperty{ .byte = 20, .line = 1, .char = 3 }, header.total());
+
+    header.find(findByteEqual, 13).?.unseat().destroySelf(header.alloc);
+
+    std.testing.expectEqual(ComputedProperty{ .byte = 13, .line = 0, .char = 13 }, header.total());
+
+    for (range(25)) |_, i_| {
+        const i = i_ + 1;
+
+        try printRowColTree(header, std.io.getStdOut().writer());
+
+        header.find(findByteEqual, 0).?.insert(.right, try header.createNode(Data.comptimeInit("Aaa\nAaa")));
+        std.testing.expectEqual(ComputedProperty{ .byte = 13 + (7 * i), .line = i, .char = 3 }, header.total());
+        std.debug.warn("Passed {}\n", .{i});
+    }
+}
+
+const color_list: []const []const u8 = &[_][]const u8{ "\x1b[31m", "\x1b[33m", "\x1b[32m", "\x1b[34m", "\x1b[36m", "\x1b[35m" };
+const bracket_list: []const []const u8 = &[_][]const u8{ "{}", "()", "[]", "<>" };
+const color_clear = "\x1b(B\x1b[m";
+
+fn printTextPretty(text: []const u8, os: anytype) @TypeOf(os).Error!void {
+    try os.writeAll("\x1b[97m\"\x1b(B\x1b[m");
+    for (text) |char| {
+        switch (char) {
+            ' ' => try os.writeAll("\x1b[90m·" ++ color_clear),
+            '!'...'~' => try os.writeByte(char),
+            '\n' => try os.writeAll("\x1b[90m\\\x1b[96mn\x1b(B\x1b[m"),
+            '\r' => try os.writeAll("\x1b[90m\\\x1b[96mr\x1b(B\x1b[m"),
+            '\t' => try os.writeAll("\x1b[90m\\\x1b[96mt\x1b(B\x1b[m"),
+            else => try os.print("\x1b[90m\\\x1b[96mx\x1b[34m{x:0<2}\x1b(B\x1b[m", .{char}),
+        }
+    }
+    try os.writeAll("\x1b[97m\"\x1b(B\x1b[m");
+}
+
+fn printRowColTreeInternal(tree: anytype, os: anytype, computed: anytype, depth: usize) @TypeOf(os).Error!void {
+    const color = color_list[depth % color_list.len];
+    const bracket = bracket_list[depth % bracket_list.len];
+    try os.writeAll(color);
+    try os.writeByte(bracket[0]);
+    try os.writeAll(color_clear);
+
+    if (tree.left) |left| {
+        try printRowColTreeInternal(left, os, computed, depth + 1);
+        try os.writeAll(", ");
+    }
+    const lhscp = computed.add(tree.left_computed);
+    try os.print("{} ", .{lhscp});
+
+    try printTextPretty(tree.data.text, os);
+
+    const vcomputed = @TypeOf(tree.*).ComputedProperty.compute(tree.data);
+    const rhscp = lhscp.add(vcomputed);
+    try os.print(" {}", .{rhscp});
+
+    if (tree.right) |right| {
+        try os.writeAll(", ");
+        try printRowColTreeInternal(right, os, rhscp, depth + 1);
+    }
+
+    try os.writeAll(color);
+    try os.writeByte(bracket[1]);
+    try os.writeAll(color_clear);
+}
+
+fn printRowColTree(tree: anytype, os: anytype) @TypeOf(os).Error!void {
+    try printRowColTreeInternal(tree.treetop.?, os, @TypeOf(tree.treetop.?.*).ComputedProperty.zero, 0);
+    try os.writeAll("\n");
+}
+
 test "demo tree" {
     const Data = struct {
         const Data = @This();
@@ -36,7 +188,7 @@ test "demo tree" {
     std.testing.expectEqual(ComputedProperty{ .index = 1, .total = 26 }, header.total());
 
     const findIndexEqual = struct {
-        fn imfn(value: ComputedProperty, expected: usize) Tree.Compare {
+        fn imfn(value: ComputedProperty, data: Data, expected: usize) Tree.Compare {
             // std.debug.warn("Index: {}, Data: {}\n", .{ value.index, expected });
             if (expected < value.index) return .left;
             if (expected > value.index) return .right;
@@ -224,7 +376,7 @@ const DataHeader = struct {
 /// an avl auto-balancing binary tree
 ///
 /// Data must match DataHeader, ComputedProperty must match ComputedPropertyHeader
-fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
+fn CreateTree(comptime Data_: type, comptime ComputedProperty_: type) type {
     // Unreachable at /deps/zig/src/stage1/analyze.cpp:6004 in type_requires_comptime.
     // uncomment this to check if types match eachother, recomment after that error.
     // {
@@ -233,6 +385,9 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
     //     header_match.conformsTo(DataHeader, Data);
     // }
     return struct {
+        pub const Data = Data_;
+        pub const ComputedProperty = ComputedProperty_;
+
         const Node = @This();
         const Parent = union(enum) {
             none,
@@ -323,7 +478,7 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
         const Compare = enum { left, right, equal };
         fn FindFnDataArg(comptime findfn: anytype) type {
             // header match fn(a: computed, data: header_match.any) Compare {return undefined}
-            return @typeInfo(@TypeOf(findfn)).Fn.args[1].arg_type.?;
+            return @typeInfo(@TypeOf(findfn)).Fn.args[2].arg_type.?;
         }
 
         /// node.find(ComputedProperty.zero,
@@ -341,7 +496,7 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
             // if =, return node
             // if >, enter rhs + ComputedProperty.copute(node.data)
             const computed = base.add(node.left_computed);
-            switch (findfn(computed, data)) {
+            switch (findfn(computed, node.data, data)) {
                 .left => if (node.left) |left| {
                     // TODO this should be able to tail but f
                     // return @call(.{ .modifier = .always_tail }, find, .{ node, base, findfn, data });
@@ -361,6 +516,7 @@ fn CreateTree(comptime Data: type, comptime ComputedProperty: type) type {
             node.data = data;
             node.propagate(.add, ComputedProperty.compute(node.data));
         }
+        // todo preUpdate postUpdate I guess
 
         /// create a new node. insert this into a tree with node.insert(.left/right, newnode)
         fn create(alloc: *std.mem.Allocator, data: Data) !*Node {
@@ -728,11 +884,11 @@ const TextBuffer = struct {
     }
 };
 
-test "textbuffer" {
-    const alloc = std.testing.allocator;
-    var tb = TextBuffer.init(alloc);
-    defer tb.deinit();
-}
+// test "textbuffer" {
+//     const alloc = std.testing.allocator;
+//     var tb = TextBuffer.init(alloc);
+//     defer tb.deinit();
+// }
 
 // const TextBuffer = struct {
 //     const textblk_len = 64000;
