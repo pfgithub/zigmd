@@ -267,11 +267,11 @@ fn range(max: usize) []const void {
 }
 
 pub fn asyncMain() void {
+    var layout: ?*PangoLayout = null;
+    defer if (layout) |l| g_object_unref(l);
     while (waitNextEvent()) |ev| {
         switch (ev) {
             .render => |cr| {
-                std.debug.warn("Render\n", .{});
-
                 roundedRectangle(cr, 10, 10, 80, 80, 10);
                 cairo_set_source_rgb(cr, 0.5, 0.5, 1);
                 cairo_fill(cr);
@@ -279,28 +279,24 @@ pub fn asyncMain() void {
                 // cairo_set_line_width(cr, 10.0);
                 // cairo_stroke(cr);
 
-                cairo_set_source_rgb(cr, 0, 0, 0);
-                cairo_select_font_face(cr, "Sans", .CAIRO_FONT_SLANT_NORMAL, .CAIRO_FONT_WEIGHT_NORMAL); // you're supposed to use backend specific fns
-                cairo_set_font_size(cr, 40.0);
+                const text = "Cairo Test. 🙋→⎋ يونيكود.\n" ++ @embedFile("cairo.zig");
+                const font = "Sans 12";
 
-                // cairo_move_to(cr, 10.0, 50.0);
-                // cairo_show_text(cr, "Cairo Test. 🙋→⎋"); // you're supposed to use cairo_show_glyphs instead of this.
-                // this is useless because it can't measure text
-                // so I need to use cairo_show_glyphs
+                if (layout == null) {
+                    layout = pango_cairo_create_layout(cr);
 
-                {
-                    var glyphs = [_]cairo_glyph_t{undefined} ** (20 * 35);
-
-                    var i: usize = 0;
-                    for (range(20)) |_, y| {
-                        for (range(35)) |_, x| {
-                            glyphs[i] = .{ .index = i, .x = @intToFloat(f64, x) * 50 + 20, .y = @intToFloat(f64, y) * 50 + 50 };
-                            i += 1;
-                        }
+                    pango_layout_set_text(layout, text, -1);
+                    {
+                        const description = pango_font_description_from_string(font);
+                        defer pango_font_description_free(description);
+                        pango_layout_set_font_description(layout, description);
                     }
-
-                    cairo_show_glyphs(cr, &glyphs, glyphs.len);
                 }
+
+                cairo_save(cr);
+                cairo_move_to(cr, 50, 150);
+                pango_cairo_show_layout(cr, layout);
+                cairo_restore(cr);
             },
             .keypress => |kp| {
                 std.debug.warn("Key↓: {}\n", .{kp.keyval});

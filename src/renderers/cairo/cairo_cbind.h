@@ -1,4 +1,5 @@
 #include <cairo.h>
+#include <pango/pangocairo.h>
 #include <gtk/gtk.h>
 
 #ifdef cairo_implementation
