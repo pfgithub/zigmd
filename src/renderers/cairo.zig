@@ -250,19 +250,57 @@ export fn zig_on_retrieve_surrounding_event(context: *GtkIMContext, user_data: g
     @panic("TODO implement IME support");
 }
 
+fn roundedRectangle(cr: *cairo_t, x: f64, y: f64, w: f64, h: f64, corner_radius: f64) void {
+    const radius = corner_radius;
+    const degrees = std.math.pi / 180.0;
+
+    cairo_new_sub_path(cr);
+    cairo_arc(cr, x + w - radius, y + radius, radius, -90 * degrees, 0 * degrees);
+    cairo_arc(cr, x + w - radius, y + h - radius, radius, 0 * degrees, 90 * degrees);
+    cairo_arc(cr, x + radius, y + h - radius, radius, 90 * degrees, 180 * degrees);
+    cairo_arc(cr, x + radius, y + radius, radius, 180 * degrees, 270 * degrees);
+    cairo_close_path(cr);
+}
+
+fn range(max: usize) []const void {
+    return @as([]const void, &[_]void{}).ptr[0..max];
+}
+
 pub fn asyncMain() void {
     while (waitNextEvent()) |ev| {
         switch (ev) {
             .render => |cr| {
                 std.debug.warn("Render\n", .{});
+
+                roundedRectangle(cr, 10, 10, 80, 80, 10);
+                cairo_set_source_rgb(cr, 0.5, 0.5, 1);
+                cairo_fill(cr);
+                // cairo_set_source_rgba(cr, 0.5, 0, 0, 0.5);
+                // cairo_set_line_width(cr, 10.0);
+                // cairo_stroke(cr);
+
                 cairo_set_source_rgb(cr, 0, 0, 0);
                 cairo_select_font_face(cr, "Sans", .CAIRO_FONT_SLANT_NORMAL, .CAIRO_FONT_WEIGHT_NORMAL); // you're supposed to use backend specific fns
                 cairo_set_font_size(cr, 40.0);
 
-                cairo_move_to(cr, 10.0, 50.0);
-                cairo_show_text(cr, "Cairo Test."); // you're supposed to use cairo_show_glyphs instead of this.
+                // cairo_move_to(cr, 10.0, 50.0);
+                // cairo_show_text(cr, "Cairo Test. 🙋→⎋"); // you're supposed to use cairo_show_glyphs instead of this.
                 // this is useless because it can't measure text
                 // so I need to use cairo_show_glyphs
+
+                {
+                    var glyphs = [_]cairo_glyph_t{undefined} ** (20 * 35);
+
+                    var i: usize = 0;
+                    for (range(20)) |_, y| {
+                        for (range(35)) |_, x| {
+                            glyphs[i] = .{ .index = i, .x = @intToFloat(f64, x) * 50 + 20, .y = @intToFloat(f64, y) * 50 + 50 };
+                            i += 1;
+                        }
+                    }
+
+                    cairo_show_glyphs(cr, &glyphs, glyphs.len);
+                }
             },
             .keypress => |kp| {
                 std.debug.warn("Key↓: {}\n", .{kp.keyval});

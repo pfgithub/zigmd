@@ -67,9 +67,9 @@ IMPL({
 	g_signal_connect(G_OBJECT(window), "key_release_event", G_CALLBACK(on_keyrelease_event), NULL);
 	
 	g_signal_connect(im_context, "commit", G_CALLBACK(zig_on_commit_event), NULL);
-	g_signal_connect(im_context, "delete-surrounding", G_CALLBACK(zig_on_delete_surrounding_event), NULL);
-	g_signal_connect(im_context, "preedit-changed", G_CALLBACK(zig_on_preedit_changed_event), NULL);
-	g_signal_connect(im_context, "retrieve-surrounding", G_CALLBACK(zig_on_retrieve_surrounding_event), NULL);
+	//g_signal_connect(im_context, "delete-surrounding", G_CALLBACK(zig_on_delete_surrounding_event), NULL);
+	//g_signal_connect(im_context, "preedit-changed", G_CALLBACK(zig_on_preedit_changed_event), NULL);
+	//g_signal_connect(im_context, "retrieve-surrounding", G_CALLBACK(zig_on_retrieve_surrounding_event), NULL);
 
 	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
 	gtk_window_set_default_size(GTK_WINDOW(window), 400, 90); 
