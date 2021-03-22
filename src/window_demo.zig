@@ -273,6 +273,9 @@ pub const Minesweeper = struct {
                     .boardSizeY = 10,
                 });
             }
+            pub fn deinit(setup: *Setup) void {
+                Auto.destroy(setup, .{.auto});
+            }
         };
         const Play = struct {
             board: []MinesweeperTile,
@@ -283,24 +286,32 @@ pub const Minesweeper = struct {
             // pub const init = Auto.createInitFn(@This())
             // that doesn't allow for anthing custom
             pub fn init(imev: *gui.ImEvent, alloc: *std.mem.Allocator) This {
-                return Auto.create(This, imev, alloc, .{
-                    .board = alloc.alloc(MinesweeperTile, 10 * 10) catch @panic("oom not handled"),
-                    .width = 10,
+                const width = 10;
+                const height = 12;
+                const tiles = alloc.alloc(MinesweeperTile, width * height) catch @panic("oom not handled");
+                for (tiles) |*tile| {
+                    tile.* = MinesweeperTile.init(imev, alloc);
+                }
+                const res: This = Auto.create(This, imev, alloc, .{
+                    .board = tiles,
+                    .width = width,
                 });
+                std.log.emerg("created play: {}", .{res.auto.items.count()});
+                return res;
+            }
+
+            pub fn deinit(play: *Play) void {
+                for (play.board) |*tile| {
+                    tile.deinit();
+                }
+                play.auto.alloc.free(play.board);
+                Auto.destroy(play, .{.auto});
             }
         };
         fn deinit(gs: *GameState) void {
             switch (gs.*) {
-                .setup => |setup| {
-                    Auto.destroy(&gs.setup, .{.auto});
-                },
-                .play => |play| {
-                    for (gs.play.board) |*tile| {
-                        Auto.destroy(tile, .{.auto});
-                    }
-                    play.auto.alloc.free(gs.play.board);
-                    Auto.destroy(&gs.play, .{.auto});
-                },
+                .setup => |*setup| setup.deinit(),
+                .play => |*play| play.deinit(),
             }
         }
     };
@@ -309,6 +320,15 @@ pub const Minesweeper = struct {
         view: enum { hidden, flagged, shown },
         number: u64,
         auto: Auto,
+        pub fn deinit(tile: *MinesweeperTile) void {
+            Auto.destroy(tile, .{.auto});
+        }
+        pub fn init(imev: *gui.ImEvent, alloc: *std.mem.Allocator) MinesweeperTile {
+            return Auto.create(MinesweeperTile, imev, alloc, .{
+                .view = .hidden,
+                .number = 0,
+            });
+        }
     };
 
     pub fn init(
