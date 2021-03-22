@@ -205,8 +205,7 @@ pub fn Interpolation(comptime Kind: type) type {
                 if (std.meta.eql(cinterp.value.started.target, nv)) {
                     cinterp.value.started.exact = null;
                     return {};
-                } else
-                    cinterp.get(imev)
+                } else cinterp.get(imev)
             else
                 nv;
             cinterp.value = .{
@@ -371,9 +370,7 @@ pub const Button = struct {
     }
 };
 
-pub const Height = struct {
-    h: i64
-};
+pub const Height = struct { h: i64 };
 
 pub const lineHeight = 25;
 pub const seperatorGap = 10;
