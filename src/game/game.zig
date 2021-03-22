@@ -23,7 +23,6 @@ pub const Surface = struct {
     pub fn fromText(text: []const u8) !Surface {
         var res: Surface = .{ .tiles = undefined };
         var y: SSInt = 0;
-        @setEvalBranchQuota(10000000);
         var iter = help.StringSplitIterator.split(text, "\n");
         while (iter.next()) |line| : (y += 1) {
             if (y >= SURFACE_SIZE) return error.TooTall;
@@ -105,15 +104,21 @@ pub const Camera = struct {
             .as(WorldPoint);
     }
 };
+pub const Player = struct {
+    x: f64,
+    y: f64,
+};
 
 pub const Game = struct {
     surface: Surface,
     camera: Camera,
+    player: Player,
 
     pub fn init() Game {
         return .{
             .surface = Surface.fromText(@embedFile("map.txt")) catch @panic("bad map"),
             .camera = .{ .topLeft = .{ .x = 0, .y = 0 }, .tileSize = 12 },
+            .player = .{ .x = 0, .y = 0 },
         };
     }
 };

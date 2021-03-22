@@ -51,11 +51,12 @@ pub const GameRender = struct {
             while (c.x <= dr.x) : (c.x += 1) {
                 const tile = game.surface.getTile(c) catch continue;
                 const screenPos = game.camera.toScreenPoint(c.toWorldPoint());
+                const screenPosBR = game.camera.toScreenPoint((TilePoint{ .x = c.x + 1, .y = c.y + 1 }).toWorldPoint());
                 try gr.renderTile(tile, imev, (win.Rect{
                     .x = @floatToInt(i64, screenPos.x),
                     .y = @floatToInt(i64, screenPos.y),
-                    .w = @floatToInt(i64, game.camera.tileSize),
-                    .h = @floatToInt(i64, game.camera.tileSize),
+                    .w = @floatToInt(i64, screenPosBR.x) - @floatToInt(i64, screenPos.x),
+                    .h = @floatToInt(i64, screenPosBR.y) - @floatToInt(i64, screenPos.y),
                 }).down(rect.y).right(rect.x));
             }
         }
