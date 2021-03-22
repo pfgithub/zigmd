@@ -393,7 +393,7 @@ fn CreateTree(comptime Data_: type, comptime ComputedProperty_: type) type {
             none,
             header: *Header,
             node: *Node,
-            pub fn as(value: Parent, comptime tag: @TagType(Parent)) ?std.meta.fieldInfo(Parent, @tagName(tag)).field_type {
+            pub fn as(value: Parent, comptime tag: std.meta.TagType(Parent)) ?std.meta.fieldInfo(Parent, @tagName(tag)).field_type {
                 comptime const Expres = std.meta.fieldInfo(Parent, @tagName(tag)).field_type;
                 switch (value) {
                     @field(Parent, @tagName(tag)) => return @as(Expres, @field(value, @tagName(tag))),

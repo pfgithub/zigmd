@@ -56,7 +56,7 @@ pub fn build(b: *Builder) void {
 
     const choice = b.option([]const u8, "render", "renderer <sdl|raylib>") orelse "sdl";
     const renderer = std.meta.stringToEnum(Renderer, choice) orelse {
-        std.debug.warn("Must be <sdl|raylib>, got <{}>.", .{choice});
+        std.debug.warn("Must be <sdl|raylib>, got <{s}>.", .{choice});
         return;
     };
 

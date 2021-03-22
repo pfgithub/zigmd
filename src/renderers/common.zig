@@ -93,7 +93,7 @@ pub const Event = union(enum) {
     pub const Resize = WH;
     pub const FocusChange = struct {};
     pub const Empty = void;
-    pub const Type = @TagType(@This());
+    pub const Type = std.meta.TagType(@This());
 };
 
 pub const Cursor = enum {

@@ -1053,7 +1053,7 @@ pub const App = struct {
         app.tree.deinit();
     }
     fn saveFile(app: *App) void {
-        std.debug.warn("Save {}...", .{app.filename});
+        std.debug.warn("Save {s}...", .{app.filename});
         std.fs.cwd().writeFile(app.filename, app.text.items) catch |e| {
             std.debug.warn("Save failed: {}", .{e});
             return;
@@ -1445,7 +1445,7 @@ pub const App = struct {
             // var classesText = std.ArrayList(u8).init(alloc);
             // try styleBeforeCursor.printClasses(&classesText);
 
-            var resText = try std.fmt.allocPrint0(alloc, "Classes: {} ({})", .{
+            var resText = try std.fmt.allocPrint0(alloc, "Classes: {} ({s})", .{
                 styleBeforeCursor.createClassesStruct(charIndex),
                 app.findCharacterPosition(charIndex),
             });

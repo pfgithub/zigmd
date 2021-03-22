@@ -535,7 +535,7 @@ fn StructEditor(comptime Struct: type) type {
 pub fn UnionDataHelper(comptime Union: type) fn (anytype) type {
     return struct {
         pub fn g(arg: anytype) type {
-            if (@TypeOf(arg) == type) return @TagType(Union);
+            if (@TypeOf(arg) == type) return std.meta.TagType(Union);
             return UnionPart(help.FieldType(Union, @tagName(arg)));
         }
     }.g;
@@ -554,7 +554,7 @@ fn UnionEditor(comptime Union: type) type {
     const ModeData = if (@hasDecl(Union, "ModeData")) Union.ModeData else if (@hasDecl(Union, "ModeData2")) Union.ModeData2 else @compileError("Any unions to be edited require a pub const ModeData = union(Tag) {...everything: gui.UnionPart(type), pub const default_...everything = defaultValue;}. This is because zig does not currently have @Type for unions.");
     const modeDataInfo = @typeInfo(ModeData).Union;
     const MdiEnum = modeDataInfo.tag_type orelse @compileError("ModeData must be a tagged union too!");
-    if (Enum != MdiEnum) @compileError("ModeData tag must be outer union tag. Eg union(enum) {const Tag = @TagType(@This()); pub const ModeData = union(Tag){ ... };}");
+    if (Enum != MdiEnum) @compileError("ModeData tag must be outer union tag. Eg union(enum) {const Tag = std.meta.TagType(@This()); pub const ModeData = union(Tag){ ... };}");
 
     return struct {
         const Editor = @This();

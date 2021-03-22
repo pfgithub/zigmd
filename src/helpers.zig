@@ -186,7 +186,7 @@ pub fn DePointer(comptime Type: type) type {
     };
 }
 
-pub fn unionCall(comptime Union: type, comptime method: []const u8, enumValue: @TagType(Union), args: anytype) UnionCallReturnType(Union, method) {
+pub fn unionCall(comptime Union: type, comptime method: []const u8, enumValue: std.meta.TagType(Union), args: anytype) UnionCallReturnType(Union, method) {
     const typeInfo = @typeInfo(Union).Union;
     const TagType = std.meta.TagType(Union);
 
@@ -199,7 +199,7 @@ pub fn unionCall(comptime Union: type, comptime method: []const u8, enumValue: @
     @panic("Did not match any enum value");
 }
 
-pub fn unionCallReturnsThis(comptime Union: type, comptime method: []const u8, enumValue: @TagType(Union), args: anytype) Union {
+pub fn unionCallReturnsThis(comptime Union: type, comptime method: []const u8, enumValue: std.meta.TagType(Union), args: anytype) Union {
     const typeInfo = @typeInfo(Union).Union;
     const TagType = std.meta.TagType(Union);
 
@@ -393,7 +393,7 @@ pub const AnyPtr = comptime blk: {
             const thisTypeID = comptime typeIDMap.get(RV);
             if (any.typeID != thisTypeID)
                 std.debug.panic(
-                    "\x1b[31mError!\x1b(B\x1b[m Item is of type {}, but was read as type {}.\n",
+                    "\x1b[31mError!\x1b(B\x1b[m Item is of type {s}, but was read as type {s}.\n",
                     .{ typeIDMap.infoStrings[any.typeID], typeIDMap.infoStrings[thisTypeID] },
                 );
             return @intToPtr(*RV, any.pointer);
@@ -528,17 +528,15 @@ test "union array" {
 }
 
 test "unionCall" {
-    const Union = union(enum) {
-        TwentyFive: struct {
-            fn init() i64 {
-                return 25;
-            }
-        }, FiftySix: struct {
-            fn init() i64 {
-                return 56;
-            }
+    const Union = union(enum) { TwentyFive: struct {
+        fn init() i64 {
+            return 25;
         }
-    };
+    }, FiftySix: struct {
+        fn init() i64 {
+            return 56;
+        }
+    } };
     std.testing.expectEqual(unionCall(Union, "init", .TwentyFive, .{}), 25);
     std.testing.expectEqual(unionCall(Union, "init", .FiftySix, .{}), 56);
 }
@@ -565,39 +563,35 @@ test "unionCallReturnsThis" {
 }
 
 test "unionCallThis" {
-    const Union = union(enum) {
-        TwentyFive: struct {
-            v: i32,
-            v2: i64,
-            fn print(value: @This()) i64 {
-                return value.v2 + 25;
-            }
-        }, FiftySix: struct {
-            v: i64,
-            fn print(value: @This()) i64 {
-                return value.v;
-            }
+    const Union = union(enum) { TwentyFive: struct {
+        v: i32,
+        v2: i64,
+        fn print(value: @This()) i64 {
+            return value.v2 + 25;
         }
-    };
+    }, FiftySix: struct {
+        v: i64,
+        fn print(value: @This()) i64 {
+            return value.v;
+        }
+    } };
     std.testing.expectEqual(unionCallThis("print", Union{ .TwentyFive = .{ .v = 5, .v2 = 10 } }, .{}), 35);
     std.testing.expectEqual(unionCallThis("print", Union{ .FiftySix = .{ .v = 28 } }, .{}), 28);
 }
 
 test "unionCallThis pointer arg" {
-    const Union = union(enum) {
-        TwentyFive: struct {
-            v: i32,
-            v2: i64,
-            fn print(value: *@This()) i64 {
-                return value.v2 + 25;
-            }
-        }, FiftySix: struct {
-            v: i64,
-            fn print(value: *@This()) i64 {
-                return value.v;
-            }
+    const Union = union(enum) { TwentyFive: struct {
+        v: i32,
+        v2: i64,
+        fn print(value: *@This()) i64 {
+            return value.v2 + 25;
         }
-    };
+    }, FiftySix: struct {
+        v: i64,
+        fn print(value: *@This()) i64 {
+            return value.v;
+        }
+    } };
     var val = Union{ .TwentyFive = .{ .v = 5, .v2 = 10 } };
     std.testing.expectEqual(unionCallThis("print", &val, .{}), 35);
     val = Union{ .FiftySix = .{ .v = 28 } };

@@ -187,7 +187,7 @@ fn testingFormatError(comptime br: ImplErr) []const u8 {
     var result: []const u8 = "";
     for (br.ctx.segments) |seg| {
         if (result.len != 0) result = result ++ " > ";
-        const tag = if (seg.sourceType) |st| @tagName(@as(@TagType(@TypeOf(@typeInfo(st))), @typeInfo(st))) else "?";
+        const tag = if (seg.sourceType) |st| @tagName(@as(std.meta.TagType(@TypeOf(@typeInfo(st))), @typeInfo(st))) else "?";
         result = result ++ seg.name ++ ": " ++ tag;
     }
     if (result.len != 0) result = result ++ " >: ";
@@ -239,8 +239,8 @@ fn implements(
         return null;
     }
 
-    const headerTag = @as(@TagType(@TypeOf(header)), header);
-    const implementationTag = @as(@TagType(@TypeOf(implementation)), implementation);
+    const headerTag = @as(std.meta.TagType(@TypeOf(header)), header);
+    const implementationTag = @as(std.meta.TagType(@TypeOf(implementation)), implementation);
     if (headerTag != implementationTag)
         return context.err("Implementation has incorrect type (expected " ++ @tagName(headerTag) ++ ", got " ++ @tagName(implementationTag) ++ ")", Header, Implementation);
 
@@ -411,8 +411,8 @@ fn structImplements(
 
         if (!impldecl.is_pub) return namedContext.err("Implementation declaration is private.", Header, Implementation);
 
-        const headerDataType = @as(@TagType(@TypeOf(decl.data)), decl.data);
-        const implDataType = @as(@TagType(@TypeOf(impldecl.data)), impldecl.data);
+        const headerDataType = @as(std.meta.TagType(@TypeOf(decl.data)), decl.data);
+        const implDataType = @as(std.meta.TagType(@TypeOf(impldecl.data)), impldecl.data);
 
         if (headerDataType != implDataType)
             return namedContext.err("DataTypes differ. Expected: " ++ @tagName(headerDataType) ++ ", got " ++ @tagName(implDataType), Header, Implementation);

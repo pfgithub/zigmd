@@ -857,7 +857,7 @@ pub fn main() !void {
 
     while (true) {
         try stdout.writeAll("\x1b(B\x1b[m\x1b[2J\x1b[H");
-        try stdout.print("Internal representation view. Rerender is {} (\x1b[94mctrl+d\x1b(B\x1b[m)\n", .{
+        try stdout.print("Internal representation view. Rerender is {s} (\x1b[94mctrl+d\x1b(B\x1b[m)\n", .{
             failPass(!autoRerender),
         });
 

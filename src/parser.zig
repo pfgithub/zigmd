@@ -101,7 +101,7 @@ const Class = struct {
     ) !void {
         inline for (@typeInfo(Class).Struct.fields) |field| {
             if (@field(classesStruct, field.name)) {
-                try std.fmt.format(out_stream, ".{}", .{field.name});
+                try std.fmt.format(out_stream, ".{s}", .{field.name});
             }
         }
     }
