@@ -121,4 +121,5 @@ pub const Game = struct {
             .player = .{ .x = 0, .y = 0 },
         };
     }
+    pub fn deinit(game: *Game) void {}
 };

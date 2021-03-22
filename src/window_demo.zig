@@ -20,13 +20,13 @@ pub const Component = struct {
         self.body.render(self.body, imev, style, pos, alloc);
     }
     pub fn deinit(self: *Component) void {
-        self.body.deinit(self.body);
+        self.body.destroy(self.body);
     }
 };
 
 pub const WindowBody = struct {
     render: fn (self: *WindowBody, imev: *gui.ImEvent, style: gui.Style, pos: win.Rect, alloc: *std.mem.Allocator) void,
-    deinit: fn (self: *WindowBody) void,
+    destroy: fn (self: *WindowBody) void,
     pub fn from(comptime Type: type, comptime fieldName: []const u8) WindowBody {
         const Fns = struct {
             fn render(
@@ -38,15 +38,15 @@ pub const WindowBody = struct {
             ) void {
                 return Type.render(@fieldParentPtr(Type, fieldName, ptr), imev, style, pos, alloc);
             }
-            fn deinit(
+            fn destroy(
                 ptr: *WindowBody,
             ) void {
-                return Type.deinit(@fieldParentPtr(Type, fieldName, ptr));
+                return Type.destroy(@fieldParentPtr(Type, fieldName, ptr));
             }
         };
         return .{
             .render = Fns.render,
-            .deinit = Fns.deinit,
+            .destroy = Fns.destroy,
         };
     }
 };
@@ -64,8 +64,9 @@ pub const WindowTest = struct {
         });
     }
 
-    pub fn deinit(body: *WindowTest) void {
+    pub fn destroy(body: *WindowTest) void {
         Auto.destroy(body, .{.auto});
+        body.auto.alloc.destroy(body);
     }
 
     pub fn render(
@@ -108,7 +109,7 @@ pub const AutoTest = struct {
     }
     pub fn deinit(view: *AutoTest) void {
         for (view.windows.items) |*w| {
-            Auto.destroy(w, .{ .auto, .body });
+            w.deinit();
         }
         view.windows.deinit();
         Auto.destroy(view, .{.auto});
@@ -296,7 +297,6 @@ pub const Minesweeper = struct {
                     .board = tiles,
                     .width = width,
                 });
-                std.log.emerg("created play: {}", .{res.auto.items.count()});
                 return res;
             }
 
@@ -342,9 +342,10 @@ pub const Minesweeper = struct {
         });
     }
 
-    pub fn deinit(body: *Minesweeper) void {
+    pub fn destroy(body: *Minesweeper) void {
         body.gameState.deinit();
         Auto.destroy(body, .{.auto});
+        body.auto.alloc.destroy(body);
     }
 
     pub fn render(

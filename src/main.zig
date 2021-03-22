@@ -1578,7 +1578,7 @@ pub const MainPage = struct {
         });
     }
     pub fn deinit(page: *MainPage) void {
-        Auto.destroy(page, .{ .imedtrscrll, .imedtr2, .app, .displayedtr, .mte });
+        Auto.destroy(page, .{ .imedtrscrll, .imedtr2, .app, .displayedtr, .mte, .windowDemo, .game, .gameRender });
     }
 
     auto: Auto,
@@ -1650,7 +1650,11 @@ pub const MainPage = struct {
 // react chooses to go the anti-performance route and recreates the initial value every time unless you memoize it
 
 pub fn main() !void {
-    const alloc = std.heap.c_allocator;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer std.testing.expect(!gpa.deinit());
+    const alloc = &gpa.allocator;
+    // todo export custom malloc and free rather than using c std lib malloc/free
+    // todon't do that because that font loader library leaks memory
 
     try win.init();
     defer win.deinit();

@@ -10,8 +10,8 @@ alloc: *std.mem.Allocator,
 items: ItemsMap,
 id: gui.ID,
 
-const ItemsMap = std.AutoHashMap(u64, struct { value: help.AnyPtr, deinit: DeinitFn });
-const DeinitFn = fn (value: help.AnyPtr) void;
+const ItemsMap = std.AutoHashMap(u64, struct { value: help.AnyPtr, destroy: DestroyFn });
+const DestroyFn = fn (value: help.AnyPtr, alloc: *std.mem.Allocator) void;
 
 /// Intended for use with Auto.create
 pub fn autoInit(event: *gui.ImEvent, alloc: *std.mem.Allocator) Auto {
@@ -28,7 +28,7 @@ pub fn autoInit(event: *gui.ImEvent, alloc: *std.mem.Allocator) Auto {
 pub fn autoDeinit(auto: *Auto) void {
     var it = auto.items.iterator();
     while (it.next()) |next| {
-        next.value.deinit(next.value.value);
+        next.value.destroy(next.value.value, auto.alloc);
         // since value is not comptime known, it needs a deinit fn
     }
     auto.items.deinit();
@@ -120,15 +120,17 @@ pub fn new(auto: *Auto, initmethod: anytype, args: anytype) *@typeInfo(@TypeOf(i
     const uniqueID = help.AnyPtr.typeID(struct {});
     if (auto.items.get(uniqueID)) |v| return v.value.readAs(Type);
     const allocated = auto.alloc.create(Type) catch @panic("oom not handled");
-    const deinitfn: DeinitFn = struct {
-        fn f(value: help.AnyPtr) void {
-            value.readAs(Type).deinit();
+    const destroyfn: DestroyFn = struct {
+        fn f(value: help.AnyPtr, alloc: *std.mem.Allocator) void {
+            const vv = value.readAs(Type);
+            vv.deinit();
+            alloc.destroy(vv);
         }
     }.f;
     allocated.* = @call(.{}, initmethod, args);
     auto.items.putNoClobber(
         uniqueID,
-        .{ .deinit = deinitfn, .value = help.AnyPtr.fromPtr(allocated) },
+        .{ .destroy = destroyfn, .value = help.AnyPtr.fromPtr(allocated) },
     ) catch @panic("oom not handled");
     return allocated;
 }
