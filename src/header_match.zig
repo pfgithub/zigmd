@@ -434,7 +434,7 @@ fn structImplements(
     }
     for (implementation.decls) |decl| {
         if (!@hasDecl(Header, decl.name) and decl.is_pub and !@hasDecl(Header, "__h_ALLOW_EXTRA"))
-            return context.err("Header has extra disallowed declaration `pub " ++ decl.name ++ "`", Header, Implementation);
+            return context.err("Implementation has extra disallowed declaration `pub " ++ decl.name ++ "`", Header, Implementation);
     }
 
     for (header.fields) |field| {
@@ -463,7 +463,7 @@ test "extra declaration" {
     }, struct {
         pub const A = u64;
         pub const B = u32;
-    }), "Header has extra disallowed declaration `pub B`");
+    }), "Implementation has extra disallowed declaration `pub B`");
 }
 
 test "extra private declaration ok" {

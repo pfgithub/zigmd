@@ -280,7 +280,7 @@ pub fn asyncMain() void {
                 // cairo_stroke(cr);
 
                 const text = "Cairo Test. 🙋→⎋ يونيكود.\n" ++ @embedFile("cairo.zig");
-                const font = "Sans 12";
+                const font = "Monospace 12";
 
                 if (layout == null) {
                     layout = pango_cairo_create_layout(cr);
