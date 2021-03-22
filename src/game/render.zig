@@ -16,12 +16,18 @@ pub const GameRender = struct {
         return .{ .id = imev.newID() };
     }
     pub fn deinit(gr: *GameRender) void {}
-    pub fn renderTile(gr: *GameRender, tile: Tile, imev: *ImEvent, rect: win.Rect) !void {
+    pub fn renderTile(gr: *GameRender, tile: Tile, imev: *ImEvent, rect: win.Rect, hover: bool) !void {
         try win.renderRect(imev.window, switch (tile) {
             .wall => win.Color.hex(0xFFFFFF),
             .floor => win.Color.hex(0xEEAAFF),
             .sidewalk => win.Color.hex(0xAAEEFF),
         }, rect);
+        if (hover) {
+            try win.renderRect(imev.window, win.Color.hex(0), rect.width(1));
+            try win.renderRect(imev.window, win.Color.hex(0), rect.height(1));
+            try win.renderRect(imev.window, win.Color.hex(0), rect.setX1(rect.x2() - 1));
+            try win.renderRect(imev.window, win.Color.hex(0), rect.setY1(rect.y2() - 1));
+        }
     }
     pub fn render(gr: *GameRender, game: *Game, imev: *ImEvent, rect: win.Rect) !void {
         try imev.window.pushClipRect(rect);
@@ -52,12 +58,15 @@ pub const GameRender = struct {
                 const tile = game.surface.getTile(c) catch continue;
                 const screenPos = game.camera.toScreenPoint(c.toWorldPoint());
                 const screenPosBR = game.camera.toScreenPoint((TilePoint{ .x = c.x + 1, .y = c.y + 1 }).toWorldPoint());
-                try gr.renderTile(tile, imev, (win.Rect{
+
+                const tile_rect = (win.Rect{
                     .x = @floatToInt(i64, screenPos.x),
                     .y = @floatToInt(i64, screenPos.y),
                     .w = @floatToInt(i64, screenPosBR.x) - @floatToInt(i64, screenPos.x),
                     .h = @floatToInt(i64, screenPosBR.y) - @floatToInt(i64, screenPos.y),
-                }).down(rect.y).right(rect.x));
+                }).down(rect.y).right(rect.x); // tile_rect.addPoint(rect.topLeft())
+                const tile_hover = hs.hover and tile_rect.containsPoint(imev.cursor);
+                try gr.renderTile(tile, imev, tile_rect, tile_hover);
             }
         }
     }

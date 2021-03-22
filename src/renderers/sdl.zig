@@ -5,7 +5,7 @@ const sdl = @cImport({
 });
 const std = @import("std");
 const help = @import("../helpers.zig");
-pub usingnamespace @import("./common.zig");
+usingnamespace @import("./common.zig");
 
 const ER = RenderingError;
 const ERF = RenderingError || FontLoadError;

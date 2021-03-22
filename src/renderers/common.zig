@@ -148,8 +148,8 @@ fn RectFns(comptime This: type) type {
             return rect.y + rect.h;
         }
         pub fn containsPoint(rect: This, point: Point) bool {
-            return point.x >= rect.x and point.x <= rect.x + rect.w and
-                point.y >= rect.y and point.y <= rect.y + rect.h;
+            return point.x >= rect.x and point.x < rect.x + rect.w and
+                point.y >= rect.y and point.y < rect.y + rect.h;
         }
         pub fn centerX(rect: This) i64 {
             return rect.x + @divFloor(rect.w, 2);
