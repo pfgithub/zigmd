@@ -117,7 +117,7 @@ pub const Game = struct {
     pub fn init() Game {
         return .{
             .surface = Surface.fromText(@embedFile("map.txt")) catch @panic("bad map"),
-            .camera = .{ .topLeft = .{ .x = 0, .y = 0 }, .tileSize = 12 },
+            .camera = .{ .topLeft = .{ .x = 0, .y = 0 }, .tileSize = 48 },
             .player = .{ .x = 0, .y = 0 },
         };
     }
