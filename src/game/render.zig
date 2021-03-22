@@ -65,7 +65,7 @@ pub const GameRender = struct {
                     .w = @floatToInt(i64, screenPosBR.x) - @floatToInt(i64, screenPos.x),
                     .h = @floatToInt(i64, screenPosBR.y) - @floatToInt(i64, screenPos.y),
                 }).down(rect.y).right(rect.x); // tile_rect.addPoint(rect.topLeft())
-                const tile_hover = hs.hover and tile_rect.containsPoint(imev.cursor);
+                const tile_hover = (hs.hover or hs.click) and tile_rect.containsPoint(imev.cursor);
                 try gr.renderTile(tile, imev, tile_rect, tile_hover);
             }
         }
